@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HEDI Admin Console</title>
+
+  <link rel="icon" type="image/png" href="/img/favicon.png" sizes="512x512">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="manifest" href="/img/site.webmanifest">
+  <meta name="theme-color" content="#0f2740">
+
+  <style>
+    :root {
+      --brand: #0f2740;
+      --text: #2b3e55;
+      --border: #cfd8e3;
+      --bg: #f8fbff;
+      --accent: #ff914d;
+    }
+
+    body { margin: 0; font-family: "Inter", system-ui, sans-serif; background: #ffffff; color: var(--text); }
+
+    .site-header {
+      display: flex; align-items: center; gap: .75rem; padding: 12px 16px;
+      background: var(--bg); border-bottom: 1px solid #e5e9f0;
+    }
+    .brand { display: inline-flex; align-items: center; gap: .5rem; text-decoration: none; color: var(--brand); font-weight: 700; font-size: 1.2rem; }
+
+    main { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { color: var(--brand); margin-bottom: .75rem; }
+
+    .search-bar { display: flex; gap: .5rem; margin-bottom: 1rem; }
+    input[type="search"] {
+      flex: 1; padding: .6rem; border: 1px solid var(--border); border-radius: 6px;
+    }
+    button {
+      background: var(--brand); color: #fff; border: none; padding: .6rem 1rem;
+      border-radius: 6px; cursor: pointer; font-weight: 600;
+    }
+    button:hover { background: var(--accent); }
+
+    table {
+      width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: .95rem;
+    }
+    th, td {
+      padding: .75rem; border: 1px solid var(--border); text-align: left;
+    }
+    th {
+      background: var(--bg); color: var(--brand);
+    }
+
+    footer {
+      text-align: center; padding: 1.5rem; color: #808c9e; border-top: 1px solid #e5e9f0;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="site-header">
+    <a href="/" class="brand">
+      <img src="/img/favicon.png" alt="HEDI" width="40" height="40" style="border-radius:10px;">
+      <span>HEDI</span>
+    </a>
+  </header>
+
+  <main>
+    <h1>Admin Console</h1>
+    <p>Review submitted files, statuses, and processed claim results.</p>
+
+    <div class="search-bar">
+      <input type="search" id="searchInput" placeholder="Search by file name, claim ID, or date..." />
+      <button onclick="search()">Search</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>File Name</th>
+          <th>Submitter</th>
+          <th>Status</th>
+          <th>Received</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="resultsTable">
+        <tr><td colspan="5" style="text-align:center; color:#888;">No records yet.</td></tr>
+      </tbody>
+    </table>
+  </main>
+
+  <footer>© 2025 HEDI — Administrative Dashboard</footer>
+
+  <script>
+    async function search() {
+      const q = document.getElementById('searchInput').value.trim();
+      if (!q) return;
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) return alert('Search failed.');
+      const data = await res.json();
+      const tbody = document.getElementById('resultsTable');
+      tbody.innerHTML = '';
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">No results found.</td></tr>';
+        return;
+      }
+      for (const row of data) {
+        tbody.innerHTML += `
+          <tr>
+            <td>${row.filename}</td>
+            <td>${row.user || '—'}</td>
+            <td>${row.status}</td>
+            <td>${row.received}</td>
+            <td><a href="/api/files/${row.id}" target="_blank">View</a></td>
+          </tr>`;
+      }
+    }
+  </script>
+</body>
+</html>

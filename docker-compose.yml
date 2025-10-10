@@ -1,0 +1,141 @@
+version: "3.8"
+
+volumes:
+  pgdata:
+  archive:
+  rabbitmq_data:
+
+networks:
+  default:
+    name: turboedi-starter_default
+
+services:
+  postgres:
+    image: docker.io/library/postgres:16
+    container_name: turboedi-starter_postgres_1
+    environment:
+      POSTGRES_USER: edi
+      POSTGRES_PASSWORD: edi
+      POSTGRES_DB: edi
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq:
+    image: docker.io/library/rabbitmq:3-management
+    container_name: turboedi-starter_rabbitmq_1
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      # Create the exact creds your API/Worker expect
+      RABBITMQ_DEFAULT_USER: ediapp
+      RABBITMQ_DEFAULT_PASS: 3wm078uu
+      RABBITMQ_DEFAULT_VHOST: /
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq:Z,rw
+
+  api:
+    # If you build locally:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    # Or, if already built: image: turboedi-starter_api
+    container_name: turboedi-starter_api_1
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://edi:edi@postgres:5432/edi
+      RMQ_HOST: rabbitmq
+      RMQ_PORT: "5672"
+      RMQ_USER: ediapp
+      RMQ_PASS: 3wm078uu
+      ARCHIVE_DIR: /archive
+    ports:
+      - "8000:8000"
+    volumes:
+      - archive:/archive
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    # NOTE: make sure requirements include: fastapi, uvicorn, pika, python-dotenv, pydantic, python-multipart
+
+  worker_py:
+    build:
+      context: ./worker_py
+      dockerfile: Dockerfile
+    # Or: image: turboedi-starter_worker_py
+    container_name: turboedi-starter_worker_py_1
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://edi:edi@postgres:5432/edi
+      RMQ_HOST: rabbitmq
+      RMQ_PORT: "5672"
+      RMQ_USER: ediapp
+      RMQ_PASS: 3wm078uu
+      ARCHIVE_DIR: /archive
+    volumes:
+      - archive:/archive
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend_go:
+    build:
+      context: ./frontend_go
+      dockerfile: Dockerfile
+    # Or: image: turboedi-starter_frontend_go
+    container_name: turboedi-starter_frontend_go_1
+    environment:
+      # the Go service should use this to call the API
+      INGEST_URL: http://api:8000/ingest
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  httpd:
+    image: httpd:2.4
+    container_name: turbohedi_httpd
+    depends_on:
+      - frontend_go
+      - api
+      - rabbitmq
+    ports:
+      - "8088:8088"
+      - "8443:8443"
+    # IMPORTANT: all destination paths start with a leading slash
+    volumes:
+      # Replace the main Apache config with your hardened one
+      - /app/turbohedi0.1/deploy/httpd/conf.d/httpd.conf:/usr/local/apache2/conf/httpd.conf:Z,ro
+      # Extra configs (SSL, vhosts, OIDC/LDAP samples)
+      - /app/turbohedi0.1/deploy/httpd/conf.d/ssl.conf:/usr/local/apache2/conf.d/ssl.conf:Z,ro
+      - /app/turbohedi0.1/deploy/httpd/conf.d/vhosts-claims.conf:/usr/local/apache2/conf.d/vhosts-claims.conf:Z,ro
+      # Authn/z files (file-based users & groups)
+      - /app/turbohedi0.1/deploy/httpd/auth:/usr/local/apache2/conf/auth:Z,ro
+      # TLS certificates (server.crt, server.key, chain if any)
+      - /app/turbohedi0.1/deploy/httpd/certs:/usr/local/apache2/conf/certs:Z,ro
+    restart: unless-stopped

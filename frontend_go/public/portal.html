@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HEDI Claims Portal</title>
+
+  <!-- Icons / Manifest -->
+  <link rel="icon" type="image/png" href="/img/favicon.png" sizes="512x512">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="manifest" href="/img/site.webmanifest">
+  <meta name="theme-color" content="#0f2740">
+
+  <!-- Styles -->
+  <style>
+    :root {
+      --brand: #0f2740;
+      --text: #2b3e55;
+      --light: #f8fbff;
+      --border: #cfd8e3;
+      --accent: #ff914d;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, sans-serif;
+      background: #ffffff;
+      color: var(--text);
+    }
+
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: 12px 16px;
+      background: var(--light);
+      border-bottom: 1px solid #e5e9f0;
+    }
+    .brand { display: inline-flex; align-items: center; gap:.5rem; text-decoration:none; color:var(--brand); font-weight:700; font-size:1.2rem; }
+    .brand-text { letter-spacing:.02em; }
+
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    h1 {
+      color: var(--brand);
+      font-size: 1.6rem;
+      margin-bottom: .5rem;
+    }
+
+    .upload-card {
+      background: var(--light);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color .2s ease;
+    }
+    .upload-zone:hover {
+      border-color: var(--accent);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .upload-aside {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1.5rem;
+      border: 1px dashed #c7d2e1;
+      border-radius: 12px;
+      background: var(--light);
+      padding: 12px 14px;
+    }
+    .upload-aside img {
+      width: 120px;
+      height: auto;
+    }
+    .upload-aside p {
+      margin: 0;
+      color: var(--text);
+      font-size: .95rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      color: #808c9e;
+      border-top: 1px solid #e5e9f0;
+      font-size: 0.9rem;
+    }
+
+    .btn {
+      display:inline-block;
+      background:var(--brand);
+      color:#fff;
+      padding:0.6rem 1rem;
+      border-radius:.5rem;
+      text-decoration:none;
+      margin-top:1rem;
+      font-weight:600;
+    }
+    .btn:hover { background: var(--accent); }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <header class="site-header">
+    <a href="/" class="brand" aria-label="HEDI Home">
+      <img src="/img/favicon.png" alt="HEDI" width="40" height="40" style="vertical-align:middle;border-radius:10px;">
+      <span class="brand-text">HEDI</span>
+    </a>
+  </header>
+
+  <main>
+    <h1>Claims Upload Portal</h1>
+    <p>Upload your single or bulk X12 claim files here. HEDI will queue, validate, archive, and track results for review.</p>
+
+    <div class="upload-card">
+      <form id="uploadForm" enctype="multipart/form-data">
+        <label class="upload-zone" for="fileInput">
+          <p>📤 Drag & Drop your .x12 or .edi files here<br>or click to browse</p>
+        </label>
+        <input type="file" id="fileInput" name="file" multiple accept=".x12,.edi" />
+        <button class="btn" type="submit">Submit Files</button>
+      </form>
+
+      <aside class="upload-aside">
+        <img src="/img/mascot.png" alt="HEDI mascot" />
+        <p>Tip: You can upload a single file or a bulk 837 batch. Each file is archived and tracked automatically in your user dashboard.</p>
+      </aside>
+    </div>
+  </main>
+
+  <footer>© 2025 HEDI EDI Platform — Secure File Processing & Tracking</footer>
+
+  <script>
+    const form = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const files = fileInput.files;
+      if (!files.length) return alert('Please select a file first.');
+      const formData = new FormData();
+      for (const f of files) formData.append('files', f);
+      const res = await fetch('/ingest', { method: 'POST', body: formData });
+      if (res.ok) alert('Upload complete!');
+      else alert('Error uploading file(s).');
+    });
+  </script>
+</body>
+</html>

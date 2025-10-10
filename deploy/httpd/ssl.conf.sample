@@ -1,0 +1,14 @@
+SSLCipherSuite HIGH:!aNULL:!MD5:!3DES
+SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+SSLHonorCipherOrder on
+SSLCompression off
+SSLSessionTickets off
+
+# OCSP stapling
+SSLUseStapling on
+SSLStaplingResponderTimeout 5
+SSLStaplingReturnResponderErrors off
+SSLStaplingCache shmcb:/var/run/ocsp(128000)
+
+# Enable HSTS after HTTPS is verified
+# Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"

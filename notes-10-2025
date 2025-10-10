@@ -1,0 +1,24 @@
+sudo chmod 0644 /app/turbohedi0.1/deploy/httpd/conf.d/*.conf
+sudo chmod 0644 /app/turbohedi0.1/deploy/httpd/auth/* || true
+sudo chmod 0644 /app/turbohedi0.1/deploy/httpd/certs/*  # key may remain 0600 if container runs root (httpd image does)
+
+
+=====================================
+
+46  podman rm c197723cbefdbac03959f250fb2c9f581b446fb43cc73b339223eb0da3a0b580
+   47  podman-compose up
+   48  podman-compose down ||true
+   49  history 
+   50  clear
+   51  podman-compose restart httpd
+   52  podman logs -f turbohedi_httpd
+   53  podman-compose restart httpd
+   54  podman logs -f turbohedi_httpd
+   55  netstat -anp |grep LIST |grep tcp
+   56  curl -kv https://localhost:8088
+   57  curl -kv https://localhost:8443
+   58  podman logs -f turbohedi_httpd
+   59  clear
+   60  curl -kv https://localhost:8088
+   61  curl -kv https://localhost:8443
+

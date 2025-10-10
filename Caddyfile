@@ -1,0 +1,12 @@
+
+# Example TLS frontend (Automatic HTTPS with Caddy)
+# Replace example.com with your domain, point DNS to your server, then:
+# docker compose up -d caddy
+#
+# example.com {
+#     encode zstd gzip
+#     @assets {
+#         path /assets/*
+#     }
+#     reverse_proxy frontend_go:8080
+# }

@@ -1,0 +1,6 @@
+/app/turbohedi0.1/deploy/httpd/conf.d/httpd.conf
+/app/turbohedi0.1/deploy/httpd/conf.d/ssl.conf
+/app/turbohedi0.1/deploy/httpd/conf.d/vhosts-claims.conf
+/app/turbohedi0.1/deploy/httpd/auth/
+/app/turbohedi0.1/deploy/httpd/certs/
+

@@ -1,0 +1,17 @@
+<IfModule mod_ldap.c>
+    LDAPSharedCacheSize 200000
+    LDAPCacheEntries 1024
+    LDAPCacheTTL 600
+    LDAPOpCacheEntries 1024
+    LDAPOpCacheTTL 600
+</IfModule>
+
+<IfModule mod_authnz_ldap.c>
+    AuthType Basic
+    AuthName "Claims Portal"
+    AuthBasicProvider ldap
+    AuthLDAPURL "ldap://ipa.example.com/ou=People,dc=example,dc=com?uid?sub?(objectClass=person)"
+    AuthLDAPBindDN "uid=webbind,cn=users,cn=accounts,dc=example,dc=com"
+    AuthLDAPBindPassword "<bind-password>"
+    Require ldap-group cn=submitters,cn=groups,cn=accounts,dc=example,dc=com
+</IfModule>

@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Claims Portal</title>
+  <link rel="stylesheet" href="/public/css/style.css"/>
+</head>
+<body>
+  <header>
+    <nav><a href="/">Home</a> | <a href="/portal">Portal</a> | <a href="/admin">Admin</a></nav>
+  </header>
+  <main>
+    <h1>Submit X12 File</h1>
+    <form id="uploadForm" method="post" action="/upload" enctype="multipart/form-data">
+      <input type="file" name="file" required />
+      <button type="submit">Upload</button>
+    </form>
+    <pre id="result" style="margin-top:1rem;"></pre>
+  </main>
+  <script>
+  const form = document.getElementById('uploadForm');
+  const result = document.getElementById('result');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    try {
+      const resp = await fetch('/upload', { method: 'POST', body: fd });
+      const text = await resp.text();
+      result.textContent = text;
+    } catch (err) {
+      result.textContent = 'Error: ' + err;
+    }
+  });
+  </script>
+</body>
+</html>

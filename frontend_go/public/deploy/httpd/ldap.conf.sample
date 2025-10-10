@@ -1,0 +1,19 @@
+
+# LDAP / FreeIPA (alternative)
+# yum install -y mod_ldap
+LDAPTrustedMode SSL
+LDAPTrustedGlobalCert CA_BASE64 /etc/pki/tls/certs/ca-bundle.crt
+
+<Location "/">
+  AuthType Basic
+  AuthBasicProvider ldap
+  AuthName "Sassy Claims"
+  AuthLDAPURL "ldaps://ldap.example.com/ou=people,dc=example,dc=com?uid?sub?(objectClass=person)"
+  AuthLDAPBindDN "uid=binduser,ou=people,dc=example,dc=com"
+  AuthLDAPBindPassword "__REPLACE_ME__"
+  Require valid-user
+</Location>
+
+<Location "/admin.html">
+  Require ldap-group cn=Admins,ou=groups,dc=example,dc=com
+</Location>

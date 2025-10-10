@@ -1,0 +1,13 @@
+OIDCProviderMetadataURL https://keycloak.example.com/realms/claims/.well-known/openid-configuration
+OIDCClientID claims-portal
+OIDCClientSecret <client-secret>
+OIDCRedirectURI https://claims.local/oidc/callback
+OIDCCryptoPassphrase some-long-random-passphrase
+OIDCScope "openid email profile roles"
+
+<Location />
+  AuthType openid-connect
+  Require valid-user
+  # Gate realm role "submitter"
+  Require claim "realm_access.roles" contains "submitter"
+</Location>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HEDI Portal</title>
+
+  <!-- 🌟 Favicon & PWA -->
+  <link rel="icon" type="image/png" href="/img/favicon.png" sizes="512x512">
+  <link rel="icon" href="/img/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="manifest" href="/img/site.webmanifest">
+  <meta name="theme-color" content="#0f2740">
+  <meta name="application-name" content="HEDI Portal">
+  <meta name="apple-mobile-web-app-title" content="HEDI">
+
+  <!-- 🌈 Basic site styles -->
+  <style>
+    :root {
+      --brand-color: #0f2740;
+      --text-color: #2b3e55;
+      --bg-light: #f8fbff;
+      --accent: #ff914d;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, sans-serif;
+      color: var(--text-color);
+      background: #ffffff;
+    }
+
+    /* Header (HEDI logo) */
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 12px 16px;
+      background: var(--bg-light);
+      border-bottom: 1px solid #e5e9f0;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+      color: var(--brand-color);
+      font-weight: 700;
+      font-size: 1.2rem;
+    }
+
+    .brand-text {
+      letter-spacing: 0.02em;
+    }
+
+    /* Hero section */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 2rem;
+      align-items: center;
+      padding: 60px 24px;
+      max-width: 1200px;
+      margin-inline: auto;
+    }
+
+    .hero-copy h1 {
+      font-size: clamp(1.8rem, 2vw + 1rem, 2.6rem);
+      margin: 0 0 0.5rem;
+      color: var(--brand-color);
+    }
+
+    .hero-copy p {
+      margin: 0 0 1.5rem;
+      font-size: 1.05rem;
+      line-height: 1.5;
+    }
+
+    .btn {
+      display: inline-block;
+      background: var(--brand-color);
+      color: #fff;
+      padding: 0.7rem 1.4rem;
+      border-radius: 0.6rem;
+      text-decoration: none;
+      font-weight: 600;
+      transition: background 0.2s ease;
+    }
+
+    .btn:hover {
+      background: var(--accent);
+    }
+
+    .hero-mascot {
+      max-width: 100%;
+      height: auto;
+      transform: translateY(8px);
+    }
+
+    @media (max-width: 900px) {
+      .hero {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+      .hero-mascot {
+        margin-inline: auto;
+        width: min(420px, 80vw);
+      }
+    }
+
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      color: #808c9e;
+      border-top: 1px solid #e5e9f0;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 🧭 Header -->
+  <header class="site-header">
+    <a href="/" class="brand" aria-label="HEDI Home">
+      <img src="/img/favicon.png" alt="HEDI" width="40" height="40" style="vertical-align:middle;border-radius:10px;">
+      <span class="brand-text">HEDI</span>
+    </a>
+  </header>
+
+  <!-- 🏥 Hero section -->
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>Fast, Friendly, and Secure EDI Processing</h1>
+      <p>Welcome to HEDI — your modern Electronic Data Interchange platform for healthcare and supply-chain partners. Submit, track, and manage your 837, 835, and 999 files in seconds.</p>
+      <a class="btn" href="/portal.html">Enter Claims Portal</a>
+    </div>
+    <img class="hero-mascot" src="/img/mascot.png" alt="HEDI mascot jumping over DNA helix">
+  </section>
+
+  <footer>
+    © 2025 HEDI EDI Platform — All Rights Reserved
+  </footer>
+</body>
+</html>
