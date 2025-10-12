@@ -1,0 +1,23 @@
+
+# Keycloak + mod_auth_openidc (recommended)
+# yum install -y mod_auth_openidc
+OIDCProviderMetadataURL https://keycloak.example.com/realms/claims/.well-known/openid-configuration
+OIDCClientID sassy-claims-web
+OIDCClientSecret __REPLACE_ME__
+OIDCRedirectURI https://portal1.sassy-claims.local/redirect_uri
+OIDCCryptoPassphrase __CHANGE_ME__
+OIDCScope "openid email profile roles"
+OIDCRemoteUserClaim preferred_username
+OIDCClaimPrefix "OIDC-"
+OIDCUnAuthAction auth
+
+<Location "/">
+  AuthType openid-connect
+  Require valid-user
+</Location>
+
+# Role-based authorization (example: only Reviewers and Admins)
+<Location "/admin.html">
+  AuthType openid-connect
+  Require claim realm_access.roles:Admin
+</Location>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <title>HEDI — Login</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+</head>
+<body>
+<header class="site-header">
+  <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
+  <nav class="nav"><a href="/">Home</a></nav>
+</header>
+
+<main class="container">
+  <div class="card" style="max-width:420px;margin:40px auto;">
+    <h2 style="text-align:center;">Sign in to HEDI</h2>
+    <form method="post" action="/auth/login">
+      <input type="hidden" name="next" value="{{NEXT}}">
+      <label>Username</label>
+      <input name="username" type="text" required>
+      <label style="margin-top:.6rem;">Password</label>
+      <input name="password" type="password" required>
+      <div style="margin-top:1rem;display:flex;gap:.6rem;align-items:center;">
+        <button type="submit">Sign in</button>
+        <a href="/" style="color:var(--muted);">Cancel</a>
+      </div>
+    </form>
+    <script>
+      // put current ?next= into hidden input so redirects land correctly
+      const params = new URLSearchParams(location.search);
+      const nxt = params.get('next') || '/portal.html';
+      document.querySelector('input[name="next"]').value = nxt;
+    </script>
+    <p style="margin-top:.8rem;color:var(--muted);font-size:.92rem;">
+      Using <code>htpasswd</code> authentication.<br>
+      Set LDAP/AD env to enable enterprise directory login.
+    </p>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <title>HEDI — Claim Entry</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+</head>
+<body>
+<header class="site-header">
+  <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
+  <nav class="nav">
+    <a href="/portal.html">Portal</a>
+    <a href="/edi-mapping.html">EDI Mapping</a>
+    <a href="/claim-entry.html" aria-current="page">Claim Entry</a>
+    <a href="/logout">Logout</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="card">
+    <h2>Claim Entry (837 Form)</h2>
+    <p>Enter a new claim or load and copy an existing one to modify.</p>
+
+    <div class="row">
+      <div>
+        <label>Copy Previous Claim ID</label>
+        <input type="text" placeholder="e.g., 2025-CLM-000123">
+      </div>
+      <div style="display:flex;align-items:end;">
+        <button type="button">Load &amp; Copy</button>
+      </div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid rgba(15,39,64,.08);margin:20px 0;"/>
+
+    <div class="row">
+      <div>
+        <label>Federal Tax ID</label>
+        <input type="text" placeholder="12-3456789">
+      </div>
+      <div>
+        <label>Date of Service</label>
+        <input type="date">
+      </div>
+    </div>
+
+    <h3 style="margin-top:20px;">Patient Info</h3>
+    <div class="row">
+      <div><label>First Name</label><input type="text"></div>
+      <div><label>Last Name</label><input type="text"></div>
+      <div><label>Member ID</label><input type="text"></div>
+      <div><label>Birth Date</label><input type="date"></div>
+      <div>
+        <label>State</label>
+        <select>
+          <option value="">Select…</option>
+          <option>CA</option><option>NY</option><option>TX</option><option>FL</option><option>IL</option>
+        </select>
+      </div>
+    </div>
+
+    <h3 style="margin-top:20px;">Service Info</h3>
+    <div class="row">
+      <div><label>CPT® Code</label><input type="text" placeholder="e.g., 99213"></div>
+      <div><label>DX Code</label><input type="text" placeholder="e.g., R51.9"></div>
+      <div><label>Modifier</label><input type="text" placeholder="25"></div>
+      <div><label>Units</label><input type="number" placeholder="1"></div>
+    </div>
+
+    <div style="margin-top:12px;display:flex;gap:.6rem;">
+      <label><input type="checkbox"> Telehealth</label>
+      <label><input type="checkbox"> Observation</label>
+      <label><input type="checkbox"> Global</label>
+    </div>
+
+    <div style="margin-top:20px;">
+      <button>Validate &amp; Save</button>
+      <button style="background:var(--ok);">Queue for Processing</button>
+    </div>
+
+    <p style="margin-top:12px;color:var(--muted);font-size:.92rem;">
+      ✅ Edits auto-applied:
+      CCI/NCD/LCD, Medicare & commercial unbundling, CPT↔DX↔Modifiers, DX sequencing, eligibility, duplicates, gender/age rules.
+    </p>
+  </div>
+</main>
+</body>
+</html>

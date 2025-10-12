@@ -104,38 +104,22 @@ services:
   frontend_go:
     build:
       context: ./frontend_go
-      dockerfile: Dockerfile
-    # Or: image: turboedi-starter_frontend_go
-    container_name: turboedi-starter_frontend_go_1
     environment:
-      # the Go service should use this to call the API
       INGEST_URL: http://api:8000/ingest
+      HEDI_SESSION_SECRET: "HediMAsonarySCRewBitSEMINar3194"
+      # LDAP_URL: ldap://ldap:389
+      # LDAP_BASE_DN: dc=example,dc=org
+      # LDAP_USER_ATTR: uid
+      # LDAP_BIND_DN: cn=readonly,dc=example,dc=org
+      # LDAP_BIND_PASS: secret
+      CERT_FILE: /app/turbohedi0.1/deploy/httpd/certs/server.crt
+      KEY_FILE: /app/turbohedi0.1/deploy/httpd/certs/server.key
+    volumes:
+      - ./frontend_go/public:/app/public:Z
+      - ./frontend_go/auth:/app/auth:Z
+      - ./deploy/httpd/certs:/app/turbohedi0.1/deploy/httpd/certs:Z,ro
     ports:
       - "8080:8080"
-    depends_on:
-      api:
-        condition: service_started
+      - "8443:8443"
     restart: unless-stopped
 
-  httpd:
-    image: httpd:2.4
-    container_name: turbohedi_httpd
-    depends_on:
-      - frontend_go
-      - api
-      - rabbitmq
-    ports:
-      - "8088:8088"
-      - "8443:8443"
-    # IMPORTANT: all destination paths start with a leading slash
-    volumes:
-      # Replace the main Apache config with your hardened one
-      - /app/turbohedi0.1/deploy/httpd/conf.d/httpd.conf:/usr/local/apache2/conf/httpd.conf:Z,ro
-      # Extra configs (SSL, vhosts, OIDC/LDAP samples)
-      - /app/turbohedi0.1/deploy/httpd/conf.d/ssl.conf:/usr/local/apache2/conf.d/ssl.conf:Z,ro
-      - /app/turbohedi0.1/deploy/httpd/conf.d/vhosts-claims.conf:/usr/local/apache2/conf.d/vhosts-claims.conf:Z,ro
-      # Authn/z files (file-based users & groups)
-      - /app/turbohedi0.1/deploy/httpd/auth:/usr/local/apache2/conf/auth:Z,ro
-      # TLS certificates (server.crt, server.key, chain if any)
-      - /app/turbohedi0.1/deploy/httpd/certs:/usr/local/apache2/conf/certs:Z,ro
-    restart: unless-stopped

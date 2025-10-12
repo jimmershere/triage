@@ -36,11 +36,9 @@ async def ingest(file: UploadFile = File(...)):
         connection, ch = get_channel()
         ch.basic_publish(
             exchange="",
-            routing_key="ingest",
-            body=json.dumps(payload).encode("utf-8"),
-            properties=pika.BasicProperties(
-                delivery_mode=2  # persistent
-            ),
+            routing_key=os.environ.get("RMQ_QUEUE", "edi_files"),
+            body=payload_bytes,
+            properties=pika.BasicProperties(delivery_mode=2),
         )
         connection.close()
         logger.info("Enqueued job %s (%s bytes) for %s", job_id, len(content), file.filename)

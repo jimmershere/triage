@@ -12,21 +12,55 @@ RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://edi:edi@postgres:5432/edi")
 
 def get_rmq_channel():
-    for attempt in range(10):
+    """
+    Connect to RabbitMQ using env vars and return (connection, channel).
+    Retries until RabbitMQ is ready.
+    """
+    rmq_host  = os.environ.get("RMQ_HOST", "rabbitmq")
+    rmq_port  = int(os.environ.get("RMQ_PORT", "5672"))
+    rmq_user  = os.environ.get("RMQ_USER", "ediapp")
+    rmq_pass  = os.environ.get("RMQ_PASS", "3wm078uu")
+    rmq_vhost = os.environ.get("RMQ_VHOST", "/")
+    rmq_queue = os.environ.get("RMQ_QUEUE", "edi_files")
+
+    creds = pika.PlainCredentials(rmq_user, rmq_pass)
+
+    params = pika.ConnectionParameters(
+        host=rmq_host,
+        port=rmq_port,
+        virtual_host=rmq_vhost,
+        credentials=creds,
+        heartbeat=30,
+        blocked_connection_timeout=300,
+        # These two let pika retry the TCP connect step internally
+        connection_attempts=12,
+        retry_delay=5,
+        client_properties={"connection_name": "hedi-worker"},
+    )
+
+    # Robust retry loop for when broker is still starting
+    attempts = 0
+    while True:
+        attempts += 1
         try:
-            credentials = pika.PlainCredentials('ediapp', '3wm078uu')
-            params = pika.ConnectionParameters(
-                host='rabbitmq', port=5672,
-                credentials=credentials,
-                heartbeat=600, blocked_connection_timeout=300
+            connection = pika.BlockingConnection(params)
+            channel = connection.channel()
+            # Ensure queue exists & is durable
+            channel.queue_declare(queue=rmq_queue, durable=True)
+            # Publisher confirms are nice if you publish from this worker
+            try:
+                channel.confirm_delivery()
+            except Exception:
+                pass
+            logging.info(
+                "Connected to RabbitMQ %s:%s vhost=%s queue=%s as %s",
+                rmq_host, rmq_port, rmq_vhost, rmq_queue, rmq_user
             )
-            conn = pika.BlockingConnection(params)
-            ch = conn.channel()
-            return conn, ch
-        except pika.exceptions.AMQPConnectionError as e:
-            print(f"RabbitMQ not ready (attempt {attempt+1}/10): {e}")
-            time.sleep(5)
-    raise RuntimeError("RabbitMQ connection failed after 10 retries")
+            return connection, channel
+        except Exception as e:
+            wait = min(5 + attempts, 20)
+            logging.warning("RabbitMQ not ready (%s). Retry in %ss...", repr(e), wait)
+            time.sleep(wait)
 
 def get_db():
     return psycopg2.connect(DATABASE_URL)
@@ -208,26 +242,40 @@ def process_payload(payload: dict):
 
 def main():
     conn, ch = get_rmq_channel()
-    logger.info("Worker connected to RabbitMQ. Waiting for messages...")
+    rmq_queue = os.environ.get("RMQ_QUEUE", "edi_files")
+    acks_queue = os.environ.get("RMQ_ACKS_QUEUE", "acks")
+
+    # Ensure both queues exist & are durable
+    ch.queue_declare(queue=rmq_queue, durable=True)
+    ch.queue_declare(queue=acks_queue, durable=True)
+
+    logger.info("Worker connected. Consuming from %s, publishing acks to %s", rmq_queue, acks_queue)
+
     def cb(ch_, method, properties, body):
         try:
             payload = json.loads(body.decode("utf-8"))
             ftype, size = process_payload(payload)
-            logger.info("Processed %s bytes as %s for file %s", size, ftype, payload.get("filename"))
-            # Publish ack content pointer (optional, here just echo file + type)
+            logger.info("Processed %s bytes as %s for file %s",
+                        size, ftype, payload.get("filename"))
+            # publish a simple ack message
             ch_.basic_publish(
                 exchange="",
-                routing_key="acks",
-                body=json.dumps({"job_id": payload.get("job_id"), "filename": payload.get("filename"), "file_type": ftype}).encode("utf-8"),
+                routing_key=acks_queue,
+                body=json.dumps({
+                    "job_id": payload.get("job_id"),
+                    "filename": payload.get("filename"),
+                    "file_type": ftype
+                }).encode("utf-8"),
                 properties=pika.BasicProperties(delivery_mode=2),
             )
             ch_.basic_ack(delivery_tag=method.delivery_tag)
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to process message; rejecting")
             ch_.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
-    ch.basic_qos(prefetch_count=4)
-    ch.basic_consume(queue="ingest", on_message_callback=cb, auto_ack=False)
+    ch.basic_qos(prefetch_count=10)
+    ch.basic_consume(queue=rmq_queue, on_message_callback=cb, auto_ack=False)
+
     try:
         ch.start_consuming()
     except KeyboardInterrupt:

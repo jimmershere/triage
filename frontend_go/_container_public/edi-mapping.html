@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <title>HEDI — Drag & Drop Mapping</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+</head>
+<body>
+<header class="site-header">
+  <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
+  <nav class="nav">
+    <a href="/portal.html">Claim Portal</a>
+    <a href="/edi-mapping.html" aria-current="page">EDI Mapping</a>
+    <a href="/claim-entry.html">Claim Entry</a>
+    <a href="/logout">Logout</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="card">
+    <h2>X12 Segment Mapping</h2>
+    <p>Build transaction flows by dragging EDI segments into a custom sequence. Color-coded segments make mapping quick and clear.</p>
+    <div class="row">
+      <div class="card">
+        <h3>Available Segments</h3>
+        <ul id="segments" style="list-style:none;padding:0;margin:0;display:grid;gap:8px;">
+          <li draggable="true" class="badge">ISA</li>
+          <li draggable="true" class="badge">GS</li>
+          <li draggable="true" class="badge">ST</li>
+          <li draggable="true" class="badge">NM1</li>
+          <li draggable="true" class="badge">CLM</li>
+          <li draggable="true" class="badge">SV1</li>
+          <li draggable="true" class="badge">SE</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Mapping Canvas</h3>
+        <div id="canvas" style="min-height:220px;border:2px dashed rgba(47,109,246,.3);border-radius:10px;padding:12px;transition:background 0.3s;">
+          <em>Drop segments here to build your flow…</em>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px;">
+    <h3>Coverage Rules Applied</h3>
+    <ul>
+      <li>✔️ Medicare unbundle (CCI), NCD/LCD, commercial edits</li>
+      <li>✔️ CPT ↔ DX ↔ Modifier mapping & sequencing</li>
+      <li>✔️ Age/gender/frequency validations</li>
+      <li>✔️ Real-time eligibility checks by DOS</li>
+      <li>✔️ Duplicate claim detection & handling</li>
+    </ul>
+  </div>
+</main>
+
+<script src="/static/js/mapper.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "HEDI Portal",
+  "short_name": "HEDI",
+  "icons": [
+    {
+      "src": "/img/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/img/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#0f2740",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/"
+}

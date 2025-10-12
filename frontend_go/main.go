@@ -1,245 +1,318 @@
 package main
 
 import (
-	"bytes"
-	"context"
-	"embed"
-	"html/template"
-	"io"
-	"log"
-	"mime/multipart"
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"flag"
+	"fmt"
+	//"html/template"
 	"net/http"
+	"net/url"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"time"
-	"path/filepath"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	//"github.com/go-chi/httprate"
-	//"github.com/joho/godotenv"
+	"golang.org/x/crypto/bcrypt"
 )
-
-//go:embed public/*
-var publicFS embed.FS
-
-//go:embed templates/*
-var templatesFS embed.FS
 
 var (
-	apiBase     string
-	listenAddr  string
-	enableBasic bool
-	usersFile   string
-	templates   *template.Template
+	publicDir = env("PUBLIC_DIR", "/app/public") // bind-mounted in the container
+	// session settings
+	cookieName     = "hedi_session"
+	sessionTTL     = 24 * time.Hour
+	sessionSecret  = []byte(env("HEDI_SESSION_SECRET", "dev-secret-change-me"))
+	secureCookies  = true // you’re using TLS on 8443
 )
 
-func mustEnv(name, def string) string {
-	if v := os.Getenv(name); v != "" {
+// ---------- small helpers ----------
+
+func env(k, def string) string {
+	if v := os.Getenv(k); v != "" {
 		return v
 	}
 	return def
 }
 
-type userPerms struct {
-	Password string
-	Roles    []string
-	Perms    []string
+func isProtectedPath(p string) bool {
+	p = strings.ToLower(p)
+	protected := map[string]bool{
+		"/portal.html":      true,
+		"/edi-mapping.html": true,
+		"/claim-entry.html": true,
+		"/admin.html":       true,
+	}
+	return protected[p]
 }
 
-func loadUsers(file string) (map[string]userPerms, error) {
-	if file == "" {
-		return map[string]userPerms{}, nil
-	}
-	b, err := os.ReadFile(file)
-	if err != nil {
-		return nil, err
-	}
-	out := map[string]userPerms{}
-	lines := strings.Split(string(b), "\n")
-	for _, ln := range lines {
-		ln = strings.TrimSpace(ln)
-		if ln == "" || strings.HasPrefix(ln, "#") {
-			continue
-		}
-		// username:password:roles:perms
-		parts := strings.Split(ln, ":")
-		if len(parts) < 4 {
-			continue
-		}
-		u := parts[0]
-		p := parts[1]
-		var roles, perms []string
-		if parts[2] != "" {
-			roles = strings.Split(parts[2], ",")
-		}
-		if parts[3] != "" {
-			perms = strings.Split(parts[3], ",")
-		}
-		out[u] = userPerms{Password: p, Roles: roles, Perms: perms}
-	}
-	return out, nil
+func serveFile(w http.ResponseWriter, r *http.Request, rel string) {
+	full := filepath.Join(publicDir, filepath.Clean(rel))
+	http.ServeFile(w, r, full)
 }
 
-func hasPerm(u userPerms, perm string) bool {
-	for _, p := range u.Perms {
-		if p == perm {
+// ---------- htpasswd (bcrypt or literal for dev) ----------
+
+func verifyHtpasswd(user, pass string) bool {
+	// Choose which file based on "user type" if you need. For now we accept either file.
+	paths := []string{
+		env("PORTAL_HTPASSWD", "/app/auth/portal.htpasswd"),
+		env("ADMIN_HTPASSWD", "/app/auth/admin.htpasswd"),
+	}
+	for _, p := range paths {
+		if checkHtpasswd(p, user, pass) {
 			return true
 		}
 	}
 	return false
 }
 
-func basicAuth(users map[string]userPerms, requiredPerm string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !enableBasic {
-			next.ServeHTTP(w, r)
-			return
+func checkHtpasswd(path, user, pass string) bool {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
 		}
-		u, p, ok := r.BasicAuth()
-		if !ok {
-			w.Header().Set("WWW-Authenticate", `Basic realm="claims"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
 		}
-		user, ok := users[u]
-		if !ok || p != user.Password {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
+		u := parts[0]
+		h := parts[1]
+		if u != user {
+			continue
 		}
-		if requiredPerm != "" && !hasPerm(user, requiredPerm) {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
+		// try bcrypt first
+		if bcrypt.CompareHashAndPassword([]byte(h), []byte(pass)) == nil {
+			return true
 		}
-		ctx := context.WithValue(r.Context(), "user", u)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		// allow literal match for dev-only cases
+		if subtle.ConstantTimeCompare([]byte(h), []byte(pass)) == 1 {
+			return true
+		}
+		return false
+	}
+	return false
+}
+
+// ---------- sessions (HMAC-signed cookie) ----------
+
+func makeSignature(payload string) string {
+	m := hmac.New(sha256.New, sessionSecret)
+	m.Write([]byte(payload))
+	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
+}
+
+func setSessionCookie(w http.ResponseWriter, user string) {
+	ts := time.Now().UTC().Format(time.RFC3339)
+	payload := user + "|" + ts
+	sig := makeSignature(payload)
+	val := base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + sig
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    val,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secureCookies,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(sessionTTL.Seconds()),
 	})
 }
 
-func withSecurityHeaders(next http.Handler) http.Handler {
+func isValidSession(r *http.Request) bool {
+	c, err := r.Cookie(cookieName)
+	if err != nil || c.Value == "" {
+		return false
+	}
+	parts := strings.SplitN(c.Value, ".", 2)
+	if len(parts) != 2 {
+		return false
+	}
+	rawPayload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return false
+	}
+	payload := string(rawPayload)
+	want := makeSignature(payload)
+	if subtle.ConstantTimeCompare([]byte(parts[1]), []byte(want)) != 1 {
+		return false
+	}
+	// payload = user|timestamp
+	ps := strings.SplitN(payload, "|", 2)
+	if len(ps) != 2 {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339, ps[1])
+	if err != nil {
+		return false
+	}
+	if time.Since(t) > sessionTTL {
+		return false
+	}
+	return true
+}
+
+func requireAuth(w http.ResponseWriter, r *http.Request) bool {
+	if !isValidSession(r) {
+		http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.Path), http.StatusFound)
+		return false
+	}
+	return true
+}
+
+// ---------- handlers ----------
+
+func staticHandler(w http.ResponseWriter, r *http.Request) {
+	p := r.URL.Path
+	// root
+	if p == "/" || p == "" {
+		serveFile(w, r, "index.html")
+		return
+	}
+	// nice path for login
+	if p == "/login" {
+		serveFile(w, r, "login.html")
+		return
+	}
+	// prevent direct access to protected pages unless authed
+	if isProtectedPath(p) {
+		if !requireAuth(w, r) {
+			return
+		}
+	}
+	// serve from /app/public
+	if strings.HasPrefix(p, "/") {
+		p = p[1:]
+	}
+	serveFile(w, r, p)
+}
+
+func loginPostHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	user := strings.TrimSpace(r.FormValue("username"))
+	pass := r.FormValue("password")
+	next := r.FormValue("next")
+	if next == "" {
+		next = "/portal.html" // file name we protect
+	}
+	if !verifyHtpasswd(user, pass) {
+		time.Sleep(300 * time.Millisecond)
+		http.Redirect(w, r, "/login?err=1&next="+url.QueryEscape(next), http.StatusFound)
+		return
+	}
+	setSessionCookie(w, user)
+	http.Redirect(w, r, next, http.StatusFound)
+}
+
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secureCookies,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func healthz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
+}
+
+// ---------- servers ----------
+
+func main() {
+	addrHTTP := flag.String("http", ":8080", "HTTP listen addr")
+	addrHTTPS := flag.String("https", ":8443", "HTTPS listen addr")
+	flag.Parse()
+
+	cert := os.Getenv("CERT_FILE")
+	key := os.Getenv("KEY_FILE")
+
+	mux := http.NewServeMux()
+
+	// static & auth endpoints
+	mux.HandleFunc("/login", staticHandler)         // GET -> /app/public/login.html
+	mux.HandleFunc("/logout", logoutHandler)        // clear cookie
+	mux.HandleFunc("/auth/login", loginPostHandler) // POST from login form
+	mux.HandleFunc("/healthz", healthz)
+
+	// everything else
+	mux.HandleFunc("/", staticHandler)
+
+	// Optional: scoped Basic Auth trees (keep if you use /portal/* or /admin/* folders)
+	portalFS := http.StripPrefix("/portal/", http.FileServer(http.Dir(filepath.Join(publicDir, "portal"))))
+	mux.Handle("/portal/", basicAuth(env("PORTAL_HTPASSWD", "/app/auth/portal.htpasswd"), "HEDI Claims", portalFS))
+
+	adminFS := http.StripPrefix("/admin/", http.FileServer(http.Dir(filepath.Join(publicDir, "admin"))))
+	mux.Handle("/admin/", basicAuth(env("ADMIN_HTPASSWD", "/app/auth/admin.htpasswd"), "HEDI Admin", adminFS))
+
+	// security headers wrapper
+	handler := securityHeaders(mux)
+
+	// HTTP
+	go func() {
+		s := &http.Server{
+			Addr:              *addrHTTP,
+			Handler:           handler,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+		fmt.Printf("Frontend listening on %s (public=%s)\n", *addrHTTP, publicDir)
+		if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("http server error: %v\n", err)
+		}
+	}()
+
+	// HTTPS
+	if cert != "" && key != "" {
+		ts := &http.Server{
+			Addr:              *addrHTTPS,
+			Handler:           handler,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+		fmt.Printf("Frontend TLS listening on %s (cert=%s)\n", *addrHTTPS, cert)
+		if err := ts.ListenAndServeTLS(cert, key); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("tls server error: %v\n", err)
+		}
+	}
+
+	// Block forever (simple keep-alive)
+	select {}
+}
+
+// security headers
+func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("X-XSS-Protection", "1; mode=block")
-		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self';")
 		next.ServeHTTP(w, r)
 	})
 }
 
-func render(tmpl string, w http.ResponseWriter, data any) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, tmpl, data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func handleHome(w http.ResponseWriter, r *http.Request) {
-	http.ServeFileFS(w, r, publicFS, "public/index.html")
-}
-
-func handlePortal(w http.ResponseWriter, r *http.Request) {
-	render("portal.html", w, nil)
-}
-
-func handleAdmin(w http.ResponseWriter, r *http.Request) {
-	render("admin.html", w, nil)
-}
-
-func handleUpload(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(50 << 20); err != nil {
-		http.Error(w, "bad form: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	file, hdr, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "missing file: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	fw, err := mw.CreateFormFile("file", hdr.Filename)
-	if err != nil {
-		http.Error(w, "proxy form err: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if _, err := io.Copy(fw, file); err != nil {
-		http.Error(w, "copy err: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	_ = mw.Close()
-
-	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(apiBase, "/")+"/ingest", &buf)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	client := &http.Client{Timeout: 60 * time.Second}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		http.Error(w, "backend error: "+err.Error(), http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	for k, vals := range resp.Header {
-		for _, v := range vals {
-			w.Header().Add(k, v)
-		}
-	}
-	w.WriteHeader(resp.StatusCode)
-	_, _ = io.Copy(w, resp.Body)
-}
-
-func main() {
-	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-
-	// 1) Pretty routes
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, filepath.Join("public", "index.html"))
-	})
-	r.Get("/portal", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, filepath.Join("public", "portal.html"))
-	})
-	r.Get("/admin", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, filepath.Join("public", "admin.html"))
-	})
-
-	// 2) Literal *.html aliases (so /index.html and /portal.html work)
-	r.Get("/{page}.html", func(w http.ResponseWriter, r *http.Request) {
-		page := chi.URLParam(r, "page")
-		// sanitize path to avoid traversal
-		clean := path.Clean(page + ".html")
-		http.ServeFile(w, r, filepath.Join("public", clean))
-	})
-
-	// 3) Static assets under /static/*
-	publicFS := http.StripPrefix("/static/",
-		http.FileServer(http.Dir("public")),
-	)
-	r.Handle("/static/*", publicFS)
-
-	// 4) Helpful 404: try to map to a public file if present
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		// try serving a file under public for direct links like /logo.png
-		try := filepath.Join("public", path.Clean(r.URL.Path))
-		if _, err := filepath.Abs(try); err == nil {
-			http.ServeFile(w, r, try)
+// small Basic Auth wrapper for /portal/* and /admin/* trees
+func basicAuth(htpasswdPath, realm string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || !checkHtpasswd(htpasswdPath, user, pass) {
+			w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Basic realm="%s"`, realm))
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-		http.NotFound(w, r)
+		next.ServeHTTP(w, r)
 	})
-
-	log.Println("Go frontend listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
 }
