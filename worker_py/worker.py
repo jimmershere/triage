@@ -392,7 +392,7 @@ def process_payload(payload: dict):
            else:
                 ack_records.append(("NOTICE", "UNKNOWN FORMAT - no ack generated"))
 
-            cur.execute(
+        cur.execute(
                 """
                 UPDATE imports
                    SET claims_count = %s,
@@ -403,7 +403,7 @@ def process_payload(payload: dict):
                 """,
                 (claims_count, order_lines_count, import_id),
             )
-            for ack_type, ack_content in ack_records:
+        for ack_type, ack_content in ack_records:
                 persist_ack(cur, import_id, ack_type, ack_content)
         conn.commit()
 
