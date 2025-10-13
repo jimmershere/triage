@@ -2,6 +2,7 @@ import os, json, base64, logging, time, re, decimal, uuid
 import pika, psycopg2
 from psycopg2.extras import execute_batch
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -10,6 +11,7 @@ logger = logging.getLogger("worker")
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://edi:edi@postgres:5432/edi")
+ARCHIVE_DIR = os.getenv("ARCHIVE_DIR", "/archive")
 
 def get_rmq_channel():
     """
@@ -171,16 +173,6 @@ def parse_edifact_orders(text: str):
         order_lines.append(current_line)
     return order_lines, doc_no
 
-def make_999_like(isa_ctrl: str | None, total_claims: int) -> str:
-    # Extremely simplified "999-like" content (not a real 999!)
-    ctrl = isa_ctrl or "000000001"
-    return f"999-LIKE ACK\\nControl: {ctrl}\\nAccepted claims: {total_claims}\\nStatus: ACCEPTED"
-
-def make_contrl_like(doc_no: str | None, total_lines: int) -> str:
-    # Extremely simplified "CONTRL-like" content
-    doc = doc_no or "UNKNOWN"
-    return f"CONTRL-LIKE ACK\\nDoc: {doc}\\nAccepted lines: {total_lines}\\nStatus: ACCEPTED"
-
 def resolve_job_uuid(job_id: str | None) -> uuid.UUID:
     """Convert an optional job id to a UUID, generating a new value as needed."""
     try:
@@ -191,7 +183,7 @@ def resolve_job_uuid(job_id: str | None) -> uuid.UUID:
     return uuid.uuid4()
 
 
-def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: int, raw: bytes) -> int:
+def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: int, raw: bytes) -> tuple[int, uuid.UUID]:
     """Create or update the imports row attached to the incoming payload."""
     import_id = payload.get("import_id")
     uploaded_by = payload.get("uploaded_by")
@@ -209,13 +201,13 @@ def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: in
                    uploaded_by = COALESCE(%s, uploaded_by),
                    trading_partner_id = COALESCE(%s, trading_partner_id)
              WHERE id = %s
-         RETURNING id
+        RETURNING id, job_id 
             """,
             (ftype, size, filename, uploaded_by, trading_partner_id, import_id),
         )
         row = cur.fetchone()
         if row:
-            return row[0]
+           return row[0], row[1] 
         logger.warning("Import id %s was not found; inserting a fresh row", import_id)
 
     job_uuid = resolve_job_uuid(payload.get("job_id"))
@@ -234,7 +226,7 @@ def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: in
             trading_partner_id
         )
         VALUES (%s,%s,%s,%s,%s,'processing',NOW(),NOW(),%s,%s)
-        RETURNING id
+       RETURNING id, job_id 
         """,
         (
             job_uuid,
@@ -246,7 +238,8 @@ def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: in
             trading_partner_id,
         ),
     )
-    return cur.fetchone()[0]
+    row = cur.fetchone()
+    return row[0], row[1] 
 
 
 def persist_ack(cur, import_id: int, ack_type: str, ack_content: str | None) -> None:
@@ -254,6 +247,103 @@ def persist_ack(cur, import_id: int, ack_type: str, ack_content: str | None) -> 
         "INSERT INTO acks (import_id, ack_type, content) VALUES (%s,%s,%s)",
         (import_id, ack_type, ack_content),
     )
+
+def safe_component(value: str | None, fallback: str) -> str:
+    if not value:
+        return fallback
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", value.strip())
+    return cleaned or fallback
+
+
+def control_from_uuid(job_uuid: uuid.UUID, offset: int = 0) -> str:
+    base = job_uuid.int % (10 ** 9)
+    value = (base + offset) % (10 ** 9)
+    return f"{value:09d}"
+
+
+def make_999_like(job_uuid: uuid.UUID, trading_partner_id: str | None, total_claims: int, isa_ctrl: str | None) -> str:
+    ctrl = (isa_ctrl or control_from_uuid(job_uuid))[:9].rjust(9, "0")
+    gs_ctrl = control_from_uuid(job_uuid, 1)
+    partner_raw = safe_component(trading_partner_id, "HEDI-RECV").upper()
+    partner_padded = partner_raw[:15].rjust(15)
+    app_receiver = partner_raw[:12] or "RECEIVER"
+    date_short = time.strftime("%y%m%d")
+    time_short = time.strftime("%H%M")
+    total = max(total_claims, 1)
+    segments = [
+        f"ISA*00*          *00*          *ZZ*HEDI999       *ZZ*{partner_padded}*{date_short}*{time_short}*^*00501*{ctrl}*0*T*:~",
+        f"GS*FA*HEDI*{app_receiver}*20{date_short}*{time_short}*{gs_ctrl}*X*005010X231A1~",
+        "ST*999*0001*005010X231A1~",
+        "AK1*HC*0001~",
+        "AK2*837*0001~",
+        "AK5*A~",
+        f"AK9*A*1*1*1~",
+        "SE*7*0001~",
+        f"GE*1*{gs_ctrl}~",
+        f"IEA*1*{ctrl}~",
+    ]
+    return "\n".join(segments)
+
+
+def make_277ca_like(job_uuid: uuid.UUID, trading_partner_id: str | None, total_claims: int) -> str:
+    ctrl = control_from_uuid(job_uuid, 2)
+    gs_ctrl = control_from_uuid(job_uuid, 3)
+    partner_raw = safe_component(trading_partner_id, "HEDI-RECV").upper()
+    partner_padded = partner_raw[:15].rjust(15)
+    partner_short = partner_raw[:12] or "RECEIVER"
+    date_full = time.strftime("%Y%m%d")
+    time_short = time.strftime("%H%M")
+    total = max(total_claims, 1)
+    segments = [
+        f"ISA*00*          *00*          *ZZ*HEDI277       *ZZ*{partner_padded}*{date_full[2:]}*{time_short}*^*00501*{ctrl}*0*T*:~",
+        f"GS*HN*HEDI*{partner_short}*{date_full}*{time_short}*{gs_ctrl}*X*005010X214~",
+        "ST*277*0001*005010X214~",
+        f"BHT*0085*08*{ctrl}*{date_full}*{time_short}~",
+        "HL*1**20*1~",
+        "NM1*PR*2*HEDI HEALTH*****PI*HEDI277~",
+        "HL*2*1*21*0~",
+        f"NM1*41*2*{partner_short or 'RECEIVER'}*****46*{partner_short or 'RECEIVER'}~",
+        f"TRN*1*{ctrl}*{partner_short or 'RECEIVER'}~",
+        f"STC*A1:19*{date_full}*U*{total}*CLM~",
+        "SE*9*0001~",
+        f"GE*1*{gs_ctrl}~",
+        f"IEA*1*{ctrl}~",
+    ]
+    return "\n".join(segments)
+
+
+def make_contrl_like(doc_no: str | None, total_lines: int) -> str:
+    doc = doc_no or "UNKNOWN"
+    return f"CONTRL-LIKE ACK\\nDoc: {doc}\\nAccepted lines: {total_lines}\\nStatus: ACCEPTED"
+
+
+def ack_file_extension(ack_type: str) -> str:
+    upper = ack_type.upper()
+    if upper == "999":
+        return ".999"
+    if upper == "277CA":
+        return ".277"
+    if "CONTRL" in upper:
+        return ".contrl"
+    return ".txt"
+
+
+def fanout_ack_files(uploaded_by: str | None, ack_type: str, ack_content: str | None, job_uuid: uuid.UUID, trading_partner_id: str | None) -> None:
+    if not ack_content:
+        return
+    safe_login = safe_component(uploaded_by, "general")
+    safe_partner = safe_component(trading_partner_id, "partner")
+    timestamp = time.strftime("%Y%m%d%H%M%S")
+    ext = ack_file_extension(ack_type)
+    base_name = f"{timestamp}_{safe_partner}_{job_uuid.hex[:8]}_{ack_type.upper()}{ext}"
+    mailbox_target = Path(ARCHIVE_DIR) / "mailboxes" / safe_login / base_name
+    drop_target = Path(ARCHIVE_DIR) / "drop" / base_name
+    for target in (mailbox_target, drop_target):
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(ack_content, encoding="utf-8")
+        except Exception:
+            logger.exception("Failed to write acknowledgement file %s", target)
 
 
 def process_payload(payload: dict):
@@ -267,10 +357,12 @@ def process_payload(payload: dict):
     order_lines_count = None
     ack_content = None
     ack_type = None
+    ack_records: list[tuple[str, str]] = []
+    job_uuid: uuid.UUID | None = None
 
     with get_db() as conn:
         with conn.cursor() as cur:
-            import_id = ensure_import_record(cur, payload, filename, ftype, size, raw)
+           import_id, job_uuid = ensure_import_record(cur, payload, filename, ftype, size, raw) 
 
             if ftype.startswith("X12"):
                 claims, isa_ctrl = parse_x12_837(text)
@@ -282,8 +374,10 @@ def process_payload(payload: dict):
                         [(import_id, c["claim_id"], c["amount"], c["raw"]) for c in claims],
                         page_size=500,
                     )
-                ack_content = make_999_like(isa_ctrl, claims_count or 0)
-                ack_type = "999-like"
+                ack_999 = make_999_like(job_uuid, payload.get("trading_partner_id"), claims_count or 0, isa_ctrl)
+                ack_277 = make_277ca_like(job_uuid, payload.get("trading_partner_id"), claims_count or 0)
+                ack_records.extend([("999", ack_999), ("277CA", ack_277)])
+                
             elif ftype.startswith("EDIFACT"):
                 lines, doc_no = parse_edifact_orders(text)
                 order_lines_count = len(lines)
@@ -294,11 +388,10 @@ def process_payload(payload: dict):
                         [(import_id, l["line_no"], l["item_id"], l["qty"], l["price"], l["raw"]) for l in lines],
                         page_size=500,
                     )
-                ack_content = make_contrl_like(doc_no, order_lines_count or 0)
-                ack_type = "CONTRL-like"
+                ack_contrl = make_contrl_like(doc_no, order_lines_count or 0)
+                ack_records.append(("CONTRL", ack_contrl))
             else:
-                ack_content = "UNKNOWN FORMAT - no ack generated"
-                ack_type = "none"
+                ack_records.append(("NOTICE", "UNKNOWN FORMAT - no ack generated"))
 
             cur.execute(
                 """
@@ -311,8 +404,15 @@ def process_payload(payload: dict):
                 """,
                 (claims_count, order_lines_count, import_id),
             )
-            persist_ack(cur, import_id, ack_type, ack_content)
+            for ack_type, ack_content in ack_records:
+                persist_ack(cur, import_id, ack_type, ack_content)
         conn.commit()
+
+    if job_uuid is None:
+        job_uuid = resolve_job_uuid(payload.get("job_id"))
+
+    for ack_type, ack_content in ack_records:
+        fanout_ack_files(payload.get("uploaded_by"), ack_type, ack_content, job_uuid, payload.get("trading_partner_id"))
 
     return ftype, size, import_id
 

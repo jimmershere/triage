@@ -11,10 +11,12 @@
 <body>
 <header class="site-header">
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
-  <nav class="portal-nav">
-  <a href="/edi-mapping.html">EDI Mapping</a>
-  <a href="/claim-entry.html">Claim Entry</a>
-</nav>
+  <nav class="nav-cluster push-end">
+    <a class="nav-pill" data-tone="portal" href="/portal.html" aria-current="page">Claims Portal</a>
+    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">EDI Mapping</a>
+    <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+    <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
+  </nav>
 </header>
 
 <main class="container portal">
@@ -77,7 +79,8 @@
 <script>
 const API_BASE = window.HEDI_API_BASE || "";
 const INGEST_URL = window.HEDI_INGEST_URL || (API_BASE ? `${API_BASE}/ingest` : "/ingest");
-const JOBS_URL = API_BASE ? `${API_BASE}/jobs` : "/jobs";
+const JOBS_URL = window.HEDI_JOBS_URL || (API_BASE ? `${API_BASE}/jobs` : "/jobs");
+const JOBS_DOWNLOAD_BASE = JOBS_URL.replace(/\/$/, "");
 
 const uploadForm = document.getElementById("uploadForm");
 const uploadResult = document.getElementById("result");
@@ -90,6 +93,19 @@ const searchUploadedInput = document.getElementById("searchUploadedBy");
 const searchPartnerInput = document.getElementById("searchPartnerId");
 const detailCard = document.getElementById("detailCard");
 const detailContent = document.getElementById("detailContent");
+
+function sendToLogin() {
+  const next = encodeURIComponent(window.location.pathname);
+  window.location.href = `/login?next=${next}`;
+}
+
+function redirectIfUnauthorized(res) {
+  if (res.status === 401 || res.status === 403) {
+    sendToLogin();
+    return true;
+  }
+  return false;
+}
 
 function showStatus(message, tone = "info") {
   uploadResult.hidden = false;
@@ -114,7 +130,7 @@ function renderJobs(jobs) {
       <td>${created}</td>
       <td class="actions">
         <button class="ghost" data-detail="${job.job_id}">Details</button>
-        <a class="ghost" href="${API_BASE ? API_BASE : ''}/jobs/${job.job_id}/download" target="_blank" rel="noopener">Download</a>
+        <a class="ghost" href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/download" target="_blank" rel="noopener">Download</a>
       </td>`;
     jobsBody.appendChild(tr);
   }
@@ -126,6 +142,9 @@ async function fetchJobs(uploadedBy, partnerId, silent = false) {
   if (partnerId) params.set("trading_partner_id", partnerId);
   try {
     const res = await fetch(`${JOBS_URL}?${params.toString()}`);
+    if (redirectIfUnauthorized(res)) {
+      return;
+    }
     if (!res.ok) {
       const msg = await res.text();
       if (!silent) showStatus(`Search failed: ${msg}`, "error");
@@ -142,6 +161,9 @@ async function fetchJobs(uploadedBy, partnerId, silent = false) {
 async function fetchDetail(jobId) {
   try {
     const res = await fetch(`${JOBS_URL}/${jobId}`);
+    if (redirectIfUnauthorized(res)) {
+      return;
+    }
     if (!res.ok) {
       detailCard.hidden = false;
       detailContent.textContent = `Unable to load job ${jobId}: ${await res.text()}`;
@@ -204,6 +226,9 @@ uploadForm.addEventListener("submit", async (e) => {
     if (partnerId) form.append("trading_partner_id", partnerId);
     try {
       const res = await fetch(INGEST_URL, { method: "POST", body: form });
+      if (redirectIfUnauthorized(res)) {
+        return;
+      }
       if (!res.ok) {
         outcomes.push(`${file.name}: ${await res.text()}`);
         continue;
