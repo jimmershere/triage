@@ -363,7 +363,7 @@ def process_payload(payload: dict):
     with get_db() as conn:
         with conn.cursor() as cur:
            import_id, job_uuid = ensure_import_record(cur, payload, filename, ftype, size, raw) 
-            if ftype.startswith("X12"):
+           if ftype.startswith("X12"):
                 claims, isa_ctrl = parse_x12_837(text)
                 claims_count = len(claims)
                 if claims:
@@ -377,7 +377,7 @@ def process_payload(payload: dict):
                 ack_277 = make_277ca_like(job_uuid, payload.get("trading_partner_id"), claims_count or 0)
                 ack_records.extend([("999", ack_999), ("277CA", ack_277)])
                 
-            elif ftype.startswith("EDIFACT"):
+           elif ftype.startswith("EDIFACT"):
                 lines, doc_no = parse_edifact_orders(text)
                 order_lines_count = len(lines)
                 if lines:
@@ -389,7 +389,7 @@ def process_payload(payload: dict):
                     )
                 ack_contrl = make_contrl_like(doc_no, order_lines_count or 0)
                 ack_records.append(("CONTRL", ack_contrl))
-            else:
+           else:
                 ack_records.append(("NOTICE", "UNKNOWN FORMAT - no ack generated"))
 
             cur.execute(
