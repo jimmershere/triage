@@ -35,6 +35,43 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
    - Check `imports`, `claims`, `order_lines`, and `acks` tables in Postgres.
    - RabbitMQ queues: `ingest` (uploads) and `acks` (generated acknowledgments).
 
+## Applying upstream patches
+
+Occasionally we share follow-up fixes as standalone patch files (for example `worker.patch`).
+If `git apply` reports that a patch does not cleanly apply, use the following workflow
+to merge it safely:
+
+1. **Preview the patch**
+   ```bash
+   git apply --stat worker.patch
+   git apply --check worker.patch
+   ```
+   The `--check` run performs a dry-run and points out any conflicting hunks without
+   touching your working tree.
+
+2. **Retry with a 3-way merge**
+   ```bash
+   git apply --3way worker.patch
+   ```
+   Git will attempt to merge the patch against your current files even when the context
+   has drifted. If it still cannot reconcile a hunk, Git will leave `.rej` files next to
+   the affected sources so you can inspect the conflicts manually.
+
+3. **Manually resolve remaining rejects**
+   Open each `.rej` alongside the target file, apply the intended changes, and remove the
+   reject file once finished. You can also copy the updated source directly from the pull
+   request preview if that is easier.
+
+4. **Stage and commit**
+   ```bash
+   git add worker_py/worker.py
+   git commit -m "Apply worker patch"
+   ```
+   Commit after you have reviewed the merged changes so that your history stays clean.
+
+These steps provide a safe fallback whenever an upstream patch targets an older commit or
+when local modifications cause context mismatches.
+
 ## Design Goals
 
 - **Speed-first path**: small, composable services; switch parsers without changing I/O.

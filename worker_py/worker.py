@@ -1,4 +1,4 @@
-import os, json, base64, logging, time, re, decimal
+import os, json, base64, logging, time, re, decimal, uuid
 import pika, psycopg2
 from psycopg2.extras import execute_batch
 from dotenv import load_dotenv
@@ -181,6 +181,81 @@ def make_contrl_like(doc_no: str | None, total_lines: int) -> str:
     doc = doc_no or "UNKNOWN"
     return f"CONTRL-LIKE ACK\\nDoc: {doc}\\nAccepted lines: {total_lines}\\nStatus: ACCEPTED"
 
+def resolve_job_uuid(job_id: str | None) -> uuid.UUID:
+    """Convert an optional job id to a UUID, generating a new value as needed."""
+    try:
+        if job_id:
+            return uuid.UUID(str(job_id))
+    except Exception:
+        logger.debug("job_id %s was not a UUID; generating a new identifier", job_id)
+    return uuid.uuid4()
+
+
+def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: int, raw: bytes) -> int:
+    """Create or update the imports row attached to the incoming payload."""
+    import_id = payload.get("import_id")
+    uploaded_by = payload.get("uploaded_by")
+    trading_partner_id = payload.get("trading_partner_id")
+
+    if import_id is not None:
+        cur.execute(
+            """
+            UPDATE imports
+               SET file_type = %s,
+                   byte_size = %s,
+                   status = 'processing',
+                   processed_at = NOW(),
+                   filename = COALESCE(%s, filename),
+                   uploaded_by = COALESCE(%s, uploaded_by),
+                   trading_partner_id = COALESCE(%s, trading_partner_id)
+             WHERE id = %s
+         RETURNING id
+            """,
+            (ftype, size, filename, uploaded_by, trading_partner_id, import_id),
+        )
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        logger.warning("Import id %s was not found; inserting a fresh row", import_id)
+
+    job_uuid = resolve_job_uuid(payload.get("job_id"))
+    cur.execute(
+        """
+        INSERT INTO imports (
+            job_id,
+            filename,
+            file_type,
+            byte_size,
+            original_content,
+            status,
+            created_at,
+            processed_at,
+            uploaded_by,
+            trading_partner_id
+        )
+        VALUES (%s,%s,%s,%s,%s,'processing',NOW(),NOW(),%s,%s)
+        RETURNING id
+        """,
+        (
+            job_uuid,
+            filename,
+            ftype,
+            size,
+            psycopg2.Binary(raw),
+            uploaded_by,
+            trading_partner_id,
+        ),
+    )
+    return cur.fetchone()[0]
+
+
+def persist_ack(cur, import_id: int, ack_type: str, ack_content: str | None) -> None:
+    cur.execute(
+        "INSERT INTO acks (import_id, ack_type, content) VALUES (%s,%s,%s)",
+        (import_id, ack_type, ack_content),
+    )
+
+
 def process_payload(payload: dict):
     raw = base64.b64decode(payload["data_b64"])
     text = raw.decode("utf-8", errors="replace")
@@ -188,17 +263,14 @@ def process_payload(payload: dict):
     size = len(raw)
     filename = payload.get("filename", "upload.dat")
 
+    claims_count = None
+    order_lines_count = None
+    ack_content = None
+    ack_type = None
+
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO imports (filename, file_type, byte_size) VALUES (%s,%s,%s) RETURNING id",
-                (filename, ftype, size),
-            )
-            import_id = cur.fetchone()[0]
-            claims_count = None
-            order_lines_count = None
-            ack_content = None
-            ack_type = None
+            import_id = ensure_import_record(cur, payload, filename, ftype, size, raw)
 
             if ftype.startswith("X12"):
                 claims, isa_ctrl = parse_x12_837(text)
@@ -229,16 +301,20 @@ def process_payload(payload: dict):
                 ack_type = "none"
 
             cur.execute(
-                "UPDATE imports SET claims_count=%s, order_lines_count=%s WHERE id=%s",
+                """
+                UPDATE imports
+                   SET claims_count = %s,
+                       order_lines_count = %s,
+                       status = 'processed',
+                       processed_at = NOW()
+                 WHERE id = %s
+                """,
                 (claims_count, order_lines_count, import_id),
             )
-            cur.execute(
-                "INSERT INTO acks (import_id, ack_type, content) VALUES (%s,%s,%s)",
-                (import_id, ack_type, ack_content),
-            )
+            persist_ack(cur, import_id, ack_type, ack_content)
         conn.commit()
 
-    return ftype, size
+    return ftype, size, import_id
 
 def main():
     conn, ch = get_rmq_channel()
@@ -254,9 +330,14 @@ def main():
     def cb(ch_, method, properties, body):
         try:
             payload = json.loads(body.decode("utf-8"))
-            ftype, size = process_payload(payload)
-            logger.info("Processed %s bytes as %s for file %s",
-                        size, ftype, payload.get("filename"))
+            ftype, size, import_id = process_payload(payload)
+            logger.info(
+                "Processed %s bytes as %s for file %s (import id %s)",
+                size,
+                ftype,
+                payload.get("filename"),
+                import_id,
+            )
             # publish a simple ack message
             ch_.basic_publish(
                 exchange="",
@@ -264,7 +345,8 @@ def main():
                 body=json.dumps({
                     "job_id": payload.get("job_id"),
                     "filename": payload.get("filename"),
-                    "file_type": ftype
+                    "file_type": ftype,
+                    "import_id": import_id,
                 }).encode("utf-8"),
                 properties=pika.BasicProperties(delivery_mode=2),
             )
