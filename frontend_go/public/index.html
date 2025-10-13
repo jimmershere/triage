@@ -3,73 +3,82 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
   <title>HEDI — Fast, Friendly X12</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
 <body>
 <header class="site-header">
-  <a href="/" class="brand"><img src="/img/hedi-logo.png" alt="HEDI" width="32" height="32"><span>HEDI</span></a>
-  <!-- top-right nav -->
-<nav class="top-actions">
-  <a class="btn ghost" href="/login?next=/portal.html">Claims Portal</a>
-  <a class="btn ghost" href="/login?next=/admin.html">Admin</a>
-</nav>
+  <a href="/" class="brand"><img src="/img/mascot.png" alt="HEDI mascot" width="40" height="40"><span>HEDI</span></a>
+  <nav class="top-actions">
+    <a class="btn ghost" href="/login?next=/portal.html">Claims Portal</a>
+    <a class="btn ghost" href="/login?next=/admin.html">Admin</a>
+  </nav>
 </header>
 
 <main class="container">
-  <section class="hero">
-    <div class="card">
-      <h1>Welcome to HEDI</h1>
-      <p>Enterprise-ready X12 ingestion, validation, and edits — with clarity, speed, and some sass. Supercharged by PostgreSQL, RabbitMQ, Go, and Python’s top-tier EDI libraries.</p>
-      <div style="display:flex;gap:.6rem;margin-top:.6rem;">
+  <section class="hero-grid">
+    <div class="hero-copy card">
+      <span class="badge badge-loud">Lightning Medicare EDI</span>
+      <h1>Fast, friendly, and a little bit sassy.</h1>
+      <p>HEDI (Helix EDI) ingests, validates, and translates Medicare X12 files in seconds. Go handles the web tier, Python 3.12 powers the EDI intelligence, PostgreSQL 16 keeps every byte safe, and RabbitMQ orchestrates furious parallelism.</p>
+      <ul class="hero-points">
+        <li><strong>Speedster queues:</strong> Go → FastAPI → RabbitMQ → Workers keep throughput silky.</li>
+        <li><strong>Audit-ready:</strong> Every upload and translation lands in PostgreSQL for instant recall.</li>
+        <li><strong>HEDI has jokes:</strong> Our mascot pops in to keep Medicare fun (yes, really!).</li>
+      </ul>
+      <div class="cta-row">
         <a class="cta" href="/portal.html">Open Claims Portal</a>
-        <a href="/admin.html">Admin Tools</a>
+        <a class="link" href="/admin.html">Admin Tools</a>
       </div>
     </div>
-    <div class="card" style="display:flex;gap:16px;align-items:center;justify-content:center;">
-      <img class="small-mascot" src="/img/hedi-mascot.png" alt="HEDI mascot">
-      <div>
-        <strong>Built for Speed & Trust</strong>
-        <div class="kv"><div>Database</div><div>PostgreSQL 16</div></div>
-        <div class="kv"><div>Queue</div><div>RabbitMQ</div></div>
-        <div class="kv"><div>Frontend</div><div>Go</div></div>
-        <div class="kv"><div>Engine</div><div>Python EDI Modules</div></div>
+    <div class="hero-visual card">
+      <img src="/img/mascot.png" alt="HEDI mascot cheering" class="mascot-main"/>
+      <p class="hero-caption">"Queue it up!" — HEDI, your claims hype-fox.</p>
+      <div class="tech-callouts">
+        <div class="callout"><span>Go</span><small>TLS web tier</small></div>
+        <div class="callout"><span>FastAPI</span><small>Async ingest API</small></div>
+        <div class="callout"><span>RabbitMQ</span><small>Streaming worker lanes</small></div>
+        <div class="callout"><span>PostgreSQL 16</span><small>Immutable audit trail</small></div>
       </div>
     </div>
   </section>
 
-  <section style="margin-top:24px;" class="grid">
-    <div class="card">
-      <h3>What makes HEDI different</h3>
-      <table>
-        <thead><tr><th>Feature</th><th>Why It Matters</th></tr></thead>
-        <tbody id="highlight-rows">
-          <tr><td>Speed</td><td>Queue-first architecture keeps claims flowing at peak times.</td></tr>
-          <tr><td>Accuracy</td><td>Advanced edits: CCI, NCD/LCD, CPT-DX linkage, eligibility.</td></tr>
-          <tr><td>Visibility</td><td>Live file status, 999 responses, and searchable history.</td></tr>
-        </tbody>
-      </table>
-    </div>
+  <section class="feature-grid">
+    <article class="card">
+      <h3>Battle-tested tech stack</h3>
+      <p>Helix EDI is built entirely on mature FOSS: hardened Go front end, FastAPI microservices, proven open-source edits, and structured storage in PostgreSQL. Deploy anywhere with Docker, scale horizontally, and stay vendor-neutral.</p>
+    </article>
+    <article class="card">
+      <h3>Observability from day zero</h3>
+      <p>HEDI tracks every job ID, trading partner, and acknowledgement. Search, reprint, and download original files whenever auditors call.</p>
+    </article>
+    <article class="card">
+      <h3>Automation with heart</h3>
+      <p>Bulk uploads, instant queueing, proactive edits, and lovable mascots. Medicare compliance without the monotony.</p>
+    </article>
+  </section>
 
-    <div class="card">
-      <h3>Drag & Drop Power</h3>
-      <p>Upload and process hundreds of X12 files at once. Track results live.</p>
-      <span class="badge">837 / 835 / 999</span>
-    </div>
+  <section class="pipeline card">
+    <h2>The HEDI pipeline</h2>
+    <ol>
+      <li><strong>Secure upload:</strong> TLS 1.2 Go front end locks down every file.</li>
+      <li><strong>Async ingest:</strong> FastAPI signs, stores, and launches jobs into RabbitMQ.</li>
+      <li><strong>Python 3.12 workers:</strong> Validate, enrich, and generate friendly acks.</li>
+      <li><strong>PostgreSQL vault:</strong> Originals + translations ready for reprint, anytime.</li>
+    </ol>
+  </section>
 
-    <div class="card">
-      <h3>Secure by Design</h3>
-      <p>HTTPS/TLS, role-aware access, and optional LDAP/AD for enterprise identity management.</p>
-      <p class="badge">RBAC Ready</p>
+  <section class="mascot-banner card">
+    <div>
+      <h2>Meet HEDI</h2>
+      <p>Part compliance expert, part cheerleader. Sprinkle a mascot into your ops dashboards and morale goes up 837%*</p>
+      <p class="tiny">*Unofficial statistic. Official smiles guaranteed.</p>
     </div>
+    <img src="/img/mascot.png" alt="HEDI mascot waving"/>
   </section>
 </main>
 
 <footer>© 2025 HEDI — Happy EDI. Fast. Friendly. Fierce.</footer>
-
-<script>
-  // Optional: rotating content rows in future updates
-</script>
 </body>
 </html>

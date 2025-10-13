@@ -3,59 +3,246 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
   <title>HEDI — Claims Portal</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
   <script src="/config.js"></script>
 </head>
 <body>
 <header class="site-header">
-  <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
+  <a href="/" class="brand"><img src="/img/mascot.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="portal-nav">
   <a href="/edi-mapping.html">EDI Mapping</a>
   <a href="/claim-entry.html">Claim Entry</a>
 </nav>
 </header>
 
-<main class="container">
-  <div class="card">
-    <h2>Submit X12 Files</h2>
-    <p>Upload one or many X12 files for fast queueing and processing. Real-time status shown below.</p>
-    <form id="uploadForm" enctype="multipart/form-data" method="post">
-      <input type="file" id="file" name="file" multiple required>
-      <div style="margin-top:1rem;">
-        <button type="submit">Submit Files</button>
+<main class="container portal">
+  <section class="card upload-card">
+    <div class="badge badge-loud">Upload &amp; Track</div>
+    <h2>Submit Medicare X12 files</h2>
+    <p>Drop in individual or bulk files. HEDI stores every upload, routes work to Python 3.12 workers, and captures the translated acknowledgements for on-demand download.</p>
+    <form id="uploadForm" enctype="multipart/form-data" method="post" class="upload-form">
+      <div class="row">
+        <div>
+          <label for="uploadedBy">Login ID</label>
+          <input type="text" id="uploadedBy" name="uploaded_by" placeholder="your.login" required>
+        </div>
+        <div>
+          <label for="partnerId">Trading Partner ID</label>
+          <input type="text" id="partnerId" name="trading_partner_id" placeholder="TP123456"/>
+        </div>
       </div>
+      <label for="file" class="file-label">Select X12 file(s)</label>
+      <input type="file" id="file" name="file" multiple required>
+      <button type="submit">Queue files</button>
     </form>
-    <div id="result" class="card" style="margin-top:12px;display:none;"></div>
-  </div>
+    <div id="result" class="status-panel" hidden></div>
+  </section>
 
-  <div class="card" style="margin-top:24px;">
-    <h3>Recent Activity</h3>
-    <table>
-      <thead>
-        <tr><th>File</th><th>Status</th><th>Queued</th></tr>
-      </thead>
-      <tbody id="activityRows">
-        <tr><td>example_837_01.txt</td><td>Queued</td><td>Just now</td></tr>
-      </tbody>
-    </table>
-  </div>
+  <section class="card search-card">
+    <h3>Find your submissions</h3>
+    <p>Look up queued or completed jobs by login ID, trading partner, or both. Results include original file downloads and generated acknowledgement content.</p>
+    <form id="searchForm" class="search-form">
+      <div class="row">
+        <div>
+          <label for="searchUploadedBy">Login ID</label>
+          <input type="text" id="searchUploadedBy" placeholder="your.login" required>
+        </div>
+        <div>
+          <label for="searchPartnerId">Trading Partner ID</label>
+          <input type="text" id="searchPartnerId" placeholder="TP123456">
+        </div>
+      </div>
+      <button type="submit">Search jobs</button>
+    </form>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr><th>Job</th><th>File</th><th>Status</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody id="jobsBody">
+          <tr><td colspan="5" class="muted">No jobs yet — run a search to load history.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card detail-card" id="detailCard" hidden>
+    <h3>Job details</h3>
+    <div id="detailContent" class="detail-content"></div>
+  </section>
 </main>
 
 <script>
-const INGEST_URL = window.HEDI_INGEST_URL || "/ingest";
+const API_BASE = window.HEDI_API_BASE || "";
+const INGEST_URL = window.HEDI_INGEST_URL || (API_BASE ? `${API_BASE}/ingest` : "/ingest");
+const JOBS_URL = API_BASE ? `${API_BASE}/jobs` : "/jobs";
 
-document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+const uploadForm = document.getElementById("uploadForm");
+const uploadResult = document.getElementById("result");
+const fileInput = document.getElementById("file");
+const uploadedByInput = document.getElementById("uploadedBy");
+const partnerInput = document.getElementById("partnerId");
+const jobsBody = document.getElementById("jobsBody");
+const searchForm = document.getElementById("searchForm");
+const searchUploadedInput = document.getElementById("searchUploadedBy");
+const searchPartnerInput = document.getElementById("searchPartnerId");
+const detailCard = document.getElementById("detailCard");
+const detailContent = document.getElementById("detailContent");
+
+function showStatus(message, tone = "info") {
+  uploadResult.hidden = false;
+  uploadResult.textContent = message;
+  uploadResult.dataset.tone = tone;
+}
+
+function renderJobs(jobs) {
+  jobsBody.innerHTML = "";
+  if (!jobs.length) {
+    jobsBody.innerHTML = '<tr><td colspan="5" class="muted">No jobs match your filters yet.</td></tr>';
+    return;
+  }
+
+  for (const job of jobs) {
+    const tr = document.createElement("tr");
+    const created = job.created_at ? new Date(job.created_at).toLocaleString() : "";
+    tr.innerHTML = `
+      <td><code>${job.job_id}</code></td>
+      <td>${job.filename}</td>
+      <td><span class="status status-${job.status}">${job.status}</span></td>
+      <td>${created}</td>
+      <td class="actions">
+        <button class="ghost" data-detail="${job.job_id}">Details</button>
+        <a class="ghost" href="${API_BASE ? API_BASE : ''}/jobs/${job.job_id}/download" target="_blank" rel="noopener">Download</a>
+      </td>`;
+    jobsBody.appendChild(tr);
+  }
+}
+
+async function fetchJobs(uploadedBy, partnerId, silent = false) {
+  const params = new URLSearchParams();
+  if (uploadedBy) params.set("uploaded_by", uploadedBy);
+  if (partnerId) params.set("trading_partner_id", partnerId);
+  try {
+    const res = await fetch(`${JOBS_URL}?${params.toString()}`);
+    if (!res.ok) {
+      const msg = await res.text();
+      if (!silent) showStatus(`Search failed: ${msg}`, "error");
+      return;
+    }
+    const data = await res.json();
+    renderJobs(data);
+  } catch (err) {
+    console.error(err);
+    if (!silent) showStatus("Unable to load jobs — please try again.", "error");
+  }
+}
+
+async function fetchDetail(jobId) {
+  try {
+    const res = await fetch(`${JOBS_URL}/${jobId}`);
+    if (!res.ok) {
+      detailCard.hidden = false;
+      detailContent.textContent = `Unable to load job ${jobId}: ${await res.text()}`;
+      return;
+    }
+    const job = await res.json();
+    detailCard.hidden = false;
+    detailContent.innerHTML = `
+      <div class="detail-grid">
+        <div><strong>Job ID:</strong> <code>${job.job_id}</code></div>
+        <div><strong>File name:</strong> ${job.filename}</div>
+        <div><strong>Status:</strong> ${job.status}</div>
+        <div><strong>Uploaded by:</strong> ${job.uploaded_by || "—"}</div>
+        <div><strong>Trading partner:</strong> ${job.trading_partner_id || "—"}</div>
+        <div><strong>Created:</strong> ${job.created_at ? new Date(job.created_at).toLocaleString() : "—"}</div>
+        <div><strong>Processed:</strong> ${job.processed_at ? new Date(job.processed_at).toLocaleString() : "—"}</div>
+        <div><strong>Claims detected:</strong> ${job.claims_count ?? "—"}</div>
+        <div><strong>Order lines:</strong> ${job.order_lines_count ?? "—"}</div>
+      </div>
+      <div class="ack-block">
+        <h4>Acknowledgements</h4>
+        ${job.acknowledgements && job.acknowledgements.length ? job.acknowledgements.map(ack => `
+          <article>
+            <header>
+              <span class="badge">${ack.ack_type}</span>
+              <span class="timestamp">${ack.created_at ? new Date(ack.created_at).toLocaleString() : ""}</span>
+            </header>
+            <pre>${ack.content}</pre>
+          </article>
+        `).join("") : '<p class="muted">No acknowledgements generated yet.</p>'}
+      </div>`;
+  } catch (err) {
+    console.error(err);
+    detailCard.hidden = false;
+    detailContent.textContent = "Unexpected error loading job details.";
+  }
+}
+
+uploadForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const files = document.getElementById("file").files;
-  if (!files.length) return;
-  const form = new FormData();
-  form.append("file", files[0]); // first only for now
-  const res = await fetch(INGEST_URL, { method: "POST", body: form });
-  const box = document.getElementById("result");
-  box.style.display = "block";
-  box.textContent = res.ok ? "File queued successfully." : ("Failed: " + await res.text());
+  const files = Array.from(fileInput.files || []);
+  if (!files.length) {
+    showStatus("Please choose at least one X12 file.", "warn");
+    return;
+  }
+  const uploadedBy = uploadedByInput.value.trim();
+  if (!uploadedBy) {
+    showStatus("Login ID is required to submit files.", "warn");
+    return;
+  }
+  const partnerId = partnerInput.value.trim();
+
+  showStatus(`Queuing ${files.length} file(s)…`, "info");
+
+  const outcomes = [];
+  for (const file of files) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("uploaded_by", uploadedBy);
+    if (partnerId) form.append("trading_partner_id", partnerId);
+    try {
+      const res = await fetch(INGEST_URL, { method: "POST", body: form });
+      if (!res.ok) {
+        outcomes.push(`${file.name}: ${await res.text()}`);
+        continue;
+      }
+      const info = await res.json();
+      outcomes.push(`${file.name}: queued as ${info.job_id}`);
+    } catch (err) {
+      console.error(err);
+      outcomes.push(`${file.name}: network error`);
+    }
+  }
+
+  showStatus(outcomes.join("\n"), "info");
+  fileInput.value = "";
+  if (!searchUploadedInput.value) {
+    searchUploadedInput.value = uploadedBy;
+  }
+  if (partnerId && !searchPartnerInput.value) {
+    searchPartnerInput.value = partnerId;
+  }
+  fetchJobs(uploadedBy, partnerId, true);
+});
+
+searchForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const uploadedBy = searchUploadedInput.value.trim();
+  const partnerId = searchPartnerInput.value.trim();
+  if (!uploadedBy && !partnerId) {
+    showStatus("Enter at least a login ID to search.", "warn");
+    return;
+  }
+  fetchJobs(uploadedBy, partnerId);
+});
+
+jobsBody.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-detail]");
+  if (!btn) return;
+  const jobId = btn.getAttribute("data-detail");
+  fetchDetail(jobId);
 });
 </script>
 </body>

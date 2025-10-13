@@ -2,10 +2,16 @@
 
 CREATE TABLE IF NOT EXISTS imports (
   id SERIAL PRIMARY KEY,
+  job_id UUID NOT NULL UNIQUE,
   filename TEXT NOT NULL,
-  file_type TEXT NOT NULL,
+  file_type TEXT NOT NULL DEFAULT 'unknown',
   byte_size INTEGER NOT NULL,
-  processed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  uploaded_by TEXT,
+  trading_partner_id TEXT,
+  original_content BYTEA,
+  status TEXT NOT NULL DEFAULT 'queued',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  processed_at TIMESTAMP,
   claims_count INTEGER,
   order_lines_count INTEGER
 );

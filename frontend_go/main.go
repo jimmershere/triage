@@ -21,10 +21,10 @@ import (
 var (
 	publicDir = env("PUBLIC_DIR", "/app/public") // bind-mounted in the container
 	// session settings
-	cookieName     = "hedi_session"
-	sessionTTL     = 24 * time.Hour
-	sessionSecret  = []byte(env("HEDI_SESSION_SECRET", "dev-secret-change-me"))
-	secureCookies  = true // you’re using TLS on 8443
+	cookieName    = "hedi_session"
+	sessionTTL    = 24 * time.Hour
+	sessionSecret = []byte(env("HEDI_SESSION_SECRET", "dev-secret-change-me"))
+	secureCookies = true // you’re using TLS on 8443
 )
 
 // ---------- small helpers ----------
@@ -194,6 +194,21 @@ func staticHandler(w http.ResponseWriter, r *http.Request) {
 	serveFile(w, r, p)
 }
 
+func configHandler(w http.ResponseWriter, r *http.Request) {
+	apiBase := strings.TrimRight(env("HEDI_API_BASE", ""), "/")
+	ingest := env("HEDI_INGEST_URL", "")
+	if ingest == "" {
+		if apiBase != "" {
+			ingest = apiBase + "/ingest"
+		} else {
+			ingest = "/ingest"
+		}
+	}
+	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	fmt.Fprintf(w, "window.HEDI_API_BASE = %q;\nwindow.HEDI_INGEST_URL = %q;\n", apiBase, ingest)
+}
+
 func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
@@ -249,6 +264,7 @@ func main() {
 	mux.HandleFunc("/logout", logoutHandler)        // clear cookie
 	mux.HandleFunc("/auth/login", loginPostHandler) // POST from login form
 	mux.HandleFunc("/healthz", healthz)
+	mux.HandleFunc("/config.js", configHandler)
 
 	// everything else
 	mux.HandleFunc("/", staticHandler)
