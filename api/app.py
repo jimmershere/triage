@@ -39,6 +39,15 @@ app.add_middleware(
 
 db_pool: Optional[pool.SimpleConnectionPool] = None
 
+@app.on_event("startup")
+def run_startup_migrations() -> None:
+    try:
+        with get_db() as conn:
+            ensure_import_job_ids(conn)
+    except Exception:
+        logger.exception("Failed to ensure imports.job_id column exists")
+        raise
+
 
 def get_pool() -> pool.SimpleConnectionPool:
     global db_pool
@@ -56,6 +65,41 @@ def get_db():
     finally:
         get_pool().putconn(conn)
 
+def ensure_import_job_ids(conn) -> None:
+    """Backfill and enforce the job_id column on imports for older databases."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'imports' AND column_name = 'job_id'
+            )
+            """
+        )
+        has_column = cur.fetchone()[0]
+        if not has_column:
+            logger.info("Adding job_id column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN job_id UUID")
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM imports WHERE job_id IS NULL")
+        missing = [row[0] for row in cur.fetchall()]
+        for import_id in missing:
+            generated = str(uuid.uuid4())
+            logger.debug("Backfilling job_id %s for import %s", generated, import_id)
+            cur.execute(
+                "UPDATE imports SET job_id = %s WHERE id = %s",
+                (generated, import_id),
+            )
+
+    with conn.cursor() as cur:
+        cur.execute("ALTER TABLE imports ALTER COLUMN job_id SET NOT NULL")
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_imports_job_id ON imports(job_id)"
+        )
+
+    conn.commit()
 
 def get_channel():
     params = pika.URLParameters(RABBITMQ_URL)
