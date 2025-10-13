@@ -229,7 +229,7 @@ def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: in
        RETURNING id, job_id 
         """,
         (
-            job_uuid,
+            str(job_uuid),
             filename,
             ftype,
             size,
@@ -346,6 +346,104 @@ def fanout_ack_files(uploaded_by: str | None, ack_type: str, ack_content: str | 
             logger.exception("Failed to write acknowledgement file %s", target)
 
 
+def safe_component(value: str | None, fallback: str) -> str:
+    if not value:
+        return fallback
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", value.strip())
+    return cleaned or fallback
+
+
+def control_from_uuid(job_uuid: uuid.UUID, offset: int = 0) -> str:
+    base = job_uuid.int % (10 ** 9)
+    value = (base + offset) % (10 ** 9)
+    return f"{value:09d}"
+
+
+def make_999_like(job_uuid: uuid.UUID, trading_partner_id: str | None, total_claims: int, isa_ctrl: str | None) -> str:
+    ctrl = (isa_ctrl or control_from_uuid(job_uuid))[:9].rjust(9, "0")
+    gs_ctrl = control_from_uuid(job_uuid, 1)
+    partner_raw = safe_component(trading_partner_id, "HEDI-RECV").upper()
+    partner_padded = partner_raw[:15].rjust(15)
+    app_receiver = partner_raw[:12] or "RECEIVER"
+    date_short = time.strftime("%y%m%d")
+    time_short = time.strftime("%H%M")
+    total = max(total_claims, 1)
+    segments = [
+        f"ISA*00*          *00*          *ZZ*HEDI999       *ZZ*{partner_padded}*{date_short}*{time_short}*^*00501*{ctrl}*0*T*:~",
+        f"GS*FA*HEDI*{app_receiver}*20{date_short}*{time_short}*{gs_ctrl}*X*005010X231A1~",
+        "ST*999*0001*005010X231A1~",
+        "AK1*HC*0001~",
+        "AK2*837*0001~",
+        "AK5*A~",
+        f"AK9*A*1*1*1~",
+        "SE*7*0001~",
+        f"GE*1*{gs_ctrl}~",
+        f"IEA*1*{ctrl}~",
+    ]
+    return "\n".join(segments)
+
+
+def make_277ca_like(job_uuid: uuid.UUID, trading_partner_id: str | None, total_claims: int) -> str:
+    ctrl = control_from_uuid(job_uuid, 2)
+    gs_ctrl = control_from_uuid(job_uuid, 3)
+    partner_raw = safe_component(trading_partner_id, "HEDI-RECV").upper()
+    partner_padded = partner_raw[:15].rjust(15)
+    partner_short = partner_raw[:12] or "RECEIVER"
+    date_full = time.strftime("%Y%m%d")
+    time_short = time.strftime("%H%M")
+    total = max(total_claims, 1)
+    segments = [
+        f"ISA*00*          *00*          *ZZ*HEDI277       *ZZ*{partner_padded}*{date_full[2:]}*{time_short}*^*00501*{ctrl}*0*T*:~",
+        f"GS*HN*HEDI*{partner_short}*{date_full}*{time_short}*{gs_ctrl}*X*005010X214~",
+        "ST*277*0001*005010X214~",
+        f"BHT*0085*08*{ctrl}*{date_full}*{time_short}~",
+        "HL*1**20*1~",
+        "NM1*PR*2*HEDI HEALTH*****PI*HEDI277~",
+        "HL*2*1*21*0~",
+        f"NM1*41*2*{partner_short or 'RECEIVER'}*****46*{partner_short or 'RECEIVER'}~",
+        f"TRN*1*{ctrl}*{partner_short or 'RECEIVER'}~",
+        f"STC*A1:19*{date_full}*U*{total}*CLM~",
+        "SE*9*0001~",
+        f"GE*1*{gs_ctrl}~",
+        f"IEA*1*{ctrl}~",
+    ]
+    return "\n".join(segments)
+
+
+def make_contrl_like(doc_no: str | None, total_lines: int) -> str:
+    doc = doc_no or "UNKNOWN"
+    return f"CONTRL-LIKE ACK\\nDoc: {doc}\\nAccepted lines: {total_lines}\\nStatus: ACCEPTED"
+
+
+def ack_file_extension(ack_type: str) -> str:
+    upper = ack_type.upper()
+    if upper == "999":
+        return ".999"
+    if upper == "277CA":
+        return ".277"
+    if "CONTRL" in upper:
+        return ".contrl"
+    return ".txt"
+
+
+def fanout_ack_files(uploaded_by: str | None, ack_type: str, ack_content: str | None, job_uuid: uuid.UUID, trading_partner_id: str | None) -> None:
+    if not ack_content:
+        return
+    safe_login = safe_component(uploaded_by, "general")
+    safe_partner = safe_component(trading_partner_id, "partner")
+    timestamp = time.strftime("%Y%m%d%H%M%S")
+    ext = ack_file_extension(ack_type)
+    base_name = f"{timestamp}_{safe_partner}_{job_uuid.hex[:8]}_{ack_type.upper()}{ext}"
+    mailbox_target = Path(ARCHIVE_DIR) / "mailboxes" / safe_login / base_name
+    drop_target = Path(ARCHIVE_DIR) / "drop" / base_name
+    for target in (mailbox_target, drop_target):
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(ack_content, encoding="utf-8")
+        except Exception:
+            logger.exception("Failed to write acknowledgement file %s", target)
+
+
 def process_payload(payload: dict):
     raw = base64.b64decode(payload["data_b64"])
     text = raw.decode("utf-8", errors="replace")
@@ -357,6 +455,9 @@ def process_payload(payload: dict):
     order_lines_count = None
     ack_content = None
     ack_type = None
+    ack_records: list[tuple[str, str]] = []
+    job_uuid: uuid.UUID | None = None
+
     ack_records: list[tuple[str, str]] = []
     job_uuid: uuid.UUID | None = None
 
