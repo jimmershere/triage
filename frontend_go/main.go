@@ -9,6 +9,7 @@ import (
 	"fmt"
 	//"html/template"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -24,8 +25,26 @@ var (
 	cookieName    = "hedi_session"
 	sessionTTL    = 24 * time.Hour
 	sessionSecret = []byte(env("HEDI_SESSION_SECRET", "dev-secret-change-me"))
-	secureCookies = true // you’re using TLS on 8443
+	secureCookies = envBool("HEDI_SECURE_COOKIES", false)
+
+	apiProxyTarget  *url.URL
+	apiProxyEnabled bool
 )
+
+func envBool(key string, def bool) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if v == "" {
+		return def
+	}
+	switch v {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return def
+	}
+}
 
 // ---------- small helpers ----------
 
@@ -38,13 +57,33 @@ func env(k, def string) string {
 
 func isProtectedPath(p string) bool {
 	p = strings.ToLower(p)
+	if i := strings.Index(p, "?"); i >= 0 {
+		p = p[:i]
+	}
+	p = strings.TrimSuffix(p, "/")
+	if p == "" {
+		return false
+	}
 	protected := map[string]bool{
+		"/portal":           true,
 		"/portal.html":      true,
+		"/edi-mapping":      true,
 		"/edi-mapping.html": true,
+		"/claim-entry":      true,
 		"/claim-entry.html": true,
+		"/admin":            true,
 		"/admin.html":       true,
 	}
-	return protected[p]
+	if protected[p] {
+		return true
+	}
+	prefixes := []string{"/portal/", "/admin/"}
+	for _, pref := range prefixes {
+		if strings.HasPrefix(p+"/", pref) { // ensure trailing slash for exact matches too
+			return true
+		}
+	}
+	return false
 }
 
 func serveFile(w http.ResponseWriter, r *http.Request, rel string) {
@@ -197,16 +236,25 @@ func staticHandler(w http.ResponseWriter, r *http.Request) {
 func configHandler(w http.ResponseWriter, r *http.Request) {
 	apiBase := strings.TrimRight(env("HEDI_API_BASE", ""), "/")
 	ingest := env("HEDI_INGEST_URL", "")
+	jobs := env("HEDI_JOBS_URL", "")
+	useProxy := apiProxyEnabled
 	if ingest == "" {
-		if apiBase != "" {
-			ingest = apiBase + "/ingest"
-		} else {
+		if useProxy || apiBase == "" {
 			ingest = "/ingest"
+		} else {
+			ingest = apiBase + "/ingest"
+		}
+	}
+	if jobs == "" {
+		if useProxy || apiBase == "" {
+			jobs = "/jobs"
+		} else {
+			jobs = apiBase + "/jobs"
 		}
 	}
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprintf(w, "window.HEDI_API_BASE = %q;\nwindow.HEDI_INGEST_URL = %q;\n", apiBase, ingest)
+	fmt.Fprintf(w, "window.HEDI_API_BASE = %q;\nwindow.HEDI_INGEST_URL = %q;\nwindow.HEDI_JOBS_URL = %q;\n", apiBase, ingest, jobs)
 }
 
 func loginPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -216,10 +264,7 @@ func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	user := strings.TrimSpace(r.FormValue("username"))
 	pass := r.FormValue("password")
-	next := r.FormValue("next")
-	if next == "" {
-		next = "/portal.html" // file name we protect
-	}
+	next := sanitizeNext(r.FormValue("next"))
 	if !verifyHtpasswd(user, pass) {
 		time.Sleep(300 * time.Millisecond)
 		http.Redirect(w, r, "/login?err=1&next="+url.QueryEscape(next), http.StatusFound)
@@ -256,6 +301,13 @@ func main() {
 
 	cert := os.Getenv("CERT_FILE")
 	key := os.Getenv("KEY_FILE")
+	if raw := strings.TrimSpace(os.Getenv("HEDI_API_BASE")); raw != "" {
+		if u, err := url.Parse(raw); err == nil {
+			apiProxyTarget = u
+		} else {
+			fmt.Printf("Invalid HEDI_API_BASE %q: %v\n", raw, err)
+		}
+	}
 
 	mux := http.NewServeMux()
 
@@ -268,6 +320,18 @@ func main() {
 
 	// everything else
 	mux.HandleFunc("/", staticHandler)
+
+	if apiProxyTarget != nil {
+		proxy := httputil.NewSingleHostReverseProxy(apiProxyTarget)
+		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+			fmt.Printf("proxy error for %s: %v\n", r.URL.Path, err)
+			http.Error(w, "upstream unavailable", http.StatusBadGateway)
+		}
+		mux.Handle("/ingest", apiProxyHandler(proxy))
+		mux.Handle("/jobs", apiProxyHandler(proxy))
+		mux.Handle("/jobs/", apiProxyHandler(proxy))
+		apiProxyEnabled = true
+	}
 
 	// Optional: scoped Basic Auth trees (keep if you use /portal/* or /admin/* folders)
 	portalFS := http.StripPrefix("/portal/", http.FileServer(http.Dir(filepath.Join(publicDir, "portal"))))
@@ -330,5 +394,34 @@ func basicAuth(htpasswdPath, realm string, next http.Handler) http.Handler {
 			return
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+func sanitizeNext(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "/portal.html"
+	}
+	if strings.Contains(raw, "://") {
+		return "/portal.html"
+	}
+	if !strings.HasPrefix(raw, "/") {
+		return "/portal.html"
+	}
+	if strings.HasPrefix(raw, "//") {
+		return "/portal.html"
+	}
+	return raw
+}
+
+func apiProxyHandler(proxy *httputil.ReverseProxy) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isValidSession(r) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		// prevent backend from seeing frontend session cookie
+		r.Header.Del("Cookie")
+		proxy.ServeHTTP(w, r)
 	})
 }

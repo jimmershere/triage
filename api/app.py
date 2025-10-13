@@ -40,6 +40,18 @@ app.add_middleware(
 db_pool: Optional[pool.SimpleConnectionPool] = None
 
 
+@app.on_event("startup")
+def run_startup_migrations() -> None:
+    try:
+        with get_db() as conn:
+            ensure_core_ingest_tables(conn)
+            ensure_import_job_ids(conn)
+            ensure_import_uploaded_by(conn)
+    except Exception:
+        logger.exception("Failed to run startup migrations")
+        raise
+
+
 def get_pool() -> pool.SimpleConnectionPool:
     global db_pool
     if db_pool is None:
@@ -55,6 +67,149 @@ def get_db():
         yield conn
     finally:
         get_pool().putconn(conn)
+
+
+def ensure_core_ingest_tables(conn) -> None:
+    """Create the imports and related tables if they do not already exist."""
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                  FROM information_schema.tables
+                 WHERE table_name = 'imports'
+            )
+            """
+        )
+        has_imports = cur.fetchone()[0]
+
+    if has_imports:
+        return
+
+    logger.info("Creating core ingest tables for legacy databases")
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS imports (
+                id SERIAL PRIMARY KEY,
+                job_id UUID NOT NULL UNIQUE,
+                filename TEXT NOT NULL,
+                file_type TEXT NOT NULL DEFAULT 'unknown',
+                byte_size INTEGER NOT NULL,
+                uploaded_by TEXT,
+                trading_partner_id TEXT,
+                original_content BYTEA,
+                status TEXT NOT NULL DEFAULT 'queued',
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                processed_at TIMESTAMP,
+                claims_count INTEGER,
+                order_lines_count INTEGER
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS claims (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                claim_id TEXT,
+                amount NUMERIC(12,2),
+                raw_claim TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS order_lines (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                line_no INTEGER,
+                item_id TEXT,
+                qty NUMERIC(12,3),
+                price NUMERIC(12,2),
+                raw_line TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS acks (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                ack_type TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                content TEXT NOT NULL
+            )
+            """
+        )
+
+    conn.commit()
+
+
+def ensure_import_job_ids(conn) -> None:
+    """Backfill and enforce the job_id column on imports for older databases."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'imports' AND column_name = 'job_id'
+            )
+            """
+        )
+        has_column = cur.fetchone()[0]
+        if not has_column:
+            logger.info("Adding job_id column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN job_id UUID")
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM imports WHERE job_id IS NULL")
+        missing = [row[0] for row in cur.fetchall()]
+        for import_id in missing:
+            generated = str(uuid.uuid4())
+            logger.debug("Backfilling job_id %s for import %s", generated, import_id)
+            cur.execute(
+                "UPDATE imports SET job_id = %s WHERE id = %s",
+                (generated, import_id),
+            )
+
+    with conn.cursor() as cur:
+        cur.execute("ALTER TABLE imports ALTER COLUMN job_id SET NOT NULL")
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_imports_job_id ON imports(job_id)"
+        )
+
+    conn.commit()
+
+
+def ensure_import_uploaded_by(conn) -> None:
+    """Add the uploaded_by/trading_partner_id columns for older databases."""
+    added = False
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'imports'
+              AND column_name IN ('uploaded_by', 'trading_partner_id')
+            """
+        )
+        existing = {row[0] for row in cur.fetchall()}
+
+    with conn.cursor() as cur:
+        if "uploaded_by" not in existing:
+            logger.info("Adding uploaded_by column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN uploaded_by TEXT")
+            added = True
+        if "trading_partner_id" not in existing:
+            logger.info("Adding trading_partner_id column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN trading_partner_id TEXT")
+            added = True
+
+    if added:
+        conn.commit()
 
 
 def get_channel():
@@ -108,7 +263,7 @@ async def ingest(
                     RETURNING id
                     """,
                     (
-                        job_uuid,
+                        str(job_uuid),
                         filename,
                         size,
                         uploaded_by,

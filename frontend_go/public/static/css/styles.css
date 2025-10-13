@@ -76,35 +76,69 @@ a:hover {
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.22);
 }
 
-.top-actions,
-.portal-nav {
-  margin-left: auto;
+.nav-cluster {
   display: flex;
-  gap: 1rem;
-  font-weight: 600;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-.top-actions .btn {
-  font-weight: 600;
+.nav-cluster.push-end {
+  margin-left: auto;
 }
 
-.btn {
+.nav-pill {
   display: inline-flex;
   align-items: center;
-  border-radius: 0.7rem;
-  padding: 0.5rem 0.9rem;
-  font-weight: 600;
-  border: 1px solid rgba(20, 184, 166, 0.28);
-  background: var(--contrast-soft);
-  color: var(--contrast-strong);
-  transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: 0 6px 18px rgba(20, 184, 166, 0.18);
+  justify-content: center;
+  padding: 0.48rem 1.05rem;
+  border-radius: 999px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.26);
+  border: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
-.btn:hover {
-  background: rgba(20, 184, 166, 0.2);
-  border-color: rgba(20, 184, 166, 0.42);
-  box-shadow: 0 10px 22px rgba(20, 184, 166, 0.22);
+.nav-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px rgba(79, 70, 229, 0.3);
+}
+
+.nav-pill:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 2px;
+}
+
+.nav-pill[data-tone="portal"] {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.nav-pill[data-tone="mapping"] {
+  background: linear-gradient(135deg, #0ea5e9, #14b8a6);
+  box-shadow: 0 14px 30px rgba(14, 165, 233, 0.24);
+}
+
+.nav-pill[data-tone="entry"] {
+  background: linear-gradient(135deg, #ec4899, #f97316);
+  box-shadow: 0 14px 30px rgba(249, 115, 22, 0.28);
+}
+
+.nav-pill[data-tone="admin"] {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.32);
+}
+
+.nav-pill[data-tone="logout"] {
+  background: linear-gradient(135deg, #f87171, #dc2626);
+  box-shadow: 0 14px 30px rgba(220, 38, 38, 0.3);
+}
+
+.nav-pill[aria-current="page"] {
+  filter: brightness(1.08);
+  box-shadow: 0 20px 38px rgba(79, 70, 229, 0.32);
 }
 
 .cta {
