@@ -207,7 +207,7 @@ def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: in
         )
         row = cur.fetchone()
         if row:
-           return row[0], row[1] 
+            return row[0], uuid.UUID(str(row[1])) 
         logger.warning("Import id %s was not found; inserting a fresh row", import_id)
 
     job_uuid = resolve_job_uuid(payload.get("job_id"))
@@ -239,7 +239,7 @@ def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: in
         ),
     )
     row = cur.fetchone()
-    return row[0], row[1] 
+    return row[0], uuid.UUID(str(row[1]))
 
 
 def persist_ack(cur, import_id: int, ack_type: str, ack_content: str | None) -> None:

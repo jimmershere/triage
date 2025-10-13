@@ -108,7 +108,7 @@ async def ingest(
                     RETURNING id
                     """,
                     (
-                        job_uuid,
+                        str(job_uuid),
                         filename,
                         size,
                         uploaded_by,

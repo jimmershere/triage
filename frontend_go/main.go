@@ -25,12 +25,12 @@ var (
 	cookieName    = "hedi_session"
 	sessionTTL    = 24 * time.Hour
 	sessionSecret = []byte(env("HEDI_SESSION_SECRET", "dev-secret-change-me"))
-	secureCookies = envBool("HEDI_SECURE_COOKIES", false)
+    secureCookies = envBool("HEDI_SECURE_COOKIES", false)
 
-	apiProxyTarget  *url.URL
-	apiProxyEnabled bool
-)
-
+    apiProxyTarget  *url.URL
+    apiProxyEnabled bool
+ )
+ 
 func envBool(key string, def bool) bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
 	if v == "" {
