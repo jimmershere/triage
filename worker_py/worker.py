@@ -363,7 +363,6 @@ def process_payload(payload: dict):
     with get_db() as conn:
         with conn.cursor() as cur:
            import_id, job_uuid = ensure_import_record(cur, payload, filename, ftype, size, raw) 
-
             if ftype.startswith("X12"):
                 claims, isa_ctrl = parse_x12_837(text)
                 claims_count = len(claims)
