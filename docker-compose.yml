@@ -60,10 +60,8 @@ services:
       - ./.env
     environment:
       DATABASE_URL: postgresql://edi:edi@postgres:5432/edi
-      RMQ_HOST: rabbitmq
-      RMQ_PORT: "5672"
-      RMQ_USER: ediapp
-      RMQ_PASS: 3wm078uu
+      RABBITMQ_URL: amqp://ediapp:3wm078uu@rabbitmq:5672/
+      RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
       ARCHIVE_DIR: /archive
     ports:
       - "8000:8000"
@@ -87,10 +85,13 @@ services:
       - ./.env
     environment:
       DATABASE_URL: postgresql://edi:edi@postgres:5432/edi
-      RMQ_HOST: rabbitmq
-      RMQ_PORT: "5672"
-      RMQ_USER: ediapp
-      RMQ_PASS: 3wm078uu
+      RMQ_HOST: ${RMQ_HOST:-rabbitmq}
+      RMQ_PORT: "${RMQ_PORT:-5672}"
+      RMQ_USER: ${RMQ_USER:-ediapp}
+      RMQ_PASS: ${RMQ_PASS:-3wm078uu}
+      RMQ_VHOST: ${RMQ_VHOST:-/}
+      RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
+      RMQ_ACKS_QUEUE: ${RMQ_ACKS_QUEUE:-acks}
       ARCHIVE_DIR: /archive
     volumes:
       - archive:/archive
@@ -105,8 +106,10 @@ services:
     build:
       context: ./frontend_go
     environment:
-      INGEST_URL: http://api:8000/ingest
+      HEDI_API_BASE: http://api:8000
       HEDI_SESSION_SECRET: "HediMAsonarySCRewBitSEMINar3194"
+      PORTAL_HTPASSWD: /app/auth/portal.htpasswd
+      ADMIN_HTPASSWD: /app/auth/admin.htpasswd
       # LDAP_URL: ldap://ldap:389
       # LDAP_BASE_DN: dc=example,dc=org
       # LDAP_USER_ATTR: uid

@@ -19,6 +19,9 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
 2. Copy `.env.example` to `.env` and adjust if needed:
    ```bash
    cp .env.example .env
+   - `RABBITMQ_URL` should match the credentials you configure for RabbitMQ (defaults map to the compose file).
+   - `RMQ_QUEUE` / `RMQ_ACKS_QUEUE` let you rename the ingest and acknowledgement queues.
+   - `HEDI_API_BASE` and `HEDI_SESSION_SECRET` drive the Go frontend's dynamic `config.js` and session signing.
    ```
 3. **Boot services**:
    ```bash
