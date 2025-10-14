@@ -58,8 +58,12 @@ class _PyX12Support:
         with tempfile.TemporaryDirectory() as td:
             in_path = Path(td) / "in.edi"
             in_path.write_text(text, encoding="utf-8", errors="ignore")
-            proc = subprocess.run([self.x12valid_path, str(in_path)],
-                                  capture_output=True, text=True)
+            # Older releases of ``pyx12`` leave ``args.verbose`` as ``None`` unless
+            # ``--verbose`` is explicitly provided, leading to a ``TypeError`` when
+            # the script later compares it against integers.  Passing ``--verbose 0``
+            # keeps output quiet while avoiding that bug.
+            cmd = [self.x12valid_path, "--verbose", "0", str(in_path)]
+            proc = subprocess.run(cmd, capture_output=True, text=True)
             if proc.returncode != 0:
                 raise RuntimeError(proc.stderr or proc.stdout or "x12valid failed")
             out = proc.stdout or ""
