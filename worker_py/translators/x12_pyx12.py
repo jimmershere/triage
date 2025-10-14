@@ -74,7 +74,11 @@ class _PyX12Support:
         return acknowledgements
 
 
+_SUPPORT_ERROR: str | None = None
+
+
 def _load_support() -> _PyX12Support | None:
+    global _SUPPORT_ERROR
     try:
         params_mod = importlib.import_module("pyx12.params")
         x12file_mod = importlib.import_module("pyx12.x12file")
@@ -89,7 +93,11 @@ def _load_support() -> _PyX12Support | None:
             x12n_doc_mod=x12n_doc_mod,
         )
     except Exception as exc:
-        logger.debug("pyx12 support unavailable: %s", exc)
+        _SUPPORT_ERROR = f"{type(exc).__name__}: {exc}"
+        logger.info(
+            "pyx12 translator disabled; install pyx12>=2.3.1 to enable full X12 support (%s)",
+            _SUPPORT_ERROR,
+        )
         return None
 
 
@@ -98,6 +106,7 @@ class PyX12Translator:
 
     def __init__(self) -> None:
         self._support = _load_support()
+        self._last_error = _SUPPORT_ERROR
 
     def handles(self, detected_type: str, text_sample: str) -> bool:
         return self._support is not None and detected_type.startswith("X12")
@@ -161,6 +170,13 @@ class PyX12Translator:
             claims=claims,
             acknowledgements=acknowledgements,
         )
+
+    def diagnostics(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "available": self._support is not None,
+            "error": self._last_error,
+        }
 
 
 register(PyX12Translator())

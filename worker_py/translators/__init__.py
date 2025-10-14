@@ -65,6 +65,29 @@ def select_translator(detected_type: str, text: str) -> Translator | None:
     return None
 
 
+def translator_diagnostics(detected_type: str, text: str = "") -> list[dict[str, object]]:
+    """Return debug information about registered translators."""
+
+    results: list[dict[str, object]] = []
+    for translator in _registry:
+        info: dict[str, object] = {"name": getattr(translator, "name", translator.__class__.__name__)}
+        diagnostics = getattr(translator, "diagnostics", None)
+        if callable(diagnostics):
+            try:
+                extra = diagnostics()
+                if isinstance(extra, dict):
+                    info.update(extra)
+            except Exception as exc:
+                info["diagnostics_error"] = f"{type(exc).__name__}: {exc}"
+        try:
+            info["can_handle"] = bool(translator.handles(detected_type, text))
+        except Exception as exc:
+            info["can_handle"] = False
+            info["handles_error"] = f"{type(exc).__name__}: {exc}"
+        results.append(info)
+    return results
+
+
 # Import built-in translators to trigger registration side effects. Order matters:
 # format-specific adapters register before generic fallbacks.
 from . import x12_pyx12  # noqa: E402,F401

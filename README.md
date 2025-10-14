@@ -112,6 +112,22 @@ RUN pip install --no-cache-dir bots==3.2.0
 Rebuild the worker after installing the dependency. When the service boots it logs whether the optional translator was
 found so you can confirm the package is available.
 
+### Diagnosing which translator is active
+
+The worker registers every available translator at import time. The `simple-x12` entry shown in the logs is the
+lightweight fallback shipped with TurboEDI; it activates when the richer [`pyx12`](https://github.com/azoner/pyx12) stack
+is missing. To inspect the current environment run the translator helper locally or inside the worker container:
+
+```bash
+python -m worker_py.translators               # lists translators and which formats they handle
+python -m worker_py.translators samples/837.edi
+```
+
+The command prints whether `pyx12-x12` is available, why it might be disabled, and which translator would process the
+sample payload. Use `--json` for machine-readable diagnostics or `--log-level INFO` to surface import failures. Once
+`pyx12` imports successfully you will see `Selected translator: pyx12-x12` and the worker logs will swap from
+`simple-x12` to `pyx12-x12` when handling X12 claims.
+
 ## Security Notes
 
 - This sample accepts files and publishes raw bytes to the queue for simplicity.

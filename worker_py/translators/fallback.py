@@ -127,6 +127,9 @@ class SimpleX12Translator:
             acknowledgements=acknowledgements,
         )
 
+    def diagnostics(self) -> dict[str, object]:
+        return {"name": self.name, "available": True, "fallback": True}
+
 
 class SimpleEdifactTranslator:
     name = "simple-edifact"
@@ -198,6 +201,9 @@ class SimpleEdifactTranslator:
             order_lines=lines,
             acknowledgements=[AckRecord("CONTRL", contrl)],
         )
+
+    def diagnostics(self) -> dict[str, object]:
+        return {"name": self.name, "available": True, "fallback": True}
 
 
 class UnknownTranslator:
