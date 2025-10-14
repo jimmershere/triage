@@ -8,6 +8,37 @@ import time
 import uuid
 from contextlib import closing
 from pathlib import Path
+from contextlib import closing
+
+import pika
+import psycopg2
+from dotenv import load_dotenv
+from psycopg2.extras import execute_batch
+
+try:  # When running as part of the package
+    from worker_py.translators import AckRecord, select_translator, TranslationOutcome
+except ModuleNotFoundError:  # When executed from the worker directory directly
+    from translators import AckRecord, select_translator, TranslationOutcome
+
+import pika
+import psycopg2
+from dotenv import load_dotenv
+from psycopg2.extras import execute_batch
+
+try:  # When running as part of the package
+    from worker_py.translators import AckRecord, select_translator, TranslationOutcome
+except ModuleNotFoundError:  # When executed from the worker directory directly
+    from translators import AckRecord, select_translator, TranslationOutcome
+
+import pika
+import psycopg2
+from dotenv import load_dotenv
+from psycopg2.extras import execute_batch
+
+try:  # When running as part of the package
+    from worker_py.translators import AckRecord, select_translator, TranslationOutcome
+except ModuleNotFoundError:  # When executed from the worker directory directly
+    from translators import AckRecord, select_translator, TranslationOutcome
 
 import pika
 import psycopg2
