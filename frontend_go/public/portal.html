@@ -15,6 +15,7 @@
     <a class="nav-pill" data-tone="portal" href="/portal.html" aria-current="page">Claims Portal</a>
     <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">EDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+    <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
     <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
   </nav>
 </header>
@@ -61,10 +62,10 @@
     <div class="table-wrapper">
       <table>
         <thead>
-          <tr><th>Job</th><th>File</th><th>Status</th><th>Created</th><th></th></tr>
+          <tr><th>Job</th><th>File</th><th>Status</th><th>Created</th><th>Outputs</th><th></th></tr>
         </thead>
         <tbody id="jobsBody">
-          <tr><td colspan="5" class="muted">No jobs yet — run a search to load history.</td></tr>
+          <tr><td colspan="6" class="muted">No jobs yet — run a search to load history.</td></tr>
         </tbody>
       </table>
     </div>
@@ -94,6 +95,15 @@ const searchPartnerInput = document.getElementById("searchPartnerId");
 const detailCard = document.getElementById("detailCard");
 const detailContent = document.getElementById("detailContent");
 
+function formatBytes(size) {
+  if (size === undefined || size === null) return "";
+  if (size === 0) return "0 bytes";
+  const units = ["bytes", "KB", "MB", "GB"];
+  const power = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
+  const value = size / Math.pow(1024, power);
+  return `${value.toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
+}
+
 function sendToLogin() {
   const next = encodeURIComponent(window.location.pathname);
   window.location.href = `/login?next=${next}`;
@@ -116,7 +126,7 @@ function showStatus(message, tone = "info") {
 function renderJobs(jobs) {
   jobsBody.innerHTML = "";
   if (!jobs.length) {
-    jobsBody.innerHTML = '<tr><td colspan="5" class="muted">No jobs match your filters yet.</td></tr>';
+    jobsBody.innerHTML = '<tr><td colspan="6" class="muted">No jobs match your filters yet.</td></tr>';
     return;
   }
 
@@ -128,6 +138,7 @@ function renderJobs(jobs) {
       <td>${job.filename}</td>
       <td><span class="status status-${job.status}">${job.status}</span></td>
       <td>${created}</td>
+      <td>${job.ack_count ?? 0}</td>
       <td class="actions">
         <button class="ghost" data-detail="${job.job_id}">Details</button>
         <a class="ghost" href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/download" target="_blank" rel="noopener">Download</a>
@@ -182,15 +193,19 @@ async function fetchDetail(jobId) {
         <div><strong>Processed:</strong> ${job.processed_at ? new Date(job.processed_at).toLocaleString() : "—"}</div>
         <div><strong>Claims detected:</strong> ${job.claims_count ?? "—"}</div>
         <div><strong>Order lines:</strong> ${job.order_lines_count ?? "—"}</div>
+        <div><strong>Output files:</strong> ${job.ack_count ?? 0}</div>
       </div>
       <div class="ack-block">
         <h4>Acknowledgements</h4>
+        ${job.ack_count ? `<div class="ack-actions"><a class="ghost" href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/acks.zip" target="_blank" rel="noopener">Download all</a></div>` : ""}
         ${job.acknowledgements && job.acknowledgements.length ? job.acknowledgements.map(ack => `
           <article>
             <header>
               <span class="badge">${ack.ack_type}</span>
               <span class="timestamp">${ack.created_at ? new Date(ack.created_at).toLocaleString() : ""}</span>
+              <a class="ghost" href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/acks/${ack.id}/download" target="_blank" rel="noopener">Download</a>
             </header>
+            <p class="meta">${formatBytes(ack.size_bytes) || ""}</p>
             <pre>${ack.content}</pre>
           </article>
         `).join("") : '<p class="muted">No acknowledgements generated yet.</p>'}
