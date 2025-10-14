@@ -212,9 +212,6 @@ def ensure_import_core_columns(conn) -> None:
         cur.execute("UPDATE imports SET file_type = 'unknown' WHERE file_type IS NULL")
         cur.execute("ALTER TABLE imports ALTER COLUMN file_type SET DEFAULT 'unknown'")
         cur.execute("ALTER TABLE imports ALTER COLUMN file_type SET NOT NULL")
-        cur.execute("UPDATE imports SET created_at = NOW() WHERE created_at IS NULL")
-        cur.execute("ALTER TABLE imports ALTER COLUMN created_at SET DEFAULT NOW()")
-        cur.execute("ALTER TABLE imports ALTER COLUMN created_at SET NOT NULL")
 
     conn.commit()
 
