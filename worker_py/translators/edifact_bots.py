@@ -1,4 +1,4 @@
-"""bots-edi backed translator for EDIFACT files."""
+"""Optional bots-backed translator for EDIFACT files."""
 from __future__ import annotations
 
 import importlib
@@ -71,7 +71,10 @@ def _load_support() -> _BotsSupport | None:
     try:
         parser_mod = importlib.import_module("bots.parsers.edifact")
     except Exception as exc:
-        logger.debug("bots EDIFACT parser unavailable: %s", exc)
+        logger.info(
+            "bots EDIFACT parser unavailable; install the optional 'bots' package to enable EDIFACT translations (%s)",
+            exc,
+        )
         return None
     try:
         ack_mod = importlib.import_module("bots.acknowledge.edifact")

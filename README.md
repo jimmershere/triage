@@ -11,7 +11,7 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
 - **/samples**: Example X12 837 and EDIFACT ORDERS files
 - **/bench**: Quick local benchmark harness
 
-> ⚠️ This is a starter kit for rapid iteration, not a full validator. Swap in **bots-edi** / **PyX12** / production mappers as you grow.
+> ⚠️ This is a starter kit for rapid iteration, not a full validator. Swap in **bots** (install separately) / **PyX12** / production mappers as you grow.
 
 ## Quick Start
 
@@ -84,7 +84,7 @@ when local modifications cause context mismatches.
 ## Replace the Minimal Parsers
 
 - X12: swap the `parse_x12_837` in `worker_py/worker.py` with **PyX12** or your mapping engine.
-- EDIFACT: replace `parse_edifact_orders` with **bots-edi** mapping + validation and CONTRL generation.
+- EDIFACT: replace `parse_edifact_orders` with **bots** (install separately) mapping + validation and CONTRL generation.
 
 ## Security Notes
 
