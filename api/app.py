@@ -190,6 +190,20 @@ def ensure_import_core_columns(conn) -> None:
         if "file_type" not in existing:
             logger.info("Adding file_type column to imports table")
             cur.execute("ALTER TABLE imports ADD COLUMN file_type TEXT")
+        if "created_at" not in existing:
+            logger.info("Adding created_at column to imports table")
+            cur.execute(
+                "ALTER TABLE imports ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+            )
+        if "processed_at" not in existing:
+            logger.info("Adding processed_at column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN processed_at TIMESTAMP")
+        if "claims_count" not in existing:
+            logger.info("Adding claims_count column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN claims_count INTEGER")
+        if "order_lines_count" not in existing:
+            logger.info("Adding order_lines_count column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN order_lines_count INTEGER")
 
     with conn.cursor() as cur:
         cur.execute("UPDATE imports SET status = 'queued' WHERE status IS NULL")
