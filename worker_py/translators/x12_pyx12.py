@@ -58,13 +58,50 @@ class _PyX12Support:
         with tempfile.TemporaryDirectory() as td:
             in_path = Path(td) / "in.edi"
             in_path.write_text(text, encoding="utf-8", errors="ignore")
-            proc = subprocess.run([self.x12valid_path, str(in_path)],
-                                  capture_output=True, text=True)
+
+            # ``x12valid`` uses an ``argparse`` ``count`` action for ``--verbose``
+            # that defaults to ``None``.  Older versions compare the value against
+            # integers, so we always supply ``-v`` to coerce it to ``1`` and then
+            # pair it with ``-q`` to keep logging noise down.
+            cmd = [self.x12valid_path, "-v", "-q", str(in_path)]
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            stdout = proc.stdout or ""
+            stderr = proc.stderr or ""
+
+            ack_records: list[AckRecord] = []
+            ack_candidates = (
+                (".999", "999"),
+                (".997", "997"),
+                (".277", "277CA"),
+            )
+            for suffix, ack_type in ack_candidates:
+                ack_path = Path(f"{in_path}{suffix}")
+                if ack_path.exists():
+                    ack_text = ack_path.read_text(encoding="utf-8", errors="ignore")
+                    if ack_text:
+                        ack_records.append(AckRecord(ack_type, ack_text))
+
+            if not ack_records and proc.returncode == 0:
+                ack_type = "999" if "ST*999" in stdout or "X231" in stdout else "997"
+                ack_records.append(AckRecord(ack_type, stdout))
+
             if proc.returncode != 0:
-                raise RuntimeError(proc.stderr or proc.stdout or "x12valid failed")
-            out = proc.stdout or ""
-            ack_type = "999" if "ST*999" in out or "X231" in out else "997"
-            return [AckRecord(ack_type, out)]
+                diagnostic = (stderr or stdout or f"x12valid failed with code {proc.returncode}").strip()
+                first_line = diagnostic.splitlines()[0] if diagnostic else ""
+                logger.warning(
+                    "x12valid exited with %s while processing job %s: %s",
+                    proc.returncode,
+                    job_uuid,
+                    first_line,
+                )
+                if not ack_records:
+                    ack_records.append(AckRecord("NOTICE", diagnostic or "x12valid failed without diagnostic output"))
+
+            if not ack_records:
+                logger.info("x12valid did not emit acknowledgement content; falling back to notice")
+                return [AckRecord("NOTICE", stdout or stderr or "pyx12 failed to produce acknowledgement data")]
+
+            return ack_records
 
 _SUPPORT_ERROR: str | None = None
 
