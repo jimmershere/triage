@@ -8,6 +8,7 @@ import time
 import uuid
 from contextlib import closing
 from pathlib import Path
+from contextlib import closing
 
 import pika
 import psycopg2
