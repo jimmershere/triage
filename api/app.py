@@ -1,4 +1,4 @@
-import os, base64, json, uuid, logging, zipfile
+import os, base64, json, uuid, logging, zipfile, time
 from contextlib import contextmanager
 from io import BytesIO
 from typing import List, Optional
@@ -315,6 +315,7 @@ async def ingest(
     trading_partner_id: Optional[str] = Form(default=None),
 ):
     import_id: Optional[int] = None
+    start_time = time.perf_counter()
     try:
         content = await file.read()
         if not content:
@@ -324,8 +325,17 @@ async def ingest(
         filename = file.filename or "upload.dat"
         size = len(content)
 
+        logger.info(
+            "Received upload filename=%s size=%s uploaded_by=%s partner=%s",
+            filename,
+            size,
+            uploaded_by,
+            trading_partner_id,
+        )
+
         with get_db() as conn:
             with conn.cursor() as cur:
+                db_start = time.perf_counter()
                 cur.execute(
                     """
                     INSERT INTO imports (job_id, filename, byte_size, uploaded_by, trading_partner_id, original_content, status)
@@ -345,6 +355,13 @@ async def ingest(
                 import_id = cur.fetchone()[0]
             conn.commit()
 
+        logger.info(
+            "Persisted import record id=%s for job %s in %.3fs",
+            import_id,
+            job_uuid,
+            time.perf_counter() - db_start,
+        )
+
         payload = {
             "job_id": str(job_uuid),
             "import_id": import_id,
@@ -358,6 +375,7 @@ async def ingest(
 
         connection, ch = get_channel()
         try:
+            publish_start = time.perf_counter()
             ch.basic_publish(
                 exchange="",
                 routing_key=RMQ_QUEUE,
@@ -368,6 +386,13 @@ async def ingest(
             connection.close()
 
         logger.info(
+            "Published job %s to queue %s in %.3fs",
+            job_uuid,
+            RMQ_QUEUE,
+            time.perf_counter() - publish_start,
+        )
+
+        logger.info(
             "Enqueued job %s (%s bytes) for %s [uploaded_by=%s partner=%s]",
             job_uuid,
             size,
@@ -375,6 +400,9 @@ async def ingest(
             uploaded_by,
             trading_partner_id,
         )
+
+        total_duration = time.perf_counter() - start_time
+        logger.info("Completed ingest for job %s in %.3fs", job_uuid, total_duration)
         return {"job_id": str(job_uuid), "import_id": import_id, "queued_bytes": size, "filename": filename}
     except HTTPException:
         raise

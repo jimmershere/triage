@@ -527,11 +527,23 @@ def fanout_ack_files(uploaded_by: str | None, ack_type: str, ack_content: str | 
 
 
 def process_payload(payload: dict):
+    overall_start = time.perf_counter()
+    job_hint = payload.get("job_id") or "pending"
     raw = base64.b64decode(payload["data_b64"])
     text = raw.decode("utf-8", errors="replace")
     ftype = detect_format(text)
     size = len(raw)
     filename = payload.get("filename", "upload.dat")
+
+    decode_duration = time.perf_counter() - overall_start
+    logger.info(
+        "Worker received payload job_id=%s filename=%s size=%s format=%s (decode %.3fs)",
+        job_hint,
+        filename,
+        size,
+        ftype,
+        decode_duration,
+    )
 
     claims_count: int | None = None
     order_lines_count: int | None = None
@@ -540,14 +552,29 @@ def process_payload(payload: dict):
 
     with get_db() as conn:
         with conn.cursor() as cur:
+            ensure_start = time.perf_counter()
             import_id, job_uuid = ensure_import_record(
                 cur, payload, filename, ftype, size, raw
             )
+            logger.info(
+                "Ensured import record id=%s job_id=%s in %.3fs",
+                import_id,
+                job_uuid,
+                time.perf_counter() - ensure_start,
+            )
 
             if ftype.startswith("X12"):
+                parse_start = time.perf_counter()
                 claims, isa_ctrl = parse_x12_837(text)
                 claims_count = len(claims)
+                logger.info(
+                    "Parsed %s claims for job %s in %.3fs",
+                    claims_count,
+                    job_uuid,
+                    time.perf_counter() - parse_start,
+                )
                 if claims:
+                    insert_start = time.perf_counter()
                     execute_batch(
                         cur,
                         "INSERT INTO claims (import_id, claim_id, amount, raw_claim) VALUES (%s,%s,%s,%s)",
@@ -562,6 +589,12 @@ def process_payload(payload: dict):
                         ],
                         page_size=500,
                     )
+                    logger.info(
+                        "Inserted %s claims for import %s in %.3fs",
+                        claims_count,
+                        import_id,
+                        time.perf_counter() - insert_start,
+                    )
                 ack_999 = make_999_like(
                     job_uuid,
                     payload.get("trading_partner_id"),
@@ -574,11 +607,24 @@ def process_payload(payload: dict):
                     claims_count or 0,
                 )
                 ack_records.extend([("999", ack_999), ("277CA", ack_277)])
+                logger.info(
+                    "Generated acknowledgements %s for job %s",
+                    [ack[0] for ack in ack_records],
+                    job_uuid,
+                )
 
             elif ftype.startswith("EDIFACT"):
+                parse_start = time.perf_counter()
                 lines, doc_no = parse_edifact_orders(text)
                 order_lines_count = len(lines)
+                logger.info(
+                    "Parsed %s order lines for job %s in %.3fs",
+                    order_lines_count,
+                    job_uuid,
+                    time.perf_counter() - parse_start,
+                )
                 if lines:
+                    insert_start = time.perf_counter()
                     execute_batch(
                         cur,
                         "INSERT INTO order_lines (import_id, line_no, item_id, qty, price, raw_line) VALUES (%s,%s,%s,%s,%s,%s)",
@@ -595,11 +641,27 @@ def process_payload(payload: dict):
                         ],
                         page_size=500,
                     )
+                    logger.info(
+                        "Inserted %s order lines for import %s in %.3fs",
+                        order_lines_count,
+                        import_id,
+                        time.perf_counter() - insert_start,
+                    )
                 ack_contrl = make_contrl_like(doc_no, order_lines_count or 0)
                 ack_records.append(("CONTRL", ack_contrl))
+                logger.info(
+                    "Generated acknowledgements %s for job %s",
+                    [ack[0] for ack in ack_records],
+                    job_uuid,
+                )
             else:
                 ack_records.append(("NOTICE", "UNKNOWN FORMAT - no ack generated"))
+                logger.info(
+                    "Defaulted to notice acknowledgement for unknown format job %s",
+                    job_uuid,
+                )
 
+            update_start = time.perf_counter()
             cur.execute(
                 """
                 UPDATE imports
@@ -611,14 +673,34 @@ def process_payload(payload: dict):
                 """,
                 (claims_count, order_lines_count, import_id),
             )
+            logger.info(
+                "Updated import %s status in %.3fs",
+                import_id,
+                time.perf_counter() - update_start,
+            )
+            persist_start = time.perf_counter()
             for ack_type, ack_content in ack_records:
                 persist_ack(cur, import_id, ack_type, ack_content)
+            logger.info(
+                "Persisted %s acknowledgement rows for import %s in %.3fs",
+                len(ack_records),
+                import_id,
+                time.perf_counter() - persist_start,
+            )
 
+        commit_start = time.perf_counter()
         conn.commit()
+    logger.info(
+        "Committed database work for job %s import %s in %.3fs",
+        job_uuid,
+        import_id,
+        time.perf_counter() - commit_start,
+    )
 
     if job_uuid is None:
         job_uuid = resolve_job_uuid(payload.get("job_id"))
 
+    fanout_start = time.perf_counter()
     for ack_type, ack_content in ack_records:
         fanout_ack_files(
             payload.get("uploaded_by"),
@@ -627,6 +709,21 @@ def process_payload(payload: dict):
             job_uuid,
             payload.get("trading_partner_id"),
         )
+    if ack_records:
+        logger.info(
+            "Wrote acknowledgement files %s for job %s in %.3fs",
+            [ack[0] for ack in ack_records],
+            job_uuid,
+            time.perf_counter() - fanout_start,
+        )
+
+    total_duration = time.perf_counter() - overall_start
+    logger.info(
+        "Finished processing job %s import %s in %.3fs",
+        job_uuid,
+        import_id,
+        total_duration,
+    )
 
     return ftype, size, import_id
 
