@@ -6,6 +6,10 @@ import io
 import logging
 import uuid
 from dataclasses import dataclass
+import subprocess
+import shutil
+import tempfile
+from pathlib import Path
 
 from . import AckRecord, TranslationOutcome, Translator, register
 
@@ -17,8 +21,7 @@ class _PyX12Support:
     params_mod: object
     x12file_mod: object
     map_if_mod: object
-    ack_mod: object
-    x12n_doc_mod: object
+    x12valid_path: str | None
 
     def _new_params(self):
         params_cls = getattr(self.params_mod, "params", None)
@@ -49,33 +52,21 @@ class _PyX12Support:
         job_uuid: uuid.UUID,
         trading_partner_id: str | None,
     ) -> list[AckRecord]:
-        params = self._new_params()
-        params.set("icvn", "00501")
-        params.set("snip_validation", "true")
-        params.set("map_path", getattr(self.map_if_mod, "map_index", None))
-        # pyx12 exposes ack builders under ack.x12_999 and ack.x12_277ca modules.
-        acknowledgements: list[AckRecord] = []
-        try:
-            ack999_mod = importlib.import_module("pyx12.ack.x12_999")
-            build_999 = getattr(ack999_mod, "ack_generate", None) or getattr(ack999_mod, "generate_ack", None)
-            if build_999 is not None:
-                ack_text = build_999(text, params=params)
-                acknowledgements.append(AckRecord("999", ack_text))
-        except Exception as exc:
-            logger.warning("pyx12 999 generation failed: %s", exc)
-        try:
-            ack277_mod = importlib.import_module("pyx12.ack.x12_277ca")
-            build_277 = getattr(ack277_mod, "ack_generate", None) or getattr(ack277_mod, "generate_ack", None)
-            if build_277 is not None:
-                ack_text = build_277(text, params=params)
-                acknowledgements.append(AckRecord("277CA", ack_text))
-        except Exception as exc:
-            logger.warning("pyx12 277CA generation failed: %s", exc)
-        return acknowledgements
-
+        if not self.x12valid_path:
+            raise RuntimeError("x12valid not found in PATH; install pyx12 in this venv")
+        # Write the payload to a temp file (x12valid expects a filename).
+        with tempfile.TemporaryDirectory() as td:
+            in_path = Path(td) / "in.edi"
+            in_path.write_text(text, encoding="utf-8", errors="ignore")
+            proc = subprocess.run([self.x12valid_path, str(in_path)],
+                                  capture_output=True, text=True)
+            if proc.returncode != 0:
+                raise RuntimeError(proc.stderr or proc.stdout or "x12valid failed")
+            out = proc.stdout or ""
+            ack_type = "999" if "ST*999" in out or "X231" in out else "997"
+            return [AckRecord(ack_type, out)]
 
 _SUPPORT_ERROR: str | None = None
-
 
 def _load_support() -> _PyX12Support | None:
     global _SUPPORT_ERROR
@@ -83,23 +74,22 @@ def _load_support() -> _PyX12Support | None:
         params_mod = importlib.import_module("pyx12.params")
         x12file_mod = importlib.import_module("pyx12.x12file")
         map_if_mod = importlib.import_module("pyx12.map_if")
-        ack_mod = importlib.import_module("pyx12.ack")
-        x12n_doc_mod = importlib.import_module("pyx12.x12n_document")
+        x12valid_path = shutil.which("x12valid")
+        if not x12valid_path:
+            raise RuntimeError("x12valid not found (pyx12 not installed in this environment)")
         return _PyX12Support(
             params_mod=params_mod,
             x12file_mod=x12file_mod,
             map_if_mod=map_if_mod,
-            ack_mod=ack_mod,
-            x12n_doc_mod=x12n_doc_mod,
+            x12valid_path=x12valid_path,
         )
     except Exception as exc:
         _SUPPORT_ERROR = f"{type(exc).__name__}: {exc}"
         logger.info(
-            "pyx12 translator disabled; install pyx12>=2.3.1 to enable full X12 support (%s)",
+            "pyx12 translator disabled; ensure pyx12 is installed and x12valid is on PATH (%s)",
             _SUPPORT_ERROR,
         )
         return None
-
 
 class PyX12Translator:
     name = "pyx12-x12"

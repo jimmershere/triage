@@ -211,3 +211,12 @@ main.go:18:2: missing go.sum entry for module providing package github.com/go-ld
 main.go:19:2: missing go.sum entry for module providing package golang.org/x/crypto/bcrypt; to add:
 	go mod download golang.org/x/crypto
 Error: building at STEP "RUN CGO_ENABLED=0 GOOS=linux go build -o hedi-frontend ./main.go": while running runtime: exit status 1
+
+==================================================
+
+  19  sudo ln -s /app/python-3.12.12/bin/python3.12 /usr/bin/python
+   29  sudo rm -rf Python-3.12.12
+   38  sudo mv /usr/bin/pip3 /usr/bin/pip3.sys
+   39  sudo mv /usr/bin/pip /usr/bin/pip.sys
+   40  sudo ln -s /app/python-3.12.12/bin/pip3.12 /usr/bin/pip3
+   41  sudo ln -s /app/python-3.12.12/bin/pip3.12 /usr/bin/pip
