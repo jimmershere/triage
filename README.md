@@ -86,6 +86,32 @@ when local modifications cause context mismatches.
 - X12: swap the `parse_x12_837` in `worker_py/worker.py` with **PyX12** or your mapping engine.
 - EDIFACT: replace `parse_edifact_orders` with **bots** (install separately) mapping + validation and CONTRL generation.
 
+### Enabling the optional `bots` translator
+
+The worker auto-detects whether the [bots EDI translator](https://github.com/bots-edi/bots) is installed. When present it
+activates the `bots-edifact` adapter so EDIFACT payloads are parsed and acknowledgements are generated with the library
+instead of the fallback parser.
+
+Install it in whatever environment builds/runs the worker:
+
+```bash
+# Local virtualenv or dev shell
+pip install "bots==3.2.0"
+
+# Container image (add after the existing requirements step)
+RUN pip install --no-cache-dir bots==3.2.0
+```
+
+If you prefer to keep the base starter image unchanged, you can create a thin derivative Dockerfile, for example:
+
+```Dockerfile
+FROM turbohedi-02_worker_py
+RUN pip install --no-cache-dir bots==3.2.0
+```
+
+Rebuild the worker after installing the dependency. When the service boots it logs whether the optional translator was
+found so you can confirm the package is available.
+
 ## Security Notes
 
 - This sample accepts files and publishes raw bytes to the queue for simplicity.
