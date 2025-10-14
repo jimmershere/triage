@@ -16,6 +16,32 @@ CREATE TABLE IF NOT EXISTS imports (
   order_lines_count INTEGER
 );
 
+-- Backfill columns for environments that created `imports` before these fields existed.
+ALTER TABLE imports
+  ADD COLUMN IF NOT EXISTS original_content BYTEA,
+  ADD COLUMN IF NOT EXISTS status TEXT,
+  ADD COLUMN IF NOT EXISTS file_type TEXT,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS claims_count INTEGER,
+  ADD COLUMN IF NOT EXISTS order_lines_count INTEGER;
+
+ALTER TABLE imports
+  ALTER COLUMN file_type SET DEFAULT 'unknown';
+UPDATE imports SET file_type = 'unknown' WHERE file_type IS NULL;
+
+UPDATE imports SET status = 'queued' WHERE status IS NULL;
+ALTER TABLE imports
+  ALTER COLUMN status SET DEFAULT 'queued';
+ALTER TABLE imports
+  ALTER COLUMN status SET NOT NULL;
+
+UPDATE imports SET created_at = NOW() WHERE created_at IS NULL;
+ALTER TABLE imports
+  ALTER COLUMN created_at SET DEFAULT NOW();
+ALTER TABLE imports
+  ALTER COLUMN created_at SET NOT NULL;
+
 CREATE TABLE IF NOT EXISTS claims (
   id SERIAL PRIMARY KEY,
   import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,

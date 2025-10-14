@@ -1,4 +1,4 @@
-import os, base64, json, uuid, logging
+import os, base64, json, uuid, logging, zipfile
 from contextlib import contextmanager
 from io import BytesIO
 from typing import List, Optional
@@ -43,17 +43,8 @@ db_pool: Optional[pool.SimpleConnectionPool] = None
 def run_startup_migrations() -> None:
     try:
         with get_db() as conn:
-            ensure_import_job_ids(conn)
-    except Exception:
-        logger.exception("Failed to ensure imports.job_id column exists")
-        raise
-
-
-@app.on_event("startup")
-def run_startup_migrations() -> None:
-    try:
-        with get_db() as conn:
             ensure_core_ingest_tables(conn)
+            ensure_import_core_columns(conn)
             ensure_import_job_ids(conn)
             ensure_import_uploaded_by(conn)
     except Exception:
@@ -116,22 +107,7 @@ def ensure_import_job_ids(conn) -> None:
 def ensure_core_ingest_tables(conn) -> None:
     """Create the imports and related tables if they do not already exist."""
 
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT EXISTS (
-                SELECT 1
-                  FROM information_schema.tables
-                 WHERE table_name = 'imports'
-            )
-            """
-        )
-        has_imports = cur.fetchone()[0]
-
-    if has_imports:
-        return
-
-    logger.info("Creating core ingest tables for legacy databases")
+    logger.info("Ensuring core ingest tables exist")
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -191,39 +167,54 @@ def ensure_core_ingest_tables(conn) -> None:
     conn.commit()
 
 
-def ensure_import_job_ids(conn) -> None:
-    """Backfill and enforce the job_id column on imports for older databases."""
+def ensure_import_core_columns(conn) -> None:
+    """Ensure legacy imports tables have the columns expected by the app."""
+
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT EXISTS (
-                SELECT 1
-                FROM information_schema.columns
-                WHERE table_name = 'imports' AND column_name = 'job_id'
-            )
+            SELECT column_name
+              FROM information_schema.columns
+             WHERE table_name = 'imports'
             """
         )
-        has_column = cur.fetchone()[0]
-        if not has_column:
-            logger.info("Adding job_id column to imports table")
-            cur.execute("ALTER TABLE imports ADD COLUMN job_id UUID")
+        existing = {row[0] for row in cur.fetchall()}
 
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM imports WHERE job_id IS NULL")
-        missing = [row[0] for row in cur.fetchall()]
-        for import_id in missing:
-            generated = str(uuid.uuid4())
-            logger.debug("Backfilling job_id %s for import %s", generated, import_id)
+        if "original_content" not in existing:
+            logger.info("Adding original_content column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN original_content BYTEA")
+        if "status" not in existing:
+            logger.info("Adding status column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN status TEXT")
+        if "file_type" not in existing:
+            logger.info("Adding file_type column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN file_type TEXT")
+        if "created_at" not in existing:
+            logger.info("Adding created_at column to imports table")
             cur.execute(
-                "UPDATE imports SET job_id = %s WHERE id = %s",
-                (generated, import_id),
+                "ALTER TABLE imports ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT NOW()"
             )
+        if "processed_at" not in existing:
+            logger.info("Adding processed_at column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN processed_at TIMESTAMP")
+        if "claims_count" not in existing:
+            logger.info("Adding claims_count column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN claims_count INTEGER")
+        if "order_lines_count" not in existing:
+            logger.info("Adding order_lines_count column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN order_lines_count INTEGER")
 
     with conn.cursor() as cur:
-        cur.execute("ALTER TABLE imports ALTER COLUMN job_id SET NOT NULL")
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_imports_job_id ON imports(job_id)"
-        )
+        cur.execute("UPDATE imports SET status = 'queued' WHERE status IS NULL")
+        cur.execute("ALTER TABLE imports ALTER COLUMN status SET DEFAULT 'queued'")
+        cur.execute("ALTER TABLE imports ALTER COLUMN status SET NOT NULL")
+        cur.execute("UPDATE imports SET file_type = 'unknown' WHERE file_type IS NULL")
+        cur.execute("ALTER TABLE imports ALTER COLUMN file_type SET DEFAULT 'unknown'")
+        cur.execute("ALTER TABLE imports ALTER COLUMN file_type SET NOT NULL")
+        cur.execute("UPDATE imports SET created_at = NOW() WHERE created_at IS NULL")
+        cur.execute("ALTER TABLE imports ALTER COLUMN created_at SET DEFAULT NOW()")
+        cur.execute("ALTER TABLE imports ALTER COLUMN created_at SET NOT NULL")
 
     conn.commit()
 
@@ -264,6 +255,29 @@ def get_channel():
     return connection, ch
 
 
+def sanitize_filename_component(value: str, fallback: str = "file") -> str:
+    cleaned = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in (value or ""))
+    cleaned = cleaned.strip("._")
+    return cleaned or fallback
+
+
+def ack_file_extension(ack_type: str) -> str:
+    upper = (ack_type or "").upper()
+    if upper == "999":
+        return ".999"
+    if upper == "277CA":
+        return ".277"
+    if "CONTRL" in upper:
+        return ".contrl"
+    return ".txt"
+
+
+def ack_download_filename(job_id: str, ack_type: str, ack_id: int) -> str:
+    safe_type = sanitize_filename_component(ack_type or "ack", "ack")
+    base = f"{job_id}_{safe_type}_{ack_id}"
+    return f"{base}{ack_file_extension(ack_type or '')}"
+
+
 class JobSummary(BaseModel):
     job_id: uuid.UUID
     filename: str
@@ -274,12 +288,24 @@ class JobSummary(BaseModel):
     processed_at: Optional[str]
     uploaded_by: Optional[str]
     trading_partner_id: Optional[str]
+    claims_count: Optional[int]
+    order_lines_count: Optional[int]
+    ack_count: int
+
+
+class AcknowledgementSummary(BaseModel):
+    id: int
+    ack_type: str
+    created_at: Optional[str]
+    size_bytes: Optional[int]
+
+
+class Acknowledgement(AcknowledgementSummary):
+    content: Optional[str]
 
 
 class JobDetail(JobSummary):
-    claims_count: Optional[int]
-    order_lines_count: Optional[int]
-    acknowledgements: List[dict]
+    acknowledgements: List[Acknowledgement]
 
 
 @app.post("/ingest")
@@ -378,8 +404,10 @@ async def list_jobs(
         raise HTTPException(status_code=400, detail="Provide uploaded_by or trading_partner_id to search")
 
     query = [
-        "SELECT job_id, filename, file_type, byte_size, status, created_at, processed_at, uploaded_by, trading_partner_id",
-        "FROM imports WHERE 1=1",
+        "SELECT i.job_id, i.filename, i.file_type, i.byte_size, i.status, i.created_at, i.processed_at,",
+        "       i.uploaded_by, i.trading_partner_id, i.claims_count, i.order_lines_count,",
+        "       COALESCE((SELECT COUNT(*) FROM acks a WHERE a.import_id = i.id), 0) AS ack_count",
+        "FROM imports i WHERE 1=1",
     ]
     params: List[object] = []
     if uploaded_by:
@@ -409,6 +437,9 @@ async def list_jobs(
                 processed_at=row["processed_at"].isoformat() if row["processed_at"] else None,
                 uploaded_by=row.get("uploaded_by"),
                 trading_partner_id=row.get("trading_partner_id"),
+                claims_count=row.get("claims_count"),
+                order_lines_count=row.get("order_lines_count"),
+                ack_count=int(row.get("ack_count") or 0),
             )
         )
     return results
@@ -420,7 +451,13 @@ async def job_detail(job_id: str):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT i.*, a.ack_type, a.content, a.created_at AS ack_created_at
+                SELECT i.*,
+                       COALESCE((SELECT COUNT(*) FROM acks a2 WHERE a2.import_id = i.id), 0) AS ack_count,
+                       a.id AS ack_id,
+                       a.ack_type,
+                       a.content,
+                       a.created_at AS ack_created_at,
+                       OCTET_LENGTH(a.content) AS ack_size
                 FROM imports i
                 LEFT JOIN acks a ON a.import_id = i.id
                 WHERE i.job_id = %s
@@ -434,17 +471,20 @@ async def job_detail(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
 
     base = rows[0]
-    acks = []
+    acks: List[Acknowledgement] = []
     for row in rows:
-        if row.get("ack_type"):
+        if row.get("ack_id"):
             acks.append(
-                {
-                    "ack_type": row["ack_type"],
-                    "content": row["content"],
-                    "created_at": row["ack_created_at"].isoformat() if row["ack_created_at"] else None,
-                }
+                Acknowledgement(
+                    id=row["ack_id"],
+                    ack_type=row["ack_type"],
+                    created_at=row["ack_created_at"].isoformat() if row["ack_created_at"] else None,
+                    size_bytes=int(row.get("ack_size")) if row.get("ack_size") is not None else None,
+                    content=row.get("content"),
+                )
             )
 
+    ack_count_val = base.get("ack_count")
     detail = JobDetail(
         job_id=base["job_id"],
         filename=base["filename"],
@@ -457,9 +497,45 @@ async def job_detail(job_id: str):
         trading_partner_id=base.get("trading_partner_id"),
         claims_count=base.get("claims_count"),
         order_lines_count=base.get("order_lines_count"),
+        ack_count=int(ack_count_val) if ack_count_val is not None else len(acks),
         acknowledgements=acks,
     )
     return detail
+
+
+@app.get("/jobs/{job_id}/acks", response_model=List[AcknowledgementSummary])
+async def list_job_acks(job_id: str):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM imports WHERE job_id = %s", (job_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Job not found")
+            import_id = row[0]
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, ack_type, created_at, OCTET_LENGTH(content) AS size_bytes
+                  FROM acks
+                 WHERE import_id = %s
+                 ORDER BY created_at ASC
+                """,
+                (import_id,),
+            )
+            rows = cur.fetchall()
+
+    summaries: List[AcknowledgementSummary] = []
+    for row in rows:
+        summaries.append(
+            AcknowledgementSummary(
+                id=row["id"],
+                ack_type=row["ack_type"],
+                created_at=row["created_at"].isoformat() if row["created_at"] else None,
+                size_bytes=int(row.get("size_bytes")) if row.get("size_bytes") is not None else None,
+            )
+        )
+    return summaries
 
 
 @app.get("/jobs/{job_id}/download")
@@ -479,6 +555,73 @@ async def download_original(job_id: str):
     buffer = BytesIO(bytes(data))
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return StreamingResponse(buffer, media_type="application/octet-stream", headers=headers)
+
+
+@app.get("/jobs/{job_id}/acks/{ack_id}/download")
+async def download_ack(job_id: str, ack_id: int):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT a.ack_type, a.content
+                  FROM acks a
+                  JOIN imports i ON a.import_id = i.id
+                 WHERE i.job_id = %s AND a.id = %s
+                """,
+                (job_id, ack_id),
+            )
+            row = cur.fetchone()
+
+    if not row or row[1] is None:
+        raise HTTPException(status_code=404, detail="Acknowledgement not found")
+
+    ack_type, content = row
+    buffer = BytesIO((content or "").encode("utf-8"))
+    filename = ack_download_filename(job_id, ack_type, ack_id)
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(buffer, media_type="text/plain", headers=headers)
+
+
+@app.get("/jobs/{job_id}/acks.zip")
+async def download_ack_archive(job_id: str):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM imports WHERE job_id = %s", (job_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Job not found")
+            import_id = row[0]
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, ack_type, content
+                  FROM acks
+                 WHERE import_id = %s
+                 ORDER BY created_at ASC
+                """,
+                (import_id,),
+            )
+            rows = cur.fetchall()
+
+    wrote_any = False
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for row in rows:
+            content = row.get("content")
+            if content is None:
+                continue
+            ack_id = int(row.get("id")) if row.get("id") is not None else 0
+            filename = ack_download_filename(job_id, row.get("ack_type"), ack_id)
+            archive.writestr(filename, content)
+            wrote_any = True
+
+    if not wrote_any:
+        raise HTTPException(status_code=404, detail="No acknowledgement content available")
+
+    buffer.seek(0)
+    headers = {"Content-Disposition": f'attachment; filename="{job_id}_acks.zip"'}
+    return StreamingResponse(buffer, media_type="application/zip", headers=headers)
 
 
 @app.on_event("shutdown")
