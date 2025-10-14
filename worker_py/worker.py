@@ -3,6 +3,7 @@ import pika, psycopg2
 from psycopg2.extras import execute_batch
 from dotenv import load_dotenv
 from pathlib import Path
+from contextlib import closing
 
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -66,6 +67,167 @@ def get_rmq_channel():
 
 def get_db():
     return psycopg2.connect(DATABASE_URL)
+
+
+def ensure_core_ingest_tables(conn) -> None:
+    logger.info("Ensuring core ingest tables exist (worker)")
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS imports (
+                id SERIAL PRIMARY KEY,
+                job_id UUID NOT NULL UNIQUE,
+                filename TEXT NOT NULL,
+                file_type TEXT NOT NULL DEFAULT 'unknown',
+                byte_size INTEGER NOT NULL,
+                uploaded_by TEXT,
+                trading_partner_id TEXT,
+                original_content BYTEA,
+                status TEXT NOT NULL DEFAULT 'queued',
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                processed_at TIMESTAMP,
+                claims_count INTEGER,
+                order_lines_count INTEGER
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS claims (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                claim_id TEXT,
+                amount NUMERIC(12,2),
+                raw_claim TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS order_lines (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                line_no INTEGER,
+                item_id TEXT,
+                qty NUMERIC(12,3),
+                price NUMERIC(12,2),
+                raw_line TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS acks (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                ack_type TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                content TEXT NOT NULL
+            )
+            """
+        )
+    conn.commit()
+
+
+def ensure_import_core_columns(conn) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name
+              FROM information_schema.columns
+             WHERE table_name = 'imports'
+            """
+        )
+        existing = {row[0] for row in cur.fetchall()}
+
+    with conn.cursor() as cur:
+        if "original_content" not in existing:
+            logger.info("Adding original_content column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN original_content BYTEA")
+        if "status" not in existing:
+            logger.info("Adding status column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN status TEXT")
+        if "file_type" not in existing:
+            logger.info("Adding file_type column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN file_type TEXT")
+
+    with conn.cursor() as cur:
+        cur.execute("UPDATE imports SET status = 'queued' WHERE status IS NULL")
+        cur.execute("ALTER TABLE imports ALTER COLUMN status SET DEFAULT 'queued'")
+        cur.execute("ALTER TABLE imports ALTER COLUMN status SET NOT NULL")
+        cur.execute("UPDATE imports SET file_type = 'unknown' WHERE file_type IS NULL")
+        cur.execute("ALTER TABLE imports ALTER COLUMN file_type SET DEFAULT 'unknown'")
+        cur.execute("ALTER TABLE imports ALTER COLUMN file_type SET NOT NULL")
+
+    conn.commit()
+
+
+def ensure_import_job_ids(conn) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'imports' AND column_name = 'job_id'
+            )
+            """
+        )
+        has_column = cur.fetchone()[0]
+        if not has_column:
+            logger.info("Adding job_id column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN job_id UUID")
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM imports WHERE job_id IS NULL")
+        for import_id, in cur.fetchall():
+            cur.execute(
+                "UPDATE imports SET job_id = %s WHERE id = %s",
+                (str(uuid.uuid4()), import_id),
+            )
+
+    with conn.cursor() as cur:
+        cur.execute("ALTER TABLE imports ALTER COLUMN job_id SET NOT NULL")
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_imports_job_id ON imports(job_id)"
+        )
+
+    conn.commit()
+
+
+def ensure_import_uploaded_by(conn) -> None:
+    added = False
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name
+              FROM information_schema.columns
+             WHERE table_name = 'imports'
+               AND column_name IN ('uploaded_by', 'trading_partner_id')
+            """
+        )
+        existing = {row[0] for row in cur.fetchall()}
+
+    with conn.cursor() as cur:
+        if "uploaded_by" not in existing:
+            logger.info("Adding uploaded_by column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN uploaded_by TEXT")
+            added = True
+        if "trading_partner_id" not in existing:
+            logger.info("Adding trading_partner_id column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN trading_partner_id TEXT")
+            added = True
+
+    if added:
+        conn.commit()
+
+
+def run_startup_migrations() -> None:
+    with closing(get_db()) as conn:
+        ensure_core_ingest_tables(conn)
+        ensure_import_core_columns(conn)
+        ensure_import_job_ids(conn)
+        ensure_import_uploaded_by(conn)
 
 def detect_format(text: str) -> str:
     head = text.strip()[:3].upper()
@@ -517,6 +679,8 @@ def process_payload(payload: dict):
     return ftype, size, import_id
 
 def main():
+    run_startup_migrations()
+
     conn, ch = get_rmq_channel()
     rmq_queue = os.environ.get("RMQ_QUEUE", "edi_files")
     acks_queue = os.environ.get("RMQ_ACKS_QUEUE", "acks")
