@@ -11,7 +11,7 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
 - **/samples**: Example X12 837 and EDIFACT ORDERS files
 - **/bench**: Quick local benchmark harness
 
-> ⚠️ This is a starter kit for rapid iteration, not a full validator. Swap in **bots-edi** / **PyX12** / production mappers as you grow.
+> ⚠️ This is a starter kit for rapid iteration, not a full validator. Swap in **bots** (install separately) / **PyX12** / production mappers as you grow.
 
 ## Quick Start
 
@@ -84,7 +84,33 @@ when local modifications cause context mismatches.
 ## Replace the Minimal Parsers
 
 - X12: swap the `parse_x12_837` in `worker_py/worker.py` with **PyX12** or your mapping engine.
-- EDIFACT: replace `parse_edifact_orders` with **bots-edi** mapping + validation and CONTRL generation.
+- EDIFACT: replace `parse_edifact_orders` with **bots** (install separately) mapping + validation and CONTRL generation.
+
+### Enabling the optional `bots` translator
+
+The worker auto-detects whether the [bots EDI translator](https://github.com/bots-edi/bots) is installed. When present it
+activates the `bots-edifact` adapter so EDIFACT payloads are parsed and acknowledgements are generated with the library
+instead of the fallback parser.
+
+Install it in whatever environment builds/runs the worker:
+
+```bash
+# Local virtualenv or dev shell
+pip install "bots==3.2.0"
+
+# Container image (add after the existing requirements step)
+RUN pip install --no-cache-dir bots==3.2.0
+```
+
+If you prefer to keep the base starter image unchanged, you can create a thin derivative Dockerfile, for example:
+
+```Dockerfile
+FROM turbohedi-02_worker_py
+RUN pip install --no-cache-dir bots==3.2.0
+```
+
+Rebuild the worker after installing the dependency. When the service boots it logs whether the optional translator was
+found so you can confirm the package is available.
 
 ## Security Notes
 
