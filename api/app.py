@@ -43,17 +43,8 @@ db_pool: Optional[pool.SimpleConnectionPool] = None
 def run_startup_migrations() -> None:
     try:
         with get_db() as conn:
-            ensure_import_job_ids(conn)
-    except Exception:
-        logger.exception("Failed to ensure imports.job_id column exists")
-        raise
-
-
-@app.on_event("startup")
-def run_startup_migrations() -> None:
-    try:
-        with get_db() as conn:
             ensure_core_ingest_tables(conn)
+            ensure_import_core_columns(conn)
             ensure_import_job_ids(conn)
             ensure_import_uploaded_by(conn)
     except Exception:
@@ -116,22 +107,7 @@ def ensure_import_job_ids(conn) -> None:
 def ensure_core_ingest_tables(conn) -> None:
     """Create the imports and related tables if they do not already exist."""
 
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT EXISTS (
-                SELECT 1
-                  FROM information_schema.tables
-                 WHERE table_name = 'imports'
-            )
-            """
-        )
-        has_imports = cur.fetchone()[0]
-
-    if has_imports:
-        return
-
-    logger.info("Creating core ingest tables for legacy databases")
+    logger.info("Ensuring core ingest tables exist")
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -191,39 +167,37 @@ def ensure_core_ingest_tables(conn) -> None:
     conn.commit()
 
 
-def ensure_import_job_ids(conn) -> None:
-    """Backfill and enforce the job_id column on imports for older databases."""
+def ensure_import_core_columns(conn) -> None:
+    """Ensure legacy imports tables have the columns expected by the app."""
+
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT EXISTS (
-                SELECT 1
-                FROM information_schema.columns
-                WHERE table_name = 'imports' AND column_name = 'job_id'
-            )
+            SELECT column_name
+              FROM information_schema.columns
+             WHERE table_name = 'imports'
             """
         )
-        has_column = cur.fetchone()[0]
-        if not has_column:
-            logger.info("Adding job_id column to imports table")
-            cur.execute("ALTER TABLE imports ADD COLUMN job_id UUID")
+        existing = {row[0] for row in cur.fetchall()}
 
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM imports WHERE job_id IS NULL")
-        missing = [row[0] for row in cur.fetchall()]
-        for import_id in missing:
-            generated = str(uuid.uuid4())
-            logger.debug("Backfilling job_id %s for import %s", generated, import_id)
-            cur.execute(
-                "UPDATE imports SET job_id = %s WHERE id = %s",
-                (generated, import_id),
-            )
+        if "original_content" not in existing:
+            logger.info("Adding original_content column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN original_content BYTEA")
+        if "status" not in existing:
+            logger.info("Adding status column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN status TEXT")
+        if "file_type" not in existing:
+            logger.info("Adding file_type column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN file_type TEXT")
 
     with conn.cursor() as cur:
-        cur.execute("ALTER TABLE imports ALTER COLUMN job_id SET NOT NULL")
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_imports_job_id ON imports(job_id)"
-        )
+        cur.execute("UPDATE imports SET status = 'queued' WHERE status IS NULL")
+        cur.execute("ALTER TABLE imports ALTER COLUMN status SET DEFAULT 'queued'")
+        cur.execute("ALTER TABLE imports ALTER COLUMN status SET NOT NULL")
+        cur.execute("UPDATE imports SET file_type = 'unknown' WHERE file_type IS NULL")
+        cur.execute("ALTER TABLE imports ALTER COLUMN file_type SET DEFAULT 'unknown'")
+        cur.execute("ALTER TABLE imports ALTER COLUMN file_type SET NOT NULL")
 
     conn.commit()
 
