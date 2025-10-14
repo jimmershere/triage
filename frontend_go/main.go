@@ -25,12 +25,12 @@ var (
 	cookieName    = "hedi_session"
 	sessionTTL    = 24 * time.Hour
 	sessionSecret = []byte(env("HEDI_SESSION_SECRET", "dev-secret-change-me"))
-    secureCookies = envBool("HEDI_SECURE_COOKIES", false)
+	secureCookies = envBool("HEDI_SECURE_COOKIES", false)
 
-    apiProxyTarget  *url.URL
-    apiProxyEnabled bool
- )
- 
+	apiProxyTarget  *url.URL
+	apiProxyEnabled bool
+)
+
 func envBool(key string, def bool) bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
 	if v == "" {
@@ -86,13 +86,15 @@ func isProtectedPath(p string) bool {
 		"/edi-mapping.html": true,
 		"/claim-entry":      true,
 		"/claim-entry.html": true,
+		"/processed":        true,
+		"/processed.html":   true,
 		"/admin":            true,
 		"/admin.html":       true,
 	}
 	if protected[p] {
 		return true
 	}
-	prefixes := []string{"/portal/", "/admin/"}
+	prefixes := []string{"/portal/", "/processed/", "/admin/"}
 	for _, pref := range prefixes {
 		if strings.HasPrefix(p+"/", pref) { // ensure trailing slash for exact matches too
 			return true
