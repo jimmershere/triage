@@ -46,21 +46,6 @@ func envBool(key string, def bool) bool {
 	}
 }
 
-func envBool(key string, def bool) bool {
-	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	if v == "" {
-		return def
-	}
-	switch v {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return def
-	}
-}
-
 // ---------- small helpers ----------
 
 func env(k, def string) string {

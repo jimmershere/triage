@@ -40,6 +40,16 @@ try:  # When running as part of the package
 except ModuleNotFoundError:  # When executed from the worker directory directly
     from translators import AckRecord, select_translator, TranslationOutcome
 
+import pika
+import psycopg2
+from dotenv import load_dotenv
+from psycopg2.extras import execute_batch
+
+try:  # When running as part of the package
+    from worker_py.translators import AckRecord, select_translator, TranslationOutcome
+except ModuleNotFoundError:  # When executed from the worker directory directly
+    from translators import AckRecord, select_translator, TranslationOutcome
+
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
