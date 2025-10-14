@@ -1,9 +1,24 @@
-import os, json, base64, logging, time, re, decimal, uuid
-import pika, psycopg2
-from psycopg2.extras import execute_batch
-from dotenv import load_dotenv
+import base64
+import decimal
+import json
+import logging
+import os
+import re
+import time
+import uuid
+from contextlib import closing
 from pathlib import Path
 from contextlib import closing
+
+import pika
+import psycopg2
+from dotenv import load_dotenv
+from psycopg2.extras import execute_batch
+
+try:  # When running as part of the package
+    from worker_py.translators import AckRecord, select_translator, TranslationOutcome
+except ModuleNotFoundError:  # When executed from the worker directory directly
+    from translators import AckRecord, select_translator, TranslationOutcome
 
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -254,104 +269,6 @@ def detect_format(text: str) -> str:
         return "EDIFACT_ORDERS_or_other"
     return "UNKNOWN"
 
-def parse_x12_837(text: str):
-    # Minimal segmentation: try to infer delimiters from ISA if present
-    seg_term = "~"
-    elem_sep = "*"
-    comp_sep = ":"
-    if text.startswith("ISA"):
-        # ISA defines element separator at position 4, composite at ISA16, segment at last char of ISA line
-        # We'll attempt a simple heuristic: the first 3 chars are "ISA", 4th is element sep
-        elem_sep = text[3]
-        # Segment terminator: find first occurrence of "IEA" line end char by scanning
-        # Fallback to ~ if not found
-        possible_terms = ['~', '\n', '\r']
-        for ch in possible_terms:
-            if f"IEA{elem_sep}" in text and ch in text.split(f"IEA{elem_sep}",1)[-1]:
-                seg_term = ch
-                break
-    segments = [s for s in text.replace("\r","").split(seg_term) if s.strip()]
-    claims = []
-    current_claim = None
-    for seg in segments:
-        parts = seg.split(elem_sep)
-        tag = parts[0].strip().upper()
-        if tag == "CLM":
-            # Start of a new claim
-            if current_claim:
-                claims.append(current_claim)
-            clm01 = parts[1] if len(parts) > 1 else None
-            amt = None
-            if len(parts) > 2:
-                try:
-                    amt = decimal.Decimal(parts[2])
-                except Exception:
-                    amt = None
-            current_claim = {"claim_id": clm01, "amount": amt, "raw": seg}
-        else:
-            if current_claim is not None:
-                # Append other lines if desired; keep raw minimal
-                pass
-    if current_claim:
-        claims.append(current_claim)
-    # Minimal ISA control extraction for dummy 999-like ack
-    isa_ctrl = None
-    for seg in segments:
-        if seg.startswith("ISA"+elem_sep):
-            parts = seg.split(elem_sep)
-            if len(parts) >= 14:
-                isa_ctrl = parts[13]  # ISA control number (position 13 zero-based if ISA*...)
-            break
-    return claims, isa_ctrl
-
-def parse_edifact_orders(text: str):
-    seg_term = "'"
-    elem_sep = "+"
-    comp_sep = ":"
-    segments = [s for s in text.replace("\r","").split(seg_term) if s.strip()]
-    order_lines = []
-    current_line = None
-    doc_no = None
-    for seg in segments:
-        parts = seg.split(elem_sep)
-        tag = parts[0].strip().upper()
-        if tag == "BGM" and len(parts) >= 3:
-            doc_no = parts[2]
-        if tag == "LIN":
-            if current_line:
-                order_lines.append(current_line)
-            line_no = None
-            item_id = None
-            if len(parts) >= 2:
-                try:
-                    line_no = int(parts[1])
-                except Exception:
-                    line_no = None
-            if len(parts) >= 4:
-                # e.g., LIN+1++123456:IN'
-                comp = parts[3].split(comp_sep)
-                item_id = comp[0] if comp else None
-            current_line = {"line_no": line_no, "item_id": item_id, "qty": None, "price": None, "raw": seg}
-        elif tag == "QTY" and current_line:
-            # QTY+47:10'
-            comp = parts[1].split(comp_sep) if len(parts) > 1 else []
-            if len(comp) >= 2:
-                try:
-                    current_line["qty"] = decimal.Decimal(comp[1])
-                except Exception:
-                    pass
-        elif tag == "PRI" and current_line:
-            # PRI+AAA:12.34'
-            comp = parts[1].split(comp_sep) if len(parts) > 1 else []
-            if len(comp) >= 2:
-                try:
-                    current_line["price"] = decimal.Decimal(comp[1])
-                except Exception:
-                    pass
-    if current_line:
-        order_lines.append(current_line)
-    return order_lines, doc_no
-
 def resolve_job_uuid(job_id: str | None) -> uuid.UUID:
     """Convert an optional job id to a UUID, generating a new value as needed."""
     try:
@@ -435,68 +352,6 @@ def safe_component(value: str | None, fallback: str) -> str:
     return cleaned or fallback
 
 
-def control_from_uuid(job_uuid: uuid.UUID, offset: int = 0) -> str:
-    base = job_uuid.int % (10 ** 9)
-    value = (base + offset) % (10 ** 9)
-    return f"{value:09d}"
-
-
-def make_999_like(job_uuid: uuid.UUID, trading_partner_id: str | None, total_claims: int, isa_ctrl: str | None) -> str:
-    ctrl = (isa_ctrl or control_from_uuid(job_uuid))[:9].rjust(9, "0")
-    gs_ctrl = control_from_uuid(job_uuid, 1)
-    partner_raw = safe_component(trading_partner_id, "HEDI-RECV").upper()
-    partner_padded = partner_raw[:15].rjust(15)
-    app_receiver = partner_raw[:12] or "RECEIVER"
-    date_short = time.strftime("%y%m%d")
-    time_short = time.strftime("%H%M")
-    total = max(total_claims, 1)
-    segments = [
-        f"ISA*00*          *00*          *ZZ*HEDI999       *ZZ*{partner_padded}*{date_short}*{time_short}*^*00501*{ctrl}*0*T*:~",
-        f"GS*FA*HEDI*{app_receiver}*20{date_short}*{time_short}*{gs_ctrl}*X*005010X231A1~",
-        "ST*999*0001*005010X231A1~",
-        "AK1*HC*0001~",
-        "AK2*837*0001~",
-        "AK5*A~",
-        f"AK9*A*1*1*1~",
-        "SE*7*0001~",
-        f"GE*1*{gs_ctrl}~",
-        f"IEA*1*{ctrl}~",
-    ]
-    return "\n".join(segments)
-
-
-def make_277ca_like(job_uuid: uuid.UUID, trading_partner_id: str | None, total_claims: int) -> str:
-    ctrl = control_from_uuid(job_uuid, 2)
-    gs_ctrl = control_from_uuid(job_uuid, 3)
-    partner_raw = safe_component(trading_partner_id, "HEDI-RECV").upper()
-    partner_padded = partner_raw[:15].rjust(15)
-    partner_short = partner_raw[:12] or "RECEIVER"
-    date_full = time.strftime("%Y%m%d")
-    time_short = time.strftime("%H%M")
-    total = max(total_claims, 1)
-    segments = [
-        f"ISA*00*          *00*          *ZZ*HEDI277       *ZZ*{partner_padded}*{date_full[2:]}*{time_short}*^*00501*{ctrl}*0*T*:~",
-        f"GS*HN*HEDI*{partner_short}*{date_full}*{time_short}*{gs_ctrl}*X*005010X214~",
-        "ST*277*0001*005010X214~",
-        f"BHT*0085*08*{ctrl}*{date_full}*{time_short}~",
-        "HL*1**20*1~",
-        "NM1*PR*2*HEDI HEALTH*****PI*HEDI277~",
-        "HL*2*1*21*0~",
-        f"NM1*41*2*{partner_short or 'RECEIVER'}*****46*{partner_short or 'RECEIVER'}~",
-        f"TRN*1*{ctrl}*{partner_short or 'RECEIVER'}~",
-        f"STC*A1:19*{date_full}*U*{total}*CLM~",
-        "SE*9*0001~",
-        f"GE*1*{gs_ctrl}~",
-        f"IEA*1*{ctrl}~",
-    ]
-    return "\n".join(segments)
-
-
-def make_contrl_like(doc_no: str | None, total_lines: int) -> str:
-    doc = doc_no or "UNKNOWN"
-    return f"CONTRL-LIKE ACK\nDoc: {doc}\nAccepted lines: {total_lines}\nStatus: ACCEPTED"
-
-
 def ack_file_extension(ack_type: str) -> str:
     upper = ack_type.upper()
     if upper == "999":
@@ -547,7 +402,7 @@ def process_payload(payload: dict):
 
     claims_count: int | None = None
     order_lines_count: int | None = None
-    ack_records: list[tuple[str, str | None]] = []
+    ack_records: list[AckRecord] = []
     job_uuid: uuid.UUID | None = None
 
     with get_db() as conn:
@@ -563,103 +418,110 @@ def process_payload(payload: dict):
                 time.perf_counter() - ensure_start,
             )
 
-            if ftype.startswith("X12"):
-                parse_start = time.perf_counter()
-                claims, isa_ctrl = parse_x12_837(text)
-                claims_count = len(claims)
-                logger.info(
-                    "Parsed %s claims for job %s in %.3fs",
-                    claims_count,
-                    job_uuid,
-                    time.perf_counter() - parse_start,
-                )
-                if claims:
-                    insert_start = time.perf_counter()
-                    execute_batch(
-                        cur,
-                        "INSERT INTO claims (import_id, claim_id, amount, raw_claim) VALUES (%s,%s,%s,%s)",
-                        [
-                            (
-                                import_id,
-                                claim["claim_id"],
-                                claim["amount"],
-                                claim["raw"],
-                            )
-                            for claim in claims
-                        ],
-                        page_size=500,
+            translator = select_translator(ftype, text)
+            translation: TranslationOutcome | None = None
+            if translator:
+                logger.info("Using translator %s for job %s", translator.name, job_uuid)
+                try:
+                    translation = translator.translate(
+                        text=text,
+                        job_uuid=job_uuid,
+                        trading_partner_id=payload.get("trading_partner_id"),
+                        uploaded_by=payload.get("uploaded_by"),
+                        filename=filename,
                     )
-                    logger.info(
-                        "Inserted %s claims for import %s in %.3fs",
-                        claims_count,
-                        import_id,
-                        time.perf_counter() - insert_start,
-                    )
-                ack_999 = make_999_like(
-                    job_uuid,
-                    payload.get("trading_partner_id"),
-                    claims_count or 0,
-                    isa_ctrl,
-                )
-                ack_277 = make_277ca_like(
-                    job_uuid,
-                    payload.get("trading_partner_id"),
-                    claims_count or 0,
-                )
-                ack_records.extend([("999", ack_999), ("277CA", ack_277)])
-                logger.info(
-                    "Generated acknowledgements %s for job %s",
-                    [ack[0] for ack in ack_records],
-                    job_uuid,
+                    ftype = translation.file_type or ftype
+                except Exception:
+                    logger.exception("Translator %s failed; falling back", translator.name)
+
+            if translation is None:
+                translation = TranslationOutcome(
+                    file_type=ftype,
+                    acknowledgements=[AckRecord("NOTICE", "Translator unavailable")],
                 )
 
-            elif ftype.startswith("EDIFACT"):
+            claims = list(translation.claims)
+            if claims:
                 parse_start = time.perf_counter()
-                lines, doc_no = parse_edifact_orders(text)
-                order_lines_count = len(lines)
+                claim_rows = []
+                for claim in claims:
+                    amount = claim.get("amount")
+                    if amount is not None:
+                        try:
+                            amount = decimal.Decimal(str(amount))
+                        except Exception:
+                            amount = None
+                    claim_rows.append(
+                        (
+                            import_id,
+                            claim.get("claim_id"),
+                            amount,
+                            claim.get("raw"),
+                        )
+                    )
+                claims_count = len(claim_rows)
+                execute_batch(
+                    cur,
+                    "INSERT INTO claims (import_id, claim_id, amount, raw_claim) VALUES (%s,%s,%s,%s)",
+                    claim_rows,
+                    page_size=500,
+                )
                 logger.info(
-                    "Parsed %s order lines for job %s in %.3fs",
-                    order_lines_count,
-                    job_uuid,
+                    "Inserted %s claims for import %s in %.3fs",
+                    claims_count,
+                    import_id,
                     time.perf_counter() - parse_start,
                 )
-                if lines:
-                    insert_start = time.perf_counter()
-                    execute_batch(
-                        cur,
-                        "INSERT INTO order_lines (import_id, line_no, item_id, qty, price, raw_line) VALUES (%s,%s,%s,%s,%s,%s)",
-                        [
-                            (
-                                import_id,
-                                line["line_no"],
-                                line["item_id"],
-                                line["qty"],
-                                line["price"],
-                                line["raw"],
-                            )
-                            for line in lines
-                        ],
-                        page_size=500,
+
+            lines = list(translation.order_lines)
+            if lines:
+                parse_start = time.perf_counter()
+                line_rows = []
+                for line in lines:
+                    qty = line.get("qty")
+                    if qty is not None:
+                        try:
+                            qty = decimal.Decimal(str(qty))
+                        except Exception:
+                            qty = None
+                    price = line.get("price")
+                    if price is not None:
+                        try:
+                            price = decimal.Decimal(str(price))
+                        except Exception:
+                            price = None
+                    line_rows.append(
+                        (
+                            import_id,
+                            line.get("line_no"),
+                            line.get("item_id"),
+                            qty,
+                            price,
+                            line.get("raw"),
+                        )
                     )
-                    logger.info(
-                        "Inserted %s order lines for import %s in %.3fs",
-                        order_lines_count,
-                        import_id,
-                        time.perf_counter() - insert_start,
-                    )
-                ack_contrl = make_contrl_like(doc_no, order_lines_count or 0)
-                ack_records.append(("CONTRL", ack_contrl))
-                logger.info(
-                    "Generated acknowledgements %s for job %s",
-                    [ack[0] for ack in ack_records],
-                    job_uuid,
+                order_lines_count = len(line_rows)
+                execute_batch(
+                    cur,
+                    "INSERT INTO order_lines (import_id, line_no, item_id, qty, price, raw_line) VALUES (%s,%s,%s,%s,%s,%s)",
+                    line_rows,
+                    page_size=500,
                 )
-            else:
-                ack_records.append(("NOTICE", "UNKNOWN FORMAT - no ack generated"))
                 logger.info(
-                    "Defaulted to notice acknowledgement for unknown format job %s",
-                    job_uuid,
+                    "Inserted %s order lines for import %s in %.3fs",
+                    order_lines_count,
+                    import_id,
+                    time.perf_counter() - parse_start,
                 )
+
+            ack_records = list(translation.acknowledgements)
+            if not ack_records:
+                ack_records = [AckRecord("NOTICE", "No acknowledgements generated")]
+            logger.info(
+                "Generated acknowledgements %s for job %s",
+                [ack.ack_type for ack in ack_records],
+                job_uuid,
+            )
 
             update_start = time.perf_counter()
             cur.execute(
@@ -679,8 +541,8 @@ def process_payload(payload: dict):
                 time.perf_counter() - update_start,
             )
             persist_start = time.perf_counter()
-            for ack_type, ack_content in ack_records:
-                persist_ack(cur, import_id, ack_type, ack_content)
+            for ack in ack_records:
+                persist_ack(cur, import_id, ack.ack_type, ack.content)
             logger.info(
                 "Persisted %s acknowledgement rows for import %s in %.3fs",
                 len(ack_records),
@@ -701,18 +563,18 @@ def process_payload(payload: dict):
         job_uuid = resolve_job_uuid(payload.get("job_id"))
 
     fanout_start = time.perf_counter()
-    for ack_type, ack_content in ack_records:
+    for ack in ack_records:
         fanout_ack_files(
             payload.get("uploaded_by"),
-            ack_type,
-            ack_content,
+            ack.ack_type,
+            ack.content,
             job_uuid,
             payload.get("trading_partner_id"),
         )
     if ack_records:
         logger.info(
             "Wrote acknowledgement files %s for job %s in %.3fs",
-            [ack[0] for ack in ack_records],
+            [ack.ack_type for ack in ack_records],
             job_uuid,
             time.perf_counter() - fanout_start,
         )
