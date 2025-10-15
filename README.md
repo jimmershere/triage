@@ -33,10 +33,27 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
 4. **Ingest a file** (replace path as needed):
    ```bash
    curl -X POST "http://localhost:8000/ingest"      -F "file=@samples/x12_837_small.txt"
+   # curl -X POST "http://localhost:8000/ingest"      -F "file=@samples/x12_837_large_valid.x12"  # ~500 KB multi-claim sample
    ```
 5. **See results**:
    - Check `imports`, `claims`, `order_lines`, and `acks` tables in Postgres.
    - RabbitMQ queues: `ingest` (uploads) and `acks` (generated acknowledgments).
+
+## Customer support assistant configuration
+
+The web UI now ships with the “Trish” customer advocate, complete with helpful callouts and an in-app chat assistant. The chat widget can raise trouble tickets by generating unique request IDs and preparing `mailto:`/`sms:` links.
+
+- Update the default contact points in [`frontend_go/public/static/js/support_config.js`](frontend_go/public/static/js/support_config.js) (and the mirrored file under `_container_public/static/js/`) to wire in your production support mailbox or SMS gateway.
+- The same configuration is reused across every page, so a single change covers the Claims Portal, Processed Files, HEDI Mapping, Claim Entry, and the login/admin surfaces.
+- Messages that include words like “error” or “trouble” automatically produce a ticket reference in the chat transcript so agents can track the conversation against your downstream systems. Trish now follows up to capture the severity (1–4) before logging each ticket.
+
+## Admin dashboard, tickets, and role wiring
+
+- The admin portal renders active tickets raised by the chat assistant. Entries are stored in-browser under the `hediSupportTickets` key and surface the ID, submission timestamp, summary, and severity ranking.
+- Stage users and assign application roles (view → update → create → admin) from the Admin → “User & role management” card. Accounts are written to the `app_users` table in PostgreSQL with PBKDF2-hashed credentials and per-portal access flags.
+- Secure the coordination between the Go frontend and FastAPI backend by setting the same `HEDI_SHARED_SECRET` value for both services. The shared token gates `/auth/login` and `/admin/users` calls so only the frontend can manage identities.
+- Runtime authorization is coordinated by [`static/js/auth_config.js`](frontend_go/public/static/js/auth_config.js) and [`static/js/authz.js`](frontend_go/public/static/js/authz.js). Pages mark privileged controls with `data-requires-role`, and the helper script disables them unless the signed-in user meets the threshold.
+- Toggle future identity providers (LDAP/AD and OIDC) from the admin “Authentication wiring” section. The UI persists your switches to `hediAuthProviders`, ready for wiring into a real directory or SSO integration later.
 
 ## Applying upstream patches
 
