@@ -3,20 +3,21 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
   <title>HEDI — Login</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
 <body>
 <header class="site-header">
-  <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
-  <nav class="nav"><a href="/">Home</a></nav>
+  <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
+  <nav class="nav-cluster push-end"><a class="nav-pill" data-tone="portal" href="/">Home</a></nav>
 </header>
 
 <main class="container">
   <div class="card" style="max-width:420px;margin:40px auto;">
     <h2 style="text-align:center;">Sign in to HEDI</h2>
-    <form method="post" action="/login" style="margin-top:1rem;">
+    <form method="post" action="/auth/login">
+      <input type="hidden" name="next" value="{{NEXT}}">
       <label>Username</label>
       <input name="username" type="text" required>
       <label style="margin-top:.6rem;">Password</label>
@@ -26,35 +27,25 @@
         <a href="/" style="color:var(--muted);">Cancel</a>
       </div>
     </form>
+    <script>
+      // put current ?next= into hidden input so redirects land correctly
+      const params = new URLSearchParams(location.search);
+      const nxt = params.get('next') || '/portal.html';
+      document.querySelector('input[name="next"]').value = nxt;
+    </script>
     <p style="margin-top:.8rem;color:var(--muted);font-size:.92rem;">
-      Using <code>htpasswd</code> authentication.<br>
+      Using PostgreSQL-backed authentication.<br>
       Set LDAP/AD env to enable enterprise directory login.
     </p>
     <div class="trish-callout">
-      <img src="/img/trish-clipboard.svg" alt="Trish sharing login guidance">
+      <img src="/img/trish-clipboard.svg" alt="Trish sharing login tips">
       <div class="bubble">
-        <strong>Need directions?</strong>
-        Use your claims portal credentials. Once you’re in, I’ll pop up with navigation shortcuts.
+        <strong>Forgot the route?</strong>
+        Use the same login you submit claims with. After sign-in I’ll drop you on the Claims Portal and keep your filters handy.
       </div>
     </div>
   </div>
 </main>
-<script>
-  const loginForm = document.querySelector('form[action="/login"]');
-  if (loginForm) {
-    loginForm.addEventListener('submit', () => {
-      const username = loginForm.username.value.trim();
-      if (username) {
-        try {
-          localStorage.setItem('hediActiveUser', username);
-          sessionStorage.setItem('hediActiveUser', username);
-        } catch (err) {
-          console.warn('Unable to persist active user', err);
-        }
-      }
-    });
-  }
-</script>
 <script src="/static/js/support_config.js"></script>
 <script src="/static/js/auth_config.js"></script>
 <script src="/static/js/authz.js"></script>

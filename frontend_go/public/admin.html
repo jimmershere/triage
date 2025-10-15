@@ -59,22 +59,26 @@
     <header class="card-header">
       <div>
         <h2>User &amp; role management</h2>
-        <p class="muted">Continue sourcing credentials from <code>htpasswd</code>, but layer fine-grained roles across HEDI.</p>
+        <p class="muted">Provision accounts straight into PostgreSQL, assign roles, and decide which portals each user can access.</p>
       </div>
     </header>
-    <form id="admin-user-form" class="admin-form">
+    <form class="admin-form" data-user-form>
       <div class="field-grid">
         <label>
           <span>Username</span>
-          <input name="username" type="text" placeholder="jane.doe" required>
+          <input name="username" type="text" placeholder="jane.doe" required data-user-username>
         </label>
         <label>
           <span>Password</span>
-          <input name="password" type="password" placeholder="temporary secret" required>
+          <input name="password" type="password" placeholder="Generate a strong secret" required data-user-password>
+        </label>
+        <label>
+          <span>Confirm password</span>
+          <input name="confirm" type="password" placeholder="Re-enter password" required data-user-confirm>
         </label>
         <label>
           <span>Role</span>
-          <select name="role" required>
+          <select name="role" required data-user-role>
             <option value="view">view</option>
             <option value="update">update</option>
             <option value="create">create</option>
@@ -82,27 +86,37 @@
           </select>
         </label>
       </div>
+      <div class="access-grid">
+        <label class="switch">
+          <input type="checkbox" name="allow_portal" checked data-user-portal>
+          <span>Claims Portal access</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" name="allow_admin" data-user-admin>
+          <span>Admin Console access</span>
+        </label>
+      </div>
       <div class="form-actions">
-        <button type="submit">Stage user</button>
-        <span class="muted">We’ll generate a hash so you can sync it to <code>htpasswd</code>.</span>
+        <button type="submit" data-user-submit>Create user</button>
+        <button type="button" class="ghost" data-user-cancel hidden>Cancel edit</button>
+        <span class="muted">Passwords are hashed with PBKDF2 and stored securely in PostgreSQL.</span>
       </div>
     </form>
-    <p class="muted">HEDI now runs <code data-htpasswd-command>htpasswd -B /path/to/portal.htpasswd &lt;username&gt;</code> automatically after staging a user. The command is mirrored here for audit logs or manual recovery.</p>
-    <p class="htpasswd-status" data-htpasswd-status hidden></p>
+    <p class="form-status" data-user-status hidden></p>
     <div class="table-scroll-x">
       <table class="admin-table" data-user-table>
         <thead>
-          <tr><th>User</th><th>Role</th><th>Last updated</th><th>Password digest</th><th></th></tr>
+          <tr><th>User</th><th>Role</th><th>Access</th><th>Last updated</th><th></th></tr>
         </thead>
         <tbody data-user-body></tbody>
       </table>
     </div>
-    <p class="muted" data-user-empty hidden>No users staged yet. Add at least a <em>view</em> user to begin.</p>
+    <p class="muted" data-user-empty hidden>No users yet. Add at least a <em>view</em> user to begin.</p>
     <div class="trish-callout trish-callout--right">
       <img src="/img/trish-clipboard.svg" alt="Trish explaining roles">
       <div class="bubble">
-        <strong>Access tiers:</strong>
-        Everyone starts at <em>view</em>. Elevate to <em>update</em> for mapping tweaks, <em>create</em> for claim uploads, and <em>admin</em> for everything.
+        <strong>Portal permits:</strong>
+        Mix and match access—<em>view</em> for dashboards, <em>create</em> for submissions, and <em>admin</em> for full control.
       </div>
     </div>
   </section>
@@ -117,12 +131,12 @@
     <div class="provider-grid">
       <article class="provider-card">
         <header>
-          <h3>htpasswd</h3>
-          <span class="provider-state" data-provider-status="htpasswd">Enabled</span>
+          <h3>Database</h3>
+          <span class="provider-state" data-provider-status="database">Enabled</span>
         </header>
-        <p class="muted">Mounted credential files that power today’s sessions.</p>
+        <p class="muted">PostgreSQL-backed accounts managed from this console.</p>
         <label class="switch">
-          <input type="checkbox" data-provider-toggle="htpasswd" checked>
+          <input type="checkbox" data-provider-toggle="database" checked>
           <span>Enable</span>
         </label>
       </article>

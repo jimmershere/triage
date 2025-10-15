@@ -1,7 +1,5 @@
 (function () {
   const TICKET_KEY = "hediSupportTickets";
-  const USER_KEY = "hediUserDirectory";
-  const ACTIVE_KEY = "hediActiveUser";
   const PROVIDER_KEY = "hediAuthProviders";
   const ROLE_ORDER = ["view", "update", "create", "admin"];
 
@@ -31,16 +29,6 @@
 
   function saveTickets(tickets) {
     saveToStorage(TICKET_KEY, tickets);
-  }
-
-  function loadUsers() {
-    const data = loadFromStorage(USER_KEY, {});
-    return data && typeof data === "object" ? data : {};
-  }
-
-  function saveUsers(users) {
-    saveToStorage(USER_KEY, users);
-    window.dispatchEvent(new Event("hedi-users-updated"));
   }
 
   function loadProviders() {
@@ -139,214 +127,27 @@
     renderTickets();
   }
 
-  async function hashPassword(password) {
-    if (!password) return null;
-    if (window.crypto && window.crypto.subtle && window.TextEncoder) {
-      const buffer = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(password));
-      return Array.from(new Uint8Array(buffer))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-    }
-    return btoa(password);
-  }
-
-  async function handleUserForm(event) {
-    event.preventDefault();
-    const form = event.target;
-    const username = form.username.value.trim();
-    const password = form.password.value;
-    const role = form.role.value;
-    const statusEl = document.querySelector("[data-htpasswd-status]");
-    if (statusEl) {
-      statusEl.hidden = true;
-      statusEl.dataset.state = "";
-      statusEl.textContent = "";
-    }
-    if (!username) {
-      form.username.focus();
-      return;
-    }
-    if (!ROLE_ORDER.includes(role)) {
-      alert("Select a valid role");
-      return;
-    }
-    if (!password) {
-      form.password.focus();
-      return;
-    }
-    const users = loadUsers();
-    const digest = await hashPassword(password);
-    users[username] = {
-      role,
-      passwordDigest: digest,
-      updatedAt: new Date().toISOString(),
-    };
-    saveUsers(users);
-    if (username && !localStorage.getItem(ACTIVE_KEY)) {
-      localStorage.setItem(ACTIVE_KEY, username);
-    }
-    const command = document.querySelector("[data-htpasswd-command]");
-    if (command) {
-      command.textContent = `htpasswd -B /path/to/portal.htpasswd ${username}`;
-    }
-    renderUsers();
-
-    try {
-      const response = await fetch("/admin/api/htpasswd", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({ username, password }),
-      });
-      let data = null;
-      try {
-        data = await response.json();
-      } catch (err) {
-        data = null;
-      }
-      if (!response.ok || !data || data.ok !== true) {
-        let message = (data && (data.error || data.output)) || response.statusText || "htpasswd execution failed";
-        if (data && data.hint) {
-          message = `${message} — ${data.hint}`;
-        }
-        throw new Error(message);
-      }
-      if (statusEl) {
-        statusEl.hidden = false;
-        statusEl.dataset.state = "success";
-        statusEl.textContent = data.message || `htpasswd updated for ${username}.`;
-      }
-    } catch (err) {
-      if (statusEl) {
-        statusEl.hidden = false;
-        statusEl.dataset.state = "error";
-        const baseMessage = err && err.message ? err.message : "command error";
-        statusEl.textContent = `htpasswd failed: ${baseMessage}`;
-      } else {
-        console.warn("htpasswd command failed", err);
-      }
-    }
-    form.reset();
-  }
-
-  function renderUsers() {
-    const body = document.querySelector("[data-user-body]");
-    const emptyState = document.querySelector("[data-user-empty]");
-    if (!body) return;
-    const users = loadUsers();
-    const entries = Object.entries(users);
-    body.innerHTML = "";
-    if (!entries.length) {
-      if (emptyState) emptyState.hidden = false;
-      return;
-    }
-    if (emptyState) emptyState.hidden = true;
-    entries
-      .sort(([a], [b]) => a.localeCompare(b))
-      .forEach(([username, info]) => {
-        const row = document.createElement("tr");
-
-        const userCell = document.createElement("td");
-        userCell.textContent = username;
-        row.appendChild(userCell);
-
-        const roleCell = document.createElement("td");
-        const select = document.createElement("select");
-        select.dataset.userRole = username;
-        ROLE_ORDER.forEach((role) => {
-          const option = document.createElement("option");
-          option.value = role;
-          option.textContent = role;
-          if (info.role === role) {
-            option.selected = true;
-          }
-          select.appendChild(option);
-        });
-        roleCell.appendChild(select);
-        row.appendChild(roleCell);
-
-        const updatedCell = document.createElement("td");
-        updatedCell.textContent = info.updatedAt ? formatTimestamp(info.updatedAt) : "—";
-        row.appendChild(updatedCell);
-
-        const digestCell = document.createElement("td");
-        const digestCode = document.createElement("code");
-        if (info.passwordDigest) {
-          digestCode.textContent = `${info.passwordDigest.slice(0, 12)}…`;
-        } else {
-          digestCode.textContent = "set via htpasswd";
-        }
-        digestCell.appendChild(digestCode);
-        row.appendChild(digestCell);
-
-        const actionsCell = document.createElement("td");
-        actionsCell.className = "actions";
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "ghost";
-        removeBtn.dataset.userRemove = username;
-        removeBtn.textContent = "Remove";
-        actionsCell.appendChild(removeBtn);
-        row.appendChild(actionsCell);
-
-        body.appendChild(row);
-      });
-  }
-
-  function handleUserTableClick(event) {
-    const remove = event.target.closest("[data-user-remove]");
-    if (remove) {
-      const username = remove.getAttribute("data-user-remove");
-      if (confirm(`Remove ${username}?`)) {
-        const users = loadUsers();
-        delete users[username];
-        saveUsers(users);
-        if (localStorage.getItem(ACTIVE_KEY) === username) {
-          localStorage.removeItem(ACTIVE_KEY);
-        }
-        renderUsers();
-      }
-      return;
-    }
-  }
-
-  function handleRoleChange(event) {
-    const select = event.target.closest("select[data-user-role]");
-    if (!select) return;
-    const username = select.getAttribute("data-user-role");
-    const role = select.value;
-    if (!ROLE_ORDER.includes(role)) return;
-    const users = loadUsers();
-    if (!users[username]) return;
-    users[username].role = role;
-    users[username].updatedAt = new Date().toISOString();
-    saveUsers(users);
-    renderUsers();
-  }
-
   function renderProviders() {
     const providers = loadProviders();
-    document.querySelectorAll("[data-provider-toggle]").forEach((input) => {
-      const key = input.getAttribute("data-provider-toggle");
-      if (!providers[key]) {
-        providers[key] = { enabled: false };
+    document.querySelectorAll("[data-provider-toggle]").forEach((toggle) => {
+      const key = toggle.getAttribute("data-provider-toggle");
+      const state = providers[key];
+      const enabled = state && state.enabled;
+      toggle.checked = Boolean(enabled);
+      const card = toggle.closest(".provider-card");
+      if (card) {
+        const badge = card.querySelector("[data-provider-status]");
+        if (badge) {
+          badge.textContent = enabled ? "Enabled" : "Disabled";
+          badge.dataset.state = enabled ? "enabled" : "disabled";
+        }
       }
-      input.checked = Boolean(providers[key].enabled);
-    });
-    document.querySelectorAll("[data-provider-status]").forEach((el) => {
-      const key = el.getAttribute("data-provider-status");
-      const provider = providers[key];
-      const enabled = provider && provider.enabled;
-      el.textContent = enabled ? "Enabled" : "Disabled";
-      el.dataset.state = enabled ? "on" : "off";
     });
   }
 
   function handleProviderToggle(event) {
-    const input = event.target.closest("[data-provider-toggle]");
-    if (!input) return;
+    const input = event.target;
+    if (!input.matches("[data-provider-toggle]")) return;
     const key = input.getAttribute("data-provider-toggle");
     const providers = loadProviders();
     providers[key] = providers[key] || {};
@@ -355,43 +156,310 @@
     renderProviders();
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    const form = document.getElementById("admin-user-form");
-    if (form) {
-      form.addEventListener("submit", handleUserForm);
+  const statusEl = document.querySelector("[data-user-status]");
+  const form = document.querySelector("[data-user-form]");
+  const cancelBtn = document.querySelector("[data-user-cancel]");
+  const submitBtn = document.querySelector("[data-user-submit]");
+  const tableBody = document.querySelector("[data-user-body]");
+  const emptyState = document.querySelector("[data-user-empty]");
+
+  let editingUser = null;
+
+  function setStatus(message, state = "info") {
+    if (!statusEl) return;
+    if (!message) {
+      statusEl.hidden = true;
+      statusEl.textContent = "";
+      statusEl.dataset.state = "";
+      return;
     }
-    const userTable = document.querySelector("[data-user-table]");
-    if (userTable) {
-      userTable.addEventListener("click", handleUserTableClick);
-      userTable.addEventListener("change", handleRoleChange);
-    }
-    const ticketTable = document.querySelector("[data-ticket-table]");
-    if (ticketTable) {
-      ticketTable.addEventListener("click", (event) => {
-        const close = event.target.closest("[data-ticket-close]");
-        if (close) {
-          markTicketResolved(close.getAttribute("data-ticket-close"));
-        }
+    statusEl.hidden = false;
+    statusEl.dataset.state = state;
+    statusEl.textContent = message;
+  }
+
+  function resetForm() {
+    if (!form) return;
+    form.reset();
+    form.username.removeAttribute("disabled");
+    form.password.required = true;
+    form.confirm.required = true;
+    editingUser = null;
+    submitBtn.textContent = "Create user";
+    if (cancelBtn) cancelBtn.hidden = true;
+    form.password.value = "";
+    form.confirm.value = "";
+    if (form.allow_portal) form.allow_portal.checked = true;
+    if (form.allow_admin) form.allow_admin.checked = false;
+  }
+
+  function fillForm(user) {
+    if (!form) return;
+    editingUser = user.username;
+    form.username.value = user.username;
+    form.username.setAttribute("disabled", "disabled");
+    form.role.value = user.role;
+    if (form.allow_portal) form.allow_portal.checked = Boolean(user.allow_portal);
+    if (form.allow_admin) form.allow_admin.checked = Boolean(user.allow_admin);
+    form.password.value = "";
+    form.confirm.value = "";
+    form.password.required = false;
+    form.confirm.required = false;
+    submitBtn.textContent = "Update user";
+    if (cancelBtn) cancelBtn.hidden = false;
+  }
+
+  function describeAccess(user) {
+    const bits = [];
+    if (user.allow_portal) bits.push("Portal");
+    if (user.allow_admin) bits.push("Admin");
+    if (!bits.length) bits.push("None");
+    return bits.join(", ");
+  }
+
+  async function loadUsers() {
+    if (!tableBody) return;
+    try {
+      setStatus("Loading users…", "info");
+      const response = await fetch("/admin/api/users", { credentials: "same-origin" });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || response.statusText);
+      }
+      const data = await response.json();
+      const users = (data && data.users) || [];
+      tableBody.innerHTML = "";
+      if (!users.length) {
+        if (emptyState) emptyState.hidden = false;
+        setStatus("No users found. Create one to get started.", "info");
+        return;
+      }
+      if (emptyState) emptyState.hidden = true;
+      users.forEach((user) => {
+        const row = document.createElement("tr");
+        row.dataset.username = user.username;
+
+        const nameCell = document.createElement("td");
+        const code = document.createElement("code");
+        code.textContent = user.username;
+        nameCell.appendChild(code);
+        row.appendChild(nameCell);
+
+        const roleCell = document.createElement("td");
+        roleCell.textContent = user.role;
+        row.appendChild(roleCell);
+
+        const accessCell = document.createElement("td");
+        accessCell.textContent = describeAccess(user);
+        row.appendChild(accessCell);
+
+        const updatedCell = document.createElement("td");
+        updatedCell.textContent = formatTimestamp(user.updated_at);
+        row.appendChild(updatedCell);
+
+        const actionsCell = document.createElement("td");
+        actionsCell.className = "actions";
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "ghost";
+        editBtn.dataset.userEdit = user.username;
+        editBtn.textContent = "Edit";
+        actionsCell.appendChild(editBtn);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "ghost danger";
+        deleteBtn.dataset.userDelete = user.username;
+        deleteBtn.textContent = "Delete";
+        actionsCell.appendChild(deleteBtn);
+
+        row.appendChild(actionsCell);
+        tableBody.appendChild(row);
       });
+      setStatus("", "info");
+    } catch (err) {
+      console.error("Failed to load users", err);
+      setStatus(err.message || "Unable to load users", "error");
     }
-    document.querySelectorAll("[data-provider-toggle]").forEach((input) => {
-      input.addEventListener("change", handleProviderToggle);
+  }
+
+  async function createUser(payload) {
+    const response = await fetch("/admin/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload),
     });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || response.statusText);
+    }
+    return response.json();
+  }
+
+  async function updateUser(username, payload) {
+    const response = await fetch(`/admin/api/users/${encodeURIComponent(username)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || response.statusText);
+    }
+    return response.json();
+  }
+
+  async function deleteUser(username) {
+    const response = await fetch(`/admin/api/users/${encodeURIComponent(username)}`, {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || response.statusText);
+    }
+    return response.json();
+  }
+
+  async function handleFormSubmit(event) {
+    event.preventDefault();
+    if (!form) return;
+    const username = form.username.value.trim();
+    const role = form.role.value;
+    const allowPortal = form.allow_portal ? form.allow_portal.checked : false;
+    const allowAdmin = form.allow_admin ? form.allow_admin.checked : false;
+    const password = form.password.value;
+    const confirm = form.confirm.value;
+
+    if (!username) {
+      form.username.focus();
+      return;
+    }
+    if (!ROLE_ORDER.includes(role)) {
+      setStatus("Select a valid role", "error");
+      return;
+    }
+    if (!allowPortal && !allowAdmin) {
+      setStatus("Choose at least one access area", "error");
+      return;
+    }
+
+    try {
+      if (editingUser) {
+        if (password && password !== confirm) {
+          setStatus("Passwords do not match", "error");
+          return;
+        }
+        const payload = {
+          role,
+          allow_portal: allowPortal,
+          allow_admin: allowAdmin,
+        };
+        if (password) {
+          payload.password = password;
+        }
+        setStatus("Updating user…", "info");
+        await updateUser(editingUser, payload);
+        setStatus(`Updated ${editingUser}`, "success");
+      } else {
+        if (!password || password.length < 8) {
+          setStatus("Password must be at least 8 characters", "error");
+          return;
+        }
+        if (password !== confirm) {
+          setStatus("Passwords do not match", "error");
+          return;
+        }
+        setStatus("Creating user…", "info");
+        await createUser({
+          username,
+          password,
+          role,
+          allow_portal: allowPortal,
+          allow_admin: allowAdmin,
+        });
+        setStatus(`Created ${username}`, "success");
+      }
+      resetForm();
+      await loadUsers();
+      window.dispatchEvent(new Event("hedi-role-refresh"));
+    } catch (err) {
+      console.error("User save failed", err);
+      setStatus(err.message || "Unable to save user", "error");
+    }
+  }
+
+  function handleTableClick(event) {
+    const target = event.target;
+    if (!tableBody || !target) return;
+    if (target.matches("[data-user-edit]")) {
+      const username = target.getAttribute("data-user-edit");
+      const row = target.closest("tr");
+      if (!row) return;
+      const role = row.children[1]?.textContent || "view";
+      const access = (row.children[2]?.textContent || "").toLowerCase();
+      const allowPortal = access.includes("portal");
+      const allowAdmin = access.includes("admin");
+      fillForm({ username, role, allow_portal: allowPortal, allow_admin: allowAdmin });
+      setStatus(`Editing ${username}`, "info");
+    } else if (target.matches("[data-user-delete]")) {
+      const username = target.getAttribute("data-user-delete");
+      if (!username) return;
+      if (!window.confirm(`Delete ${username}?`)) return;
+      deleteUser(username)
+        .then(() => {
+          setStatus(`Deleted ${username}`, "success");
+          if (editingUser === username) {
+            resetForm();
+          }
+          return loadUsers();
+        })
+        .then(() => {
+          window.dispatchEvent(new Event("hedi-role-refresh"));
+        })
+        .catch((err) => {
+          console.error("Delete failed", err);
+          setStatus(err.message || "Unable to delete user", "error");
+        });
+    }
+  }
+
+  if (form) {
+    form.addEventListener("submit", handleFormSubmit);
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
+      resetForm();
+      setStatus("", "info");
+    });
+  }
+  if (tableBody) {
+    tableBody.addEventListener("click", handleTableClick);
+  }
+
+  document.addEventListener("click", handleProviderToggle);
+
+  document.addEventListener("DOMContentLoaded", () => {
     renderTickets();
-    renderUsers();
     renderProviders();
+    loadUsers();
   });
 
-  window.addEventListener("hedi-ticket-created", renderTickets);
-  window.addEventListener("storage", (event) => {
-    if (event.key === TICKET_KEY) {
-      renderTickets();
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (target && target.matches("[data-ticket-close]")) {
+      const id = target.getAttribute("data-ticket-close");
+      markTicketResolved(id);
     }
-    if (event.key === USER_KEY || event.key === ACTIVE_KEY) {
-      renderUsers();
-    }
-    if (event.key === PROVIDER_KEY) {
-      renderProviders();
-    }
+  });
+
+  window.addEventListener("hedi-ticket-created", (event) => {
+    if (!event || !event.detail) return;
+    const tickets = loadTickets();
+    tickets.unshift(event.detail);
+    saveTickets(tickets);
+    renderTickets();
   });
 })();

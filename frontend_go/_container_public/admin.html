@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
   <title>HEDI — Admin Portal</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
 <body>
 <header class="site-header">
-  <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
-  <nav class="nav">
-    <a href="/portal.html">Portal</a>
-    <a href="/admin.html" aria-current="page">Admin</a>
-    <a href="/logout">Logout</a>
+  <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
+  <nav class="nav-cluster push-end">
+    <a class="nav-pill" data-tone="portal" href="/portal.html">Claims Portal</a>
+    <a class="nav-pill" data-tone="admin" href="/admin.html" aria-current="page">Admin</a>
+    <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
   </nav>
 </header>
 
@@ -21,12 +21,12 @@
   <section class="card admin-hero">
     <div>
       <h1>Administrator Dashboard</h1>
-      <p>Review Trish’s help tickets, curate user roles, and prep enterprise authentication.</p>
+      <p>Monitor Trish’s help tickets, orchestrate access, and wire in enterprise authentication.</p>
     </div>
     <div class="admin-shortcuts">
-      <a class="pill-button" data-requires-role="view" href="/portal.html">Claims Portal</a>
-      <a class="pill-button" data-requires-role="create" href="/claim-entry.html">Claim Entry</a>
-      <a class="pill-button" data-requires-role="update" href="/edi-mapping.html">HEDI Mapping</a>
+      <a class="pill-button" data-requires-role="view" href="/portal.html">Open Claims Portal</a>
+      <a class="pill-button" data-requires-role="create" href="/claim-entry.html">Jump to Claim Entry</a>
+      <a class="pill-button" data-requires-role="update" href="/edi-mapping.html">Launch HEDI Mapping</a>
     </div>
   </section>
 
@@ -34,7 +34,7 @@
     <header class="card-header">
       <div>
         <h2>Active support requests</h2>
-        <p class="muted">Tickets logged by Trish with severity, timestamps, and job context.</p>
+        <p class="muted">Trish captures severity, timestamps, and ticket IDs whenever a user reports trouble.</p>
       </div>
     </header>
     <div class="table-scroll-x">
@@ -45,12 +45,12 @@
         <tbody data-ticket-body></tbody>
       </table>
     </div>
-    <p class="muted" data-ticket-empty hidden>No active requests yet — ask Trish about an error to create one.</p>
+    <p class="muted" data-ticket-empty hidden>No active requests yet — Trish will log them as users ask for help.</p>
     <div class="trish-callout">
-      <img src="/img/trish-laptop.svg" alt="Trish watching the queue">
+      <img src="/img/trish-laptop.svg" alt="Trish monitoring tickets">
       <div class="bubble">
-        <strong>I’ll flag issues.</strong>
-        Severity 1 means production is down; 4 is an FYI. Check back here to triage.
+        <strong>I’ve got the console!</strong>
+        When someone says “error” I’ll ask for severity 1–4, drop the ticket here, and offer quick escalation links.
       </div>
     </div>
   </section>
@@ -59,22 +59,26 @@
     <header class="card-header">
       <div>
         <h2>User &amp; role management</h2>
-        <p class="muted">Stage credentials alongside role assignments before syncing to <code>htpasswd</code>.</p>
+        <p class="muted">Provision accounts straight into PostgreSQL, assign roles, and decide which portals each user can access.</p>
       </div>
     </header>
-    <form id="admin-user-form" class="admin-form">
+    <form class="admin-form" data-user-form>
       <div class="field-grid">
         <label>
           <span>Username</span>
-          <input name="username" type="text" placeholder="jane.doe" required>
+          <input name="username" type="text" placeholder="jane.doe" required data-user-username>
         </label>
         <label>
           <span>Password</span>
-          <input name="password" type="password" placeholder="temporary secret" required>
+          <input name="password" type="password" placeholder="Generate a strong secret" required data-user-password>
+        </label>
+        <label>
+          <span>Confirm password</span>
+          <input name="confirm" type="password" placeholder="Re-enter password" required data-user-confirm>
         </label>
         <label>
           <span>Role</span>
-          <select name="role" required>
+          <select name="role" required data-user-role>
             <option value="view">view</option>
             <option value="update">update</option>
             <option value="create">create</option>
@@ -82,27 +86,37 @@
           </select>
         </label>
       </div>
+      <div class="access-grid">
+        <label class="switch">
+          <input type="checkbox" name="allow_portal" checked data-user-portal>
+          <span>Claims Portal access</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" name="allow_admin" data-user-admin>
+          <span>Admin Console access</span>
+        </label>
+      </div>
       <div class="form-actions">
-        <button type="submit">Stage user</button>
-        <span class="muted">Digest is saved locally so ops can reconcile with the password file.</span>
+        <button type="submit" data-user-submit>Create user</button>
+        <button type="button" class="ghost" data-user-cancel hidden>Cancel edit</button>
+        <span class="muted">Passwords are hashed with PBKDF2 and stored securely in PostgreSQL.</span>
       </div>
     </form>
-    <p class="muted">HEDI now runs <code data-htpasswd-command>htpasswd -B /path/to/portal.htpasswd &lt;username&gt;</code> automatically after staging a user. The command stays visible for audit trails or manual recovery.</p>
-    <p class="htpasswd-status" data-htpasswd-status hidden></p>
+    <p class="form-status" data-user-status hidden></p>
     <div class="table-scroll-x">
       <table class="admin-table" data-user-table>
         <thead>
-          <tr><th>User</th><th>Role</th><th>Last updated</th><th>Password digest</th><th></th></tr>
+          <tr><th>User</th><th>Role</th><th>Access</th><th>Last updated</th><th></th></tr>
         </thead>
         <tbody data-user-body></tbody>
       </table>
     </div>
-    <p class="muted" data-user-empty hidden>No users staged yet — start with a <em>view</em> user.</p>
+    <p class="muted" data-user-empty hidden>No users yet. Add at least a <em>view</em> user to begin.</p>
     <div class="trish-callout trish-callout--right">
-      <img src="/img/trish-clipboard.svg" alt="Trish describing access tiers">
+      <img src="/img/trish-clipboard.svg" alt="Trish explaining roles">
       <div class="bubble">
-        <strong>Role quick start:</strong>
-        <em>view</em> reads data, <em>update</em> tweaks mapping, <em>create</em> uploads claims, and <em>admin</em> runs the show.
+        <strong>Portal permits:</strong>
+        Mix and match access—<em>view</em> for dashboards, <em>create</em> for submissions, and <em>admin</em> for full control.
       </div>
     </div>
   </section>
@@ -111,18 +125,18 @@
     <header class="card-header">
       <div>
         <h2>Authentication wiring</h2>
-        <p class="muted">Prepare additional identity providers so they’re one toggle away from production.</p>
+        <p class="muted">Toggle future identity providers so ops can flip from local auth to LDAP or OIDC without redeploying.</p>
       </div>
     </header>
     <div class="provider-grid">
       <article class="provider-card">
         <header>
-          <h3>htpasswd</h3>
-          <span class="provider-state" data-provider-status="htpasswd">Enabled</span>
+          <h3>Database</h3>
+          <span class="provider-state" data-provider-status="database">Enabled</span>
         </header>
-        <p class="muted">Default local auth backed by mounted password files.</p>
+        <p class="muted">PostgreSQL-backed accounts managed from this console.</p>
         <label class="switch">
-          <input type="checkbox" data-provider-toggle="htpasswd" checked>
+          <input type="checkbox" data-provider-toggle="database" checked>
           <span>Enable</span>
         </label>
       </article>
@@ -131,7 +145,7 @@
           <h3>LDAP / AD</h3>
           <span class="provider-state" data-provider-status="ldap">Disabled</span>
         </header>
-        <p class="muted">Bind to enterprise directory servers and reuse corporate MFA flows.</p>
+        <p class="muted">Connect to enterprise directories via secure bind with configurable base DN.</p>
         <label class="switch">
           <input type="checkbox" data-provider-toggle="ldap">
           <span>Enable</span>
@@ -142,7 +156,7 @@
           <h3>OIDC</h3>
           <span class="provider-state" data-provider-status="oss">Disabled</span>
         </header>
-        <p class="muted">Open source SSO (Keycloak, Authentik, etc.) using OpenID Connect.</p>
+        <p class="muted">Keycloak or other OSS identity providers using OpenID Connect.</p>
         <label class="switch">
           <input type="checkbox" data-provider-toggle="oss">
           <span>Enable</span>
@@ -150,10 +164,10 @@
       </article>
     </div>
     <div class="trish-callout">
-      <img src="/img/trish-peace.svg" alt="Trish encouraging SSO">
+      <img src="/img/trish-peace.svg" alt="Trish highlighting auth wiring">
       <div class="bubble">
-        <strong>Ready for SSO?</strong>
-        Toggle LDAP or OIDC when infra is set—the config file is already staged with defaults.
+        <strong>Need SSO?</strong>
+        Flip the switches once ops has LDAP or OIDC ready—my config file already knows the endpoints to use.
       </div>
     </div>
   </section>

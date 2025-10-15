@@ -1,6 +1,4 @@
 (function () {
-  const DIRECTORY_KEY = "hediUserDirectory";
-  const ACTIVE_KEY = "hediActiveUser";
   const ROLE_ORDER = ["view", "update", "create", "admin"];
   const ROLE_INDEX = ROLE_ORDER.reduce((acc, role, idx) => {
     acc[role] = idx;
@@ -8,34 +6,13 @@
   }, {});
   const guardHandlers = new WeakMap();
 
-  function loadDirectory() {
-    try {
-      const raw = localStorage.getItem(DIRECTORY_KEY);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === "object" ? parsed : {};
-    } catch (err) {
-      console.warn("Unable to parse user directory", err);
-      return {};
-    }
-  }
-
-  function resolveActiveUser() {
-    const config = window.HEDI_AUTHZ || {};
-    const explicit = config.currentUser || null;
-    const stored = localStorage.getItem(ACTIVE_KEY) || sessionStorage.getItem(ACTIVE_KEY);
-    return explicit || stored || null;
-  }
-
-  function computeRole() {
-    const directory = loadDirectory();
-    const activeUser = resolveActiveUser();
-    const config = window.HEDI_AUTHZ || {};
-    const fallback = config.defaultRole || "view";
-    const entry = activeUser ? directory[activeUser] : null;
-    const role = entry && entry.role ? entry.role : fallback;
-    return { directory, activeUser, role };
-  }
+  let profile = {
+    username: null,
+    role: "view",
+    allowPortal: false,
+    allowAdmin: false,
+    defaultDestination: "/",
+  };
 
   function enforceElement(el, roleIndex) {
     const required = el.getAttribute("data-requires-role");
@@ -88,31 +65,80 @@
   }
 
   function applyAuthz() {
-    const { activeUser, role } = computeRole();
-    const index = ROLE_INDEX[role] ?? 0;
-    document.body.dataset.userRole = role;
-    if (activeUser) {
-      document.body.dataset.userName = activeUser;
+    const index = ROLE_INDEX[profile.role] ?? 0;
+    document.body.dataset.userRole = profile.role;
+    if (profile.username) {
+      document.body.dataset.userName = profile.username;
     } else {
       delete document.body.dataset.userName;
     }
-    document.querySelectorAll("[data-requires-role]").forEach((el) => enforceElement(el, index));
-    window.dispatchEvent(new CustomEvent("hedi-role-changed", { detail: { user: activeUser, role } }));
+    document.body.dataset.allowPortal = profile.allowPortal ? "true" : "false";
+    document.body.dataset.allowAdmin = profile.allowAdmin ? "true" : "false";
+    document.body.dataset.defaultDestination = profile.defaultDestination || "/";
+
+    document
+      .querySelectorAll("[data-requires-role]")
+      .forEach((el) => enforceElement(el, index));
+
+    window.dispatchEvent(
+      new CustomEvent("hedi-role-changed", {
+        detail: {
+          user: profile.username,
+          role: profile.role,
+          allowPortal: profile.allowPortal,
+          allowAdmin: profile.allowAdmin,
+        },
+      }),
+    );
   }
 
-  window.refreshHediRole = applyAuthz;
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", applyAuthz);
-  } else {
+  async function fetchProfile() {
+    try {
+      const response = await fetch("/auth/me", { credentials: "same-origin" });
+      if (!response.ok) {
+        profile = {
+          username: null,
+          role: "view",
+          allowPortal: false,
+          allowAdmin: false,
+          defaultDestination: "/",
+        };
+        applyAuthz();
+        return;
+      }
+      const data = await response.json();
+      profile = {
+        username: data.username || null,
+        role: data.role || "view",
+        allowPortal: Boolean(data.allow_portal),
+        allowAdmin: Boolean(data.allow_admin),
+        defaultDestination: data.default_destination || "/",
+      };
+      window.HEDI_AUTHZ = window.HEDI_AUTHZ || {};
+      window.HEDI_AUTHZ.currentUser = profile.username;
+      window.HEDI_AUTHZ.currentRole = profile.role;
+      window.HEDI_AUTHZ.defaultRole = window.HEDI_AUTHZ.defaultRole || "view";
+      window.HEDI_AUTHZ.defaultDestination = profile.defaultDestination;
+    } catch (err) {
+      console.warn("Unable to load profile", err);
+      profile = {
+        username: null,
+        role: "view",
+        allowPortal: false,
+        allowAdmin: false,
+        defaultDestination: "/",
+      };
+    }
     applyAuthz();
   }
 
-  window.addEventListener("storage", (event) => {
-    if (event.key === DIRECTORY_KEY || event.key === ACTIVE_KEY) {
-      applyAuthz();
-    }
-  });
+  window.refreshHediRole = fetchProfile;
 
-  window.addEventListener("hedi-users-updated", applyAuthz);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", fetchProfile);
+  } else {
+    fetchProfile();
+  }
+
+  window.addEventListener("hedi-role-refresh", fetchProfile);
 })();
