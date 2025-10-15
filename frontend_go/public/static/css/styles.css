@@ -436,6 +436,10 @@ footer {
   align-items: start;
 }
 
+.portal .search-card {
+  grid-column: 1 / -1;
+}
+
 .portal .detail-card {
   grid-column: 1 / -1;
 }
@@ -475,6 +479,8 @@ footer {
 
 .table-wrapper table {
   margin: 0;
+  width: 100%;
+  table-layout: auto;
 }
 
 .muted {
@@ -516,6 +522,27 @@ footer {
   color: var(--accent-strong);
   text-transform: capitalize;
   font-size: 0.85rem;
+}
+
+.jobs-table tbody tr[data-job-id] {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.jobs-table tbody tr[data-job-id]:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.jobs-table tbody tr[data-job-id].navigated {
+  background: rgba(99, 102, 241, 0.12);
+  outline: 2px solid rgba(99, 102, 241, 0.45);
+  outline-offset: -2px;
+}
+
+.processed-table tr.focus-target {
+  background: rgba(99, 102, 241, 0.12);
+  outline: 2px solid rgba(99, 102, 241, 0.35);
+  outline-offset: -2px;
 }
 
 .status-queued {

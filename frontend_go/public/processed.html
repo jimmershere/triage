@@ -64,6 +64,13 @@ const processedBody = document.getElementById("processedBody");
 const searchUploadedInput = document.getElementById("searchUploadedBy");
 const searchPartnerInput = document.getElementById("searchPartnerId");
 const jobCache = new Map();
+const queryParams = new URLSearchParams(window.location.search);
+const presetUploadedBy = queryParams.get("uploaded_by") || queryParams.get("login") || "";
+const presetPartnerId = queryParams.get("trading_partner_id") || queryParams.get("partner") || "";
+const focusJobId = queryParams.get("job_id") || queryParams.get("focus_job") || "";
+const autoOpenOutputs = queryParams.get("open_outputs") !== "false";
+let focusConsumed = !focusJobId;
+const defer = typeof queueMicrotask === "function" ? queueMicrotask : (cb) => setTimeout(cb, 0);
 
 function formatBytes(size) {
   if (size === undefined || size === null) return "";
@@ -223,9 +230,36 @@ async function fetchJobs(uploadedBy, partnerId) {
       showStatus("No processed jobs found for the provided filters yet.", "warn");
     }
     renderJobs(processed);
+    if (focusJobId && !focusConsumed) {
+      focusConsumed = true;
+      defer(() => focusOnJob(focusJobId, { openOutputs: autoOpenOutputs }));
+    }
+    return processed;
   } catch (err) {
     console.error(err);
     showStatus("Unable to load processed jobs — please try again.", "error");
+    return null;
+  }
+}
+
+async function focusOnJob(jobId, { openOutputs = true } = {}) {
+  if (!jobId) return;
+  const row = processedBody.querySelector(`tr[data-row-id="${jobId}"]`);
+  if (!row) return;
+  processedBody.querySelectorAll("tr.focus-target").forEach(el => el.classList.remove("focus-target"));
+  row.classList.add("focus-target");
+  if (typeof row.scrollIntoView === "function") {
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  if (!openOutputs) return;
+  const ackRow = row.nextElementSibling;
+  if (!ackRow || !ackRow.classList.contains("ack-row")) return;
+  ackRow.hidden = false;
+  const container = ackRow.querySelector(".ack-container");
+  if (!container) return;
+  const job = jobCache.get(jobId);
+  if (job && container.dataset.loaded !== "true") {
+    await loadAcks(job, container);
   }
 }
 
@@ -259,6 +293,17 @@ processedBody.addEventListener("click", async (e) => {
     ackRow.hidden = true;
   }
 });
+
+if (presetUploadedBy) {
+  searchUploadedInput.value = presetUploadedBy;
+}
+if (presetPartnerId) {
+  searchPartnerInput.value = presetPartnerId;
+}
+
+if (presetUploadedBy) {
+  fetchJobs(presetUploadedBy, presetPartnerId);
+}
 </script>
 </body>
 </html>

@@ -77,17 +77,25 @@ class _PyX12Support:
         except Exception as exc:
             diagnostic = f"pyx12 validation failed: {exc}"
             logger.warning("pyx12 x12n_document raised while processing job %s: %s", job_uuid, exc)
-            return [AckRecord("NOTICE", diagnostic)]
+            return [AckRecord("ERROR", diagnostic)]
 
         ack_text = ack_buffer.getvalue().strip()
         html_text = html_buffer.getvalue().strip()
 
         if ack_text:
-            ack_type = "999" if "ST*999" in ack_text else "997"
+            upper_text = ack_text.upper()
+            if "ST*999" in upper_text:
+                ack_type = "999"
+            elif "ST*277" in upper_text:
+                ack_type = "277CA"
+            elif "ST*997" in upper_text:
+                ack_type = "997"
+            else:
+                ack_type = "ACK"
             ack_records.append(AckRecord(ack_type, ack_text))
 
         if not ack_records and html_text:
-            ack_records.append(AckRecord("NOTICE", html_text))
+            ack_records.append(AckRecord("ERROR" if not ok else "NOTICE", html_text))
 
         if not ack_records:
             fallback_text = (
@@ -95,7 +103,7 @@ class _PyX12Support:
                 if ok
                 else "pyx12 validation failed without acknowledgement content"
             )
-            ack_records.append(AckRecord("NOTICE", fallback_text))
+            ack_records.append(AckRecord("ERROR" if not ok else "NOTICE", fallback_text))
 
         return ack_records
 
