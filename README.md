@@ -33,10 +33,19 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
 4. **Ingest a file** (replace path as needed):
    ```bash
    curl -X POST "http://localhost:8000/ingest"      -F "file=@samples/x12_837_small.txt"
+   # curl -X POST "http://localhost:8000/ingest"      -F "file=@samples/x12_837_large_valid.x12"  # ~500 KB multi-claim sample
    ```
 5. **See results**:
    - Check `imports`, `claims`, `order_lines`, and `acks` tables in Postgres.
    - RabbitMQ queues: `ingest` (uploads) and `acks` (generated acknowledgments).
+
+## Customer support assistant configuration
+
+The web UI now ships with the “Trish” customer advocate, complete with helpful callouts and an in-app chat assistant. The chat widget can raise trouble tickets by generating unique request IDs and preparing `mailto:`/`sms:` links.
+
+- Update the default contact points in [`frontend_go/public/static/js/support_config.js`](frontend_go/public/static/js/support_config.js) (and the mirrored file under `_container_public/static/js/`) to wire in your production support mailbox or SMS gateway.
+- The same configuration is reused across every page, so a single change covers the Claims Portal, Processed Files, HEDI Mapping, Claim Entry, and the login/admin surfaces.
+- Messages that include words like “error” or “trouble” automatically produce a ticket reference in the chat transcript so agents can track the conversation against your downstream systems.
 
 ## Applying upstream patches
 

@@ -13,7 +13,7 @@
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
     <a class="nav-pill" data-tone="portal" href="/portal.html">Claims Portal</a>
-    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">EDI Mapping</a>
+    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
     <a class="nav-pill" data-tone="processed" href="/processed.html" aria-current="page">Processed Files</a>
     <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
@@ -50,9 +50,19 @@
         </tbody>
       </table>
     </div>
+
+    <div class="trish-callout">
+      <img src="/img/trish-laptop.svg" alt="Trish reviewing outputs">
+      <div class="bubble">
+        <strong>Outputs overview:</strong>
+        Open the Outputs drawer to see every 999, 277CA, or error note we saved. Download one file or grab a zip of them all.
+      </div>
+    </div>
   </section>
 </main>
 
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/chatbot.js"></script>
 <script>
 const API_BASE = window.HEDI_API_BASE || "";
 const JOBS_URL = window.HEDI_JOBS_URL || (API_BASE ? `${API_BASE}/jobs` : "/jobs");
@@ -64,6 +74,13 @@ const processedBody = document.getElementById("processedBody");
 const searchUploadedInput = document.getElementById("searchUploadedBy");
 const searchPartnerInput = document.getElementById("searchPartnerId");
 const jobCache = new Map();
+const queryParams = new URLSearchParams(window.location.search);
+const presetUploadedBy = queryParams.get("uploaded_by") || queryParams.get("login") || "";
+const presetPartnerId = queryParams.get("trading_partner_id") || queryParams.get("partner") || "";
+const focusJobId = queryParams.get("job_id") || queryParams.get("focus_job") || "";
+const autoOpenOutputs = queryParams.get("open_outputs") !== "false";
+let focusConsumed = !focusJobId;
+const defer = typeof queueMicrotask === "function" ? queueMicrotask : (cb) => setTimeout(cb, 0);
 
 function formatBytes(size) {
   if (size === undefined || size === null) return "";
@@ -223,9 +240,36 @@ async function fetchJobs(uploadedBy, partnerId) {
       showStatus("No processed jobs found for the provided filters yet.", "warn");
     }
     renderJobs(processed);
+    if (focusJobId && !focusConsumed) {
+      focusConsumed = true;
+      defer(() => focusOnJob(focusJobId, { openOutputs: autoOpenOutputs }));
+    }
+    return processed;
   } catch (err) {
     console.error(err);
     showStatus("Unable to load processed jobs — please try again.", "error");
+    return null;
+  }
+}
+
+async function focusOnJob(jobId, { openOutputs = true } = {}) {
+  if (!jobId) return;
+  const row = processedBody.querySelector(`tr[data-row-id="${jobId}"]`);
+  if (!row) return;
+  processedBody.querySelectorAll("tr.focus-target").forEach(el => el.classList.remove("focus-target"));
+  row.classList.add("focus-target");
+  if (typeof row.scrollIntoView === "function") {
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  if (!openOutputs) return;
+  const ackRow = row.nextElementSibling;
+  if (!ackRow || !ackRow.classList.contains("ack-row")) return;
+  ackRow.hidden = false;
+  const container = ackRow.querySelector(".ack-container");
+  if (!container) return;
+  const job = jobCache.get(jobId);
+  if (job && container.dataset.loaded !== "true") {
+    await loadAcks(job, container);
   }
 }
 
@@ -259,6 +303,17 @@ processedBody.addEventListener("click", async (e) => {
     ackRow.hidden = true;
   }
 });
+
+if (presetUploadedBy) {
+  searchUploadedInput.value = presetUploadedBy;
+}
+if (presetPartnerId) {
+  searchPartnerInput.value = presetPartnerId;
+}
+
+if (presetUploadedBy) {
+  fetchJobs(presetUploadedBy, presetPartnerId);
+}
 </script>
 </body>
 </html>
