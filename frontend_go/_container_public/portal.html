@@ -24,9 +24,9 @@
     <h2>Submit X12 Files</h2>
     <p>Upload one or many X12 files for fast queueing and processing. Real-time status shown below.</p>
     <form id="uploadForm" enctype="multipart/form-data" method="post">
-      <input type="file" id="file" name="file" multiple required>
+      <input type="file" id="file" name="file" multiple required data-requires-role="create">
       <div style="margin-top:1rem;">
-        <button type="submit">Submit Files</button>
+        <button type="submit" data-requires-role="create">Submit Files</button>
       </div>
     </form>
     <div id="result" class="card" style="margin-top:12px;display:none;"></div>
@@ -64,6 +64,8 @@
 </main>
 
 <script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
 <script src="/static/js/chatbot.js"></script>
 <script>
 const INGEST_URL = window.HEDI_INGEST_URL || "/ingest";

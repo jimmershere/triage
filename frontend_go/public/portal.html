@@ -37,8 +37,8 @@
         </div>
       </div>
       <label for="file" class="file-label">Select X12 file(s)</label>
-      <input type="file" id="file" name="file" multiple required>
-      <button type="submit">Queue files</button>
+      <input type="file" id="file" name="file" multiple required data-requires-role="create">
+      <button type="submit" data-requires-role="create">Queue files</button>
     </form>
     <div id="result" class="status-panel" hidden></div>
 
@@ -94,6 +94,8 @@
 </main>
 
 <script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
 <script src="/static/js/chatbot.js"></script>
 <script>
 const API_BASE = window.HEDI_API_BASE || "";

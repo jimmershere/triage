@@ -28,8 +28,8 @@
         <label>Copy Previous Claim ID</label>
         <input type="text" placeholder="e.g., 2025-CLM-000123">
       </div>
-      <div style="display:flex;align-items:end;">
-        <button type="button">Load &amp; Copy</button>
+      <div style="display:flex;align-items=end;">
+        <button type="button" data-requires-role="update">Load &amp; Copy</button>
       </div>
     </div>
 
@@ -76,8 +76,8 @@
     </div>
 
     <div style="margin-top:20px;">
-      <button>Validate &amp; Save</button>
-      <button style="background:var(--ok);">Queue for Processing</button>
+      <button data-requires-role="update">Validate &amp; Save</button>
+      <button style="background:var(--ok);" data-requires-role="create">Queue for Processing</button>
     </div>
 
     <p style="margin-top:12px;color:var(--muted);font-size:.92rem;">
@@ -94,6 +94,8 @@
   </div>
 </main>
 <script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
 <script src="/static/js/chatbot.js"></script>
 </body>
 </html>

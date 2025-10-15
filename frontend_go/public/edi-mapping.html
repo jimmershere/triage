@@ -37,7 +37,7 @@
       </div>
       <div class="card" style="flex:1.5;">
         <h3>Mapping Canvas</h3>
-        <div id="canvas" class="canvas-grid" aria-live="polite">
+        <div id="canvas" class="canvas-grid" aria-live="polite" data-requires-role="update">
           <p id="canvasEmpty" class="canvas-empty">Drop segments here to build your flow…</p>
         </div>
       </div>
@@ -57,6 +57,8 @@
 </main>
 
 <script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
 <script src="/static/js/chatbot.js"></script>
 <script src="/static/js/mapper.js"></script>
 </body>

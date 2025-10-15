@@ -45,7 +45,14 @@ The web UI now ships with the “Trish” customer advocate, complete with helpf
 
 - Update the default contact points in [`frontend_go/public/static/js/support_config.js`](frontend_go/public/static/js/support_config.js) (and the mirrored file under `_container_public/static/js/`) to wire in your production support mailbox or SMS gateway.
 - The same configuration is reused across every page, so a single change covers the Claims Portal, Processed Files, HEDI Mapping, Claim Entry, and the login/admin surfaces.
-- Messages that include words like “error” or “trouble” automatically produce a ticket reference in the chat transcript so agents can track the conversation against your downstream systems.
+- Messages that include words like “error” or “trouble” automatically produce a ticket reference in the chat transcript so agents can track the conversation against your downstream systems. Trish now follows up to capture the severity (1–4) before logging each ticket.
+
+## Admin dashboard, tickets, and role wiring
+
+- The admin portal renders active tickets raised by the chat assistant. Entries are stored in-browser under the `hediSupportTickets` key and surface the ID, submission timestamp, summary, and severity ranking.
+- Stage users and assign application roles (view → update → create → admin) from the Admin → “User & role management” card. Metadata is saved to `hediUserDirectory`; continue to sync passwords to your mounted `htpasswd` files using the generated command hint.
+- Runtime authorization is coordinated by [`static/js/auth_config.js`](frontend_go/public/static/js/auth_config.js) and [`static/js/authz.js`](frontend_go/public/static/js/authz.js). Pages mark privileged controls with `data-requires-role`, and the helper script disables them unless the signed-in user meets the threshold.
+- Toggle future identity providers (LDAP/AD and OIDC) from the admin “Authentication wiring” section. The UI persists your switches to `hediAuthProviders`, ready for wiring into a real directory or SSO integration later.
 
 ## Applying upstream patches
 
