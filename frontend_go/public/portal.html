@@ -41,6 +41,14 @@
       <button type="submit">Queue files</button>
     </form>
     <div id="result" class="status-panel" hidden></div>
+
+    <div class="trish-callout">
+      <img src="/img/trish-badge.svg" alt="Trish giving upload tips">
+      <div class="bubble">
+        <strong>Need a hand picking files?</strong>
+        Queue as many .x12 files as you like. I’ll tag each with a job ID so you can spot them in the search table below.
+      </div>
+    </div>
   </section>
 
   <section class="card search-card">
@@ -69,6 +77,14 @@
         </tbody>
       </table>
     </div>
+
+    <div class="trish-callout trish-callout--right">
+      <img src="/img/trish-clipboard.svg" alt="Trish pointing to results">
+      <div class="bubble">
+        <strong>Tip:</strong>
+        Click any row to jump into Processed Files. I’ll carry your login and partner filters with you and open the outputs.
+      </div>
+    </div>
   </section>
 
   <section class="card detail-card" id="detailCard" hidden>
@@ -77,6 +93,8 @@
   </section>
 </main>
 
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/chatbot.js"></script>
 <script>
 const API_BASE = window.HEDI_API_BASE || "";
 const INGEST_URL = window.HEDI_INGEST_URL || (API_BASE ? `${API_BASE}/ingest` : "/ingest");

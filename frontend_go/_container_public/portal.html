@@ -30,21 +30,41 @@
       </div>
     </form>
     <div id="result" class="card" style="margin-top:12px;display:none;"></div>
+
+    <div class="trish-callout">
+      <img src="/img/trish-badge.svg" alt="Trish cheering on uploads">
+      <div class="bubble">
+        <strong>Uploading tips:</strong>
+        Pick your .x12 files and I’ll attach job IDs so they’re easy to spot in the history table.
+      </div>
+    </div>
   </div>
 
   <div class="card" style="margin-top:24px;">
     <h3>Recent Activity</h3>
-    <table>
-      <thead>
-        <tr><th>File</th><th>Status</th><th>Queued</th></tr>
-      </thead>
-      <tbody id="activityRows">
-        <tr><td>example_837_01.txt</td><td>Queued</td><td>Just now</td></tr>
-      </tbody>
-    </table>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr><th>File</th><th>Status</th><th>Queued</th></tr>
+        </thead>
+        <tbody id="activityRows">
+          <tr><td>example_837_01.txt</td><td>Queued</td><td>Just now</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="trish-callout trish-callout--right">
+      <img src="/img/trish-clipboard.svg" alt="Trish pointing to history">
+      <div class="bubble">
+        <strong>Quick view:</strong>
+        Click into Processed Files from the main portal to pull acknowledgements and original uploads.
+      </div>
+    </div>
   </div>
 </main>
 
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/chatbot.js"></script>
 <script>
 const INGEST_URL = window.HEDI_INGEST_URL || "/ingest";
 

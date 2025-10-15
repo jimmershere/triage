@@ -46,7 +46,29 @@ if (!palette || !canvas || !emptyState) {
     IEA: 'IEA*1*000000905~'
   };
 
-  const activeSegments = [];
+  const DEFAULT_SEGMENTS = [
+    "ISA",
+    "GS",
+    "ST",
+    "BHT",
+    "NM1",
+    "HL",
+    "SBR",
+    "PAT",
+    "CLM",
+    "DTP",
+    "REF",
+    "HI",
+    "LX",
+    "SV1",
+    "SE",
+    "GE",
+    "IEA"
+  ];
+
+  const activeSegments = DEFAULT_SEGMENTS.map((id) =>
+    SEGMENT_DEFINITIONS.find((segment) => segment.id === id)
+  ).filter(Boolean);
 
   function createSegmentChip(segment) {
     const chip = document.createElement('span');
@@ -184,10 +206,23 @@ if (!palette || !canvas || !emptyState) {
     emptyState.hidden = true;
 
     canvas.appendChild(createBoundaryRow(true));
+    canvas.appendChild(createRulerRow());
     activeSegments.forEach(segment => {
       canvas.appendChild(createSegmentRow(segment));
     });
     canvas.appendChild(createBoundaryRow(false));
+  }
+
+  function createRulerRow() {
+    const row = document.createElement('div');
+    row.className = 'grid-row ruler';
+    row.style.setProperty('--grid-columns', GRID_COLUMNS);
+    for (let i = 0; i < GRID_COLUMNS; i += 5) {
+      const label = String(i + 1).padStart(2, ' ');
+      const span = Math.min(5, GRID_COLUMNS - i);
+      row.appendChild(createGridCell(label, span));
+    }
+    return row;
   }
 
   function initDragAndDrop() {
