@@ -12,7 +12,7 @@
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
     <a class="nav-pill" data-tone="portal" href="/portal.html">Claims Portal</a>
-    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">EDI Mapping</a>
+    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html" aria-current="page">Claim Entry</a>
     <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
   </nav>
@@ -29,7 +29,7 @@
         <input type="text" placeholder="e.g., 2025-CLM-000123">
       </div>
       <div style="display:flex;align-items:end;">
-        <button type="button">Load &amp; Copy</button>
+        <button type="button" data-requires-role="update">Load &amp; Copy</button>
       </div>
     </div>
 
@@ -76,15 +76,27 @@
     </div>
 
     <div style="margin-top:20px;">
-      <button>Validate &amp; Save</button>
-      <button style="background:var(--ok);">Queue for Processing</button>
+      <button data-requires-role="update">Validate &amp; Save</button>
+      <button style="background:var(--ok);" data-requires-role="create">Queue for Processing</button>
     </div>
 
     <p style="margin-top:12px;color:var(--muted);font-size:.92rem;">
       ✅ Edits auto-applied:
       CCI/NCD/LCD, Medicare & commercial unbundling, CPT↔DX↔Modifiers, DX sequencing, eligibility, duplicates, gender/age rules.
     </p>
+
+    <div class="trish-callout">
+      <img src="/img/trish-peace.svg" alt="Trish giving claim entry guidance">
+      <div class="bubble">
+        <strong>Shortcut:</strong>
+        Load a prior claim to copy patient + service info, then tweak the CPT, DX, or modifiers before saving. I’ll keep the edits running in the background.
+      </div>
+    </div>
   </div>
 </main>
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
+<script src="/static/js/chatbot.js"></script>
 </body>
 </html>
