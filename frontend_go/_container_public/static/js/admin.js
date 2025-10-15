@@ -156,6 +156,12 @@
     const username = form.username.value.trim();
     const password = form.password.value;
     const role = form.role.value;
+    const statusEl = document.querySelector("[data-htpasswd-status]");
+    if (statusEl) {
+      statusEl.hidden = true;
+      statusEl.dataset.state = "";
+      statusEl.textContent = "";
+    }
     if (!username) {
       form.username.focus();
       return;
@@ -179,12 +185,46 @@
     if (username && !localStorage.getItem(ACTIVE_KEY)) {
       localStorage.setItem(ACTIVE_KEY, username);
     }
-    form.reset();
-    renderUsers();
     const command = document.querySelector("[data-htpasswd-command]");
     if (command) {
       command.textContent = `htpasswd -B /path/to/portal.htpasswd ${username}`;
     }
+    renderUsers();
+
+    try {
+      const response = await fetch("/admin/api/htpasswd", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({ username, password }),
+      });
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (err) {
+        data = null;
+      }
+      if (!response.ok || !data || data.ok !== true) {
+        const message = (data && (data.error || data.output)) || response.statusText || "htpasswd execution failed";
+        throw new Error(message);
+      }
+      if (statusEl) {
+        statusEl.hidden = false;
+        statusEl.dataset.state = "success";
+        statusEl.textContent = data.message || `htpasswd updated for ${username}.`;
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.hidden = false;
+        statusEl.dataset.state = "error";
+        statusEl.textContent = `htpasswd failed: ${err && err.message ? err.message : "command error"}`;
+      } else {
+        console.warn("htpasswd command failed", err);
+      }
+    }
+    form.reset();
   }
 
   function renderUsers() {

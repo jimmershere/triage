@@ -87,7 +87,8 @@
         <span class="muted">We’ll generate a hash so you can sync it to <code>htpasswd</code>.</span>
       </div>
     </form>
-    <p class="muted">Run <code data-htpasswd-command>htpasswd -B /path/to/portal.htpasswd &lt;username&gt;</code> to finalize credentials.</p>
+    <p class="muted">HEDI now runs <code data-htpasswd-command>htpasswd -B /path/to/portal.htpasswd &lt;username&gt;</code> automatically after staging a user. The command is mirrored here for audit logs or manual recovery.</p>
+    <p class="htpasswd-status" data-htpasswd-status hidden></p>
     <div class="table-scroll-x">
       <table class="admin-table" data-user-table>
         <thead>

@@ -87,7 +87,8 @@
         <span class="muted">Digest is saved locally so ops can reconcile with the password file.</span>
       </div>
     </form>
-    <p class="muted">Run <code data-htpasswd-command>htpasswd -B /path/to/portal.htpasswd &lt;username&gt;</code> to activate the account.</p>
+    <p class="muted">HEDI now runs <code data-htpasswd-command>htpasswd -B /path/to/portal.htpasswd &lt;username&gt;</code> automatically after staging a user. The command stays visible for audit trails or manual recovery.</p>
+    <p class="htpasswd-status" data-htpasswd-status hidden></p>
     <div class="table-scroll-x">
       <table class="admin-table" data-user-table>
         <thead>

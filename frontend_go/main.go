@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	//"html/template"
@@ -12,6 +14,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -53,6 +56,14 @@ func env(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		fmt.Printf("json encode error: %v\n", err)
+	}
 }
 
 func isProtectedPath(p string) bool {
@@ -259,6 +270,86 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "window.HEDI_API_BASE = %q;\nwindow.HEDI_INGEST_URL = %q;\nwindow.HEDI_JOBS_URL = %q;\n", apiBase, ingest, jobs)
 }
 
+func isSafeUsername(v string) bool {
+	if v == "" {
+		return false
+	}
+	if len(v) > 96 {
+		return false
+	}
+	for _, r := range v {
+		if r >= 'a' && r <= 'z' {
+			continue
+		}
+		if r >= 'A' && r <= 'Z' {
+			continue
+		}
+		if r >= '0' && r <= '9' {
+			continue
+		}
+		switch r {
+		case '.', '-', '_', '@':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+type htpasswdRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func runHtpasswd(username, password string) ([]byte, error) {
+	htpasswdPath := env("PORTAL_HTPASSWD", "/app/auth/portal.htpasswd")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "htpasswd", "-B", "-b", htpasswdPath, username, password)
+	return cmd.CombinedOutput()
+}
+
+func htpasswdAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !requireAuth(w, r) {
+		return
+	}
+	var payload htpasswdRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	username := strings.TrimSpace(payload.Username)
+	password := payload.Password
+	if !isSafeUsername(username) {
+		http.Error(w, "invalid username", http.StatusBadRequest)
+		return
+	}
+	if password == "" {
+		http.Error(w, "password required", http.StatusBadRequest)
+		return
+	}
+	out, err := runHtpasswd(username, password)
+	if err != nil {
+		fmt.Printf("htpasswd error for %s: %v (%s)\n", username, err, strings.TrimSpace(string(out)))
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"ok":     false,
+			"error":  "failed to update htpasswd",
+			"output": strings.TrimSpace(string(out)),
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"ok":      true,
+		"message": strings.TrimSpace(string(out)),
+	})
+}
+
 func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
@@ -319,6 +410,7 @@ func main() {
 	mux.HandleFunc("/auth/login", loginPostHandler) // POST from login form
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/config.js", configHandler)
+	mux.HandleFunc("/admin/api/htpasswd", htpasswdAPI)
 
 	// everything else
 	mux.HandleFunc("/", staticHandler)

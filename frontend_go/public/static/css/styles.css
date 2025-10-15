@@ -299,6 +299,91 @@ a:hover {
   margin: 44px 0 32px;
 }
 
+.news-marquee {
+  margin: 16px 0 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.news-header h2 {
+  margin: 0;
+}
+
+.news-header .muted {
+  margin: 0;
+}
+
+.news-track {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+}
+
+.news-track::-webkit-scrollbar {
+  height: 8px;
+}
+
+.news-track::-webkit-scrollbar-thumb {
+  background: rgba(79, 70, 229, 0.35);
+  border-radius: 999px;
+}
+
+.news-card {
+  flex: 0 0 260px;
+  min-width: 240px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  padding: 1.05rem;
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  scroll-snap-align: start;
+}
+
+.news-card h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.news-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.news-card a {
+  color: var(--accent-strong);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.news-card a:hover {
+  text-decoration: underline;
+}
+
+.news-card .tag {
+  align-self: flex-start;
+  background: var(--contrast-soft);
+  color: var(--contrast-strong);
+  border-radius: 999px;
+  padding: 0.28rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.news-card .tag[data-tone="hedi"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
 .badge {
   display: inline-block;
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(249, 115, 22, 0.2) 55%, rgba(20, 184, 166, 0.22));
@@ -1248,6 +1333,20 @@ footer {
   background: #fff;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
   margin-top: 1rem;
+}
+
+.htpasswd-status {
+  margin-top: 0.65rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.htpasswd-status[data-state="success"] {
+  color: var(--ok);
+}
+
+.htpasswd-status[data-state="error"] {
+  color: var(--err);
 }
 
 .table-scroll-x::-webkit-scrollbar {
