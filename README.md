@@ -33,6 +33,7 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
 4. **Ingest a file** (replace path as needed):
    ```bash
    curl -X POST "http://localhost:8000/ingest"      -F "file=@samples/x12_837_small.txt"
+   # curl -X POST "http://localhost:8000/ingest"      -F "file=@samples/x12_837_large_valid.x12"  # ~500 KB multi-claim sample
    ```
 5. **See results**:
    - Check `imports`, `claims`, `order_lines`, and `acks` tables in Postgres.

@@ -13,7 +13,7 @@
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
     <a class="nav-pill" data-tone="portal" href="/portal.html" aria-current="page">Claims Portal</a>
-    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">EDI Mapping</a>
+    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
     <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
     <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
@@ -60,7 +60,7 @@
       <button type="submit">Search jobs</button>
     </form>
     <div class="table-wrapper">
-      <table>
+      <table class="jobs-table">
         <thead>
           <tr><th>Job</th><th>File</th><th>Status</th><th>Created</th><th>Outputs</th><th></th></tr>
         </thead>
@@ -132,6 +132,13 @@ function renderJobs(jobs) {
 
   for (const job of jobs) {
     const tr = document.createElement("tr");
+    tr.dataset.jobId = job.job_id;
+    if (job.uploaded_by) {
+      tr.dataset.uploadedBy = job.uploaded_by;
+    }
+    if (job.trading_partner_id) {
+      tr.dataset.partnerId = job.trading_partner_id;
+    }
     const created = job.created_at ? new Date(job.created_at).toLocaleString() : "";
     tr.innerHTML = `
       <td><code>${job.job_id}</code></td>
@@ -217,6 +224,25 @@ async function fetchDetail(jobId) {
   }
 }
 
+function goToProcessed(row) {
+  if (!row) return;
+  const jobId = row.dataset.jobId;
+  const uploadedBy = row.dataset.uploadedBy || uploadedByInput.value.trim() || searchUploadedInput.value.trim();
+  const partnerId = row.dataset.partnerId || partnerInput.value.trim() || searchPartnerInput.value.trim();
+  const url = new URL("/processed.html", window.location.origin);
+  if (uploadedBy) {
+    url.searchParams.set("uploaded_by", uploadedBy);
+  }
+  if (partnerId) {
+    url.searchParams.set("trading_partner_id", partnerId);
+  }
+  if (jobId) {
+    url.searchParams.set("job_id", jobId);
+  }
+  row.classList.add("navigated");
+  window.location.href = url.toString();
+}
+
 uploadForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const files = Array.from(fileInput.files || []);
@@ -280,9 +306,18 @@ searchForm.addEventListener("submit", (e) => {
 
 jobsBody.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-detail]");
-  if (!btn) return;
-  const jobId = btn.getAttribute("data-detail");
-  fetchDetail(jobId);
+  if (btn) {
+    const jobId = btn.getAttribute("data-detail");
+    fetchDetail(jobId);
+    e.stopPropagation();
+    return;
+  }
+  if (e.target.closest("a") || e.target.closest("button")) {
+    return;
+  }
+  const row = e.target.closest("tr[data-job-id]");
+  if (!row) return;
+  goToProcessed(row);
 });
 </script>
 </body>
