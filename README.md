@@ -51,6 +51,7 @@ The web UI now ships with the “Trish” customer advocate, complete with helpf
 
 - The admin portal renders active tickets raised by the chat assistant. Entries are stored in-browser under the `hediSupportTickets` key and surface the ID, submission timestamp, summary, and severity ranking.
 - Stage users and assign application roles (view → update → create → admin) from the Admin → “User & role management” card. Metadata is saved to `hediUserDirectory`; continue to sync passwords to your mounted `htpasswd` files using the generated command hint.
+- When you enable the “Commit credentials now” action, the server will attempt to ensure the target htpasswd file is owned by `jimmer:jimmer` (override via `HEDI_HTPASSWD_OWNER` / `HEDI_HTPASSWD_GROUP`). If the process lacks permission it will surface a friendly hint so you can adjust ownership once and retry.
 - Runtime authorization is coordinated by [`static/js/auth_config.js`](frontend_go/public/static/js/auth_config.js) and [`static/js/authz.js`](frontend_go/public/static/js/authz.js). Pages mark privileged controls with `data-requires-role`, and the helper script disables them unless the signed-in user meets the threshold.
 - Toggle future identity providers (LDAP/AD and OIDC) from the admin “Authentication wiring” section. The UI persists your switches to `hediAuthProviders`, ready for wiring into a real directory or SSO integration later.
 

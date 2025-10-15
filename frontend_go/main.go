@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	//"html/template"
@@ -15,8 +16,11 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -302,8 +306,83 @@ type htpasswdRequest struct {
 	Password string `json:"password"`
 }
 
+var errOwnershipAdjust = errors.New("htpasswd ownership adjustment failed")
+
+func ensureHtpasswdOwnership(path string) error {
+	owner := env("HEDI_HTPASSWD_OWNER", "jimmer")
+	group := env("HEDI_HTPASSWD_GROUP", "jimmer")
+	if owner == "" && group == "" {
+		return nil
+	}
+
+	// Make sure the file exists so chown works even on first run.
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+				return fmt.Errorf("%w: prepare directory: %v", errOwnershipAdjust, err)
+			}
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0o640)
+			if err != nil {
+				return fmt.Errorf("%w: create file: %v", errOwnershipAdjust, err)
+			}
+			f.Close()
+		} else {
+			return fmt.Errorf("%w: inspect file: %v", errOwnershipAdjust, err)
+		}
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("%w: stat file: %v", errOwnershipAdjust, err)
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("%w: cannot read ownership metadata", errOwnershipAdjust)
+	}
+
+	uid := int(stat.Uid)
+	gid := int(stat.Gid)
+
+	if owner != "" {
+		u, err := user.Lookup(owner)
+		if err != nil {
+			return fmt.Errorf("%w: lookup user %q: %v", errOwnershipAdjust, owner, err)
+		}
+		parsed, err := strconv.Atoi(u.Uid)
+		if err != nil {
+			return fmt.Errorf("%w: parse uid for %q: %v", errOwnershipAdjust, owner, err)
+		}
+		uid = parsed
+	}
+
+	if group != "" {
+		g, err := user.LookupGroup(group)
+		if err != nil {
+			return fmt.Errorf("%w: lookup group %q: %v", errOwnershipAdjust, group, err)
+		}
+		parsed, err := strconv.Atoi(g.Gid)
+		if err != nil {
+			return fmt.Errorf("%w: parse gid for %q: %v", errOwnershipAdjust, group, err)
+		}
+		gid = parsed
+	}
+
+	if uid == int(stat.Uid) && gid == int(stat.Gid) {
+		return nil
+	}
+
+	if err := os.Chown(path, uid, gid); err != nil {
+		return fmt.Errorf("%w: chown %s:%s: %v", errOwnershipAdjust, owner, group, err)
+	}
+	return nil
+}
+
 func runHtpasswd(username, password string) ([]byte, error) {
 	htpasswdPath := env("PORTAL_HTPASSWD", "/app/auth/portal.htpasswd")
+	if err := ensureHtpasswdOwnership(htpasswdPath); err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "htpasswd", "-B", "-b", htpasswdPath, username, password)
@@ -336,12 +415,19 @@ func htpasswdAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := runHtpasswd(username, password)
 	if err != nil {
-		fmt.Printf("htpasswd error for %s: %v (%s)\n", username, err, strings.TrimSpace(string(out)))
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+		trimmed := strings.TrimSpace(string(out))
+		fmt.Printf("htpasswd error for %s: %v (%s)\n", username, err, trimmed)
+		resp := map[string]interface{}{
 			"ok":     false,
-			"error":  "failed to update htpasswd",
-			"output": strings.TrimSpace(string(out)),
-		})
+			"error":  err.Error(),
+			"output": trimmed,
+		}
+		if errors.Is(err, errOwnershipAdjust) {
+			owner := env("HEDI_HTPASSWD_OWNER", "jimmer")
+			group := env("HEDI_HTPASSWD_GROUP", "jimmer")
+			resp["hint"] = fmt.Sprintf("Ensure %s is owned by %s:%s or update HEDI_HTPASSWD_OWNER/HEDI_HTPASSWD_GROUP", env("PORTAL_HTPASSWD", "/app/auth/portal.htpasswd"), owner, group)
+		}
+		writeJSON(w, http.StatusInternalServerError, resp)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{

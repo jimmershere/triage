@@ -207,7 +207,10 @@
         data = null;
       }
       if (!response.ok || !data || data.ok !== true) {
-        const message = (data && (data.error || data.output)) || response.statusText || "htpasswd execution failed";
+        let message = (data && (data.error || data.output)) || response.statusText || "htpasswd execution failed";
+        if (data && data.hint) {
+          message = `${message} — ${data.hint}`;
+        }
         throw new Error(message);
       }
       if (statusEl) {
@@ -219,7 +222,8 @@
       if (statusEl) {
         statusEl.hidden = false;
         statusEl.dataset.state = "error";
-        statusEl.textContent = `htpasswd failed: ${err && err.message ? err.message : "command error"}`;
+        const baseMessage = err && err.message ? err.message : "command error";
+        statusEl.textContent = `htpasswd failed: ${baseMessage}`;
       } else {
         console.warn("htpasswd command failed", err);
       }
