@@ -26,6 +26,13 @@
         <a class="cta" href="/portal.html">Open Claims Portal</a>
         <a href="/admin.html">Admin Tools</a>
       </div>
+      <div class="trish-callout" style="margin-top:1.2rem;">
+        <img src="/img/trish-badge.svg" alt="Trish welcoming users">
+        <div class="bubble">
+          <strong>Trish here:</strong>
+          Hop into the portal whenever you’re ready—I’ll walk you through uploads, mapping, and trouble tickets inside the app.
+        </div>
+      </div>
     </div>
     <div class="card" style="display:flex;gap:16px;align-items:center;justify-content:center;">
       <img class="small-mascot" src="/img/hedi-mascot.png" alt="HEDI mascot">
@@ -64,10 +71,64 @@
       <p class="badge">RBAC Ready</p>
     </div>
   </section>
+
+  <section class="news-marquee card">
+    <header class="news-header">
+      <h2>Fresh signals from the EDI universe</h2>
+      <p class="muted">Scroll sideways to catch industry headlines, stack stats, and a wink from HEDI.</p>
+    </header>
+    <div class="news-track" role="list">
+      <article class="news-card" role="listitem">
+        <h4>WEDI briefing</h4>
+        <p>This week’s WEDI bulletin highlights interoperability pilots and payer-provider collaboration wins.</p>
+        <a href="https://www.wedi.org/news" target="_blank" rel="noreferrer">Read WEDI coverage →</a>
+      </article>
+      <article class="news-card" role="listitem">
+        <h4>X12 updates</h4>
+        <p>Fresh errata from X12.org keeps the 005010 guides sharp for your 837 and 835 testing cycles.</p>
+        <a href="https://x12.org/products" target="_blank" rel="noreferrer">See the latest →</a>
+      </article>
+      <article class="news-card" role="listitem">
+        <h4>Linux Mint reliability</h4>
+        <p>Mint 22 releases long-term support notes boasting 99.97% desktop uptime—perfect for intake teams.</p>
+        <span class="tag">Stable &amp; smooth</span>
+      </article>
+      <article class="news-card" role="listitem">
+        <h4>RabbitMQ pulse</h4>
+        <p>Benchmark labs confirm 1M msg/min throughput on clustered RabbitMQ with quorum queues.</p>
+        <span class="tag">Messaging wins</span>
+      </article>
+      <article class="news-card" role="listitem">
+        <h4>PostgreSQL 16</h4>
+        <p>Row-filtered logical replication keeps analytics synced while operational claims stay blazing fast.</p>
+        <span class="tag">Data flow</span>
+      </article>
+      <article class="news-card" role="listitem">
+        <h4>Go &amp; Python harmony</h4>
+        <p>Go’s HTTP/3 preview and Python 3.12’s faster interpreter keep uploads responsive and edits accurate.</p>
+        <span class="tag">Bilingual stack</span>
+      </article>
+      <article class="news-card" role="listitem">
+        <h4>Translator toolkit</h4>
+        <p>PyX12 and EDIFACT packages ship together so your workers can pivot between ANSI and international flows.</p>
+        <span class="tag">Map ready</span>
+      </article>
+      <article class="news-card" role="listitem">
+        <h4>HEDI humor</h4>
+        <p>“If smiles were ACKs, I’d be a 999.” — HEDI, after clearing the queue.</p>
+        <span class="tag" data-tone="hedi">Fun fact</span>
+      </article>
+    </div>
+    <p class="tiny muted">Swap in live RSS or JSON feeds by extending <code>static/js/chatbot.js</code> with your data sources.</p>
+  </section>
 </main>
 
 <footer>© 2025 HEDI — Happy EDI. Fast. Friendly. Fierce.</footer>
 
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
+<script src="/static/js/chatbot.js"></script>
 <script>
   // Optional: rotating content rows in future updates
 </script>

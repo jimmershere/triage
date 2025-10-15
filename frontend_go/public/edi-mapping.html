@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>HEDI — Drag & Drop Mapping</title>
+  <title>HEDI — HEDI Mapping Studio</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
 <body>
@@ -12,7 +12,7 @@
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
     <a class="nav-pill" data-tone="portal" href="/portal.html">Claims Portal</a>
-    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html" aria-current="page">EDI Mapping</a>
+    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html" aria-current="page">HEDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
     <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
   </nav>
@@ -20,25 +20,25 @@
 
 <main class="container">
   <div class="card">
-    <h2>X12 Segment Mapping</h2>
-    <p>Build transaction flows by dragging EDI segments into a custom sequence. Color-coded segments make mapping quick and clear.</p>
-    <div class="row">
-      <div class="card">
-        <h3>Available Segments</h3>
-        <ul id="segments" style="list-style:none;padding:0;margin:0;display:grid;gap:8px;">
-          <li draggable="true" class="badge">ISA</li>
-          <li draggable="true" class="badge">GS</li>
-          <li draggable="true" class="badge">ST</li>
-          <li draggable="true" class="badge">NM1</li>
-          <li draggable="true" class="badge">CLM</li>
-          <li draggable="true" class="badge">SV1</li>
-          <li draggable="true" class="badge">SE</li>
-        </ul>
+    <h2>HEDI Mapping</h2>
+    <p>Build transaction flows by dragging X12 segment identifiers into a custom sequence. The palette highlights valid identifiers and the canvas arranges a positional grid that mirrors an XML-style representation of your structure.</p>
+    <div class="trish-callout">
+      <img src="/img/trish-peace.svg" alt="Trish explaining the mapping studio">
+      <div class="bubble">
+        <strong>How the grid works:</strong>
+        I preloaded a full ISA→IEA journey so you can see the spacing. Drop new chips to extend or reorder the XML-style blocks.
       </div>
-      <div class="card">
+    </div>
+    <div class="row" style="gap:20px;align-items:flex-start;">
+      <div class="card" style="flex:1;">
+        <h3>Segment Identifier Palette</h3>
+        <p class="muted" style="margin-top:0.25rem;">Drag any identifier to the right to sketch the order of segments in your transaction set.</p>
+        <ul id="segments" class="segment-list"></ul>
+      </div>
+      <div class="card" style="flex:1.5;">
         <h3>Mapping Canvas</h3>
-        <div id="canvas" style="min-height:220px;border:2px dashed rgba(47,109,246,.3);border-radius:10px;padding:12px;transition:background 0.3s;">
-          <em>Drop segments here to build your flow…</em>
+        <div id="canvas" class="canvas-grid" aria-live="polite" data-requires-role="update">
+          <p id="canvasEmpty" class="canvas-empty">Drop segments here to build your flow…</p>
         </div>
       </div>
     </div>
@@ -56,6 +56,10 @@
   </div>
 </main>
 
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
+<script src="/static/js/chatbot.js"></script>
 <script src="/static/js/mapper.js"></script>
 </body>
 </html>
