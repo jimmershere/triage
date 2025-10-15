@@ -17,16 +17,152 @@
   </nav>
 </header>
 
-<main class="container">
-  <div class="card">
-    <h2>Admin Tools</h2>
-    <ul>
-      <li>Queues & Workers</li>
-      <li>User Accounts (htpasswd / LDAP)</li>
-      <li>System Health</li>
-    </ul>
-    <p style="color:var(--muted);">Future: integrate live metrics & RBAC here.</p>
-  </div>
+<main class="container admin-page">
+  <section class="card admin-hero">
+    <div>
+      <h1>Administrator Dashboard</h1>
+      <p>Monitor Trish’s help tickets, orchestrate access, and wire in enterprise authentication.</p>
+    </div>
+    <div class="admin-shortcuts">
+      <a class="pill-button" data-requires-role="view" href="/portal.html">Open Claims Portal</a>
+      <a class="pill-button" data-requires-role="create" href="/claim-entry.html">Jump to Claim Entry</a>
+      <a class="pill-button" data-requires-role="update" href="/edi-mapping.html">Launch HEDI Mapping</a>
+    </div>
+  </section>
+
+  <section class="card admin-support" data-ticket-table>
+    <header class="card-header">
+      <div>
+        <h2>Active support requests</h2>
+        <p class="muted">Trish captures severity, timestamps, and ticket IDs whenever a user reports trouble.</p>
+      </div>
+    </header>
+    <div class="table-scroll-x">
+      <table class="admin-table" data-ticket-table>
+        <thead>
+          <tr><th>Request</th><th>Severity</th><th>Submitted</th><th>Summary</th><th></th></tr>
+        </thead>
+        <tbody data-ticket-body></tbody>
+      </table>
+    </div>
+    <p class="muted" data-ticket-empty hidden>No active requests yet — Trish will log them as users ask for help.</p>
+    <div class="trish-callout">
+      <img src="/img/trish-laptop.svg" alt="Trish monitoring tickets">
+      <div class="bubble">
+        <strong>I’ve got the console!</strong>
+        When someone says “error” I’ll ask for severity 1–4, drop the ticket here, and offer quick escalation links.
+      </div>
+    </div>
+  </section>
+
+  <section class="card admin-users">
+    <header class="card-header">
+      <div>
+        <h2>User &amp; role management</h2>
+        <p class="muted">Continue sourcing credentials from <code>htpasswd</code>, but layer fine-grained roles across HEDI.</p>
+      </div>
+    </header>
+    <form id="admin-user-form" class="admin-form">
+      <div class="field-grid">
+        <label>
+          <span>Username</span>
+          <input name="username" type="text" placeholder="jane.doe" required>
+        </label>
+        <label>
+          <span>Password</span>
+          <input name="password" type="password" placeholder="temporary secret" required>
+        </label>
+        <label>
+          <span>Role</span>
+          <select name="role" required>
+            <option value="view">view</option>
+            <option value="update">update</option>
+            <option value="create">create</option>
+            <option value="admin">admin</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="submit">Stage user</button>
+        <span class="muted">We’ll generate a hash so you can sync it to <code>htpasswd</code>.</span>
+      </div>
+    </form>
+    <p class="muted">HEDI now runs <code data-htpasswd-command>htpasswd -B /path/to/portal.htpasswd &lt;username&gt;</code> automatically after staging a user. The command is mirrored here for audit logs or manual recovery.</p>
+    <p class="htpasswd-status" data-htpasswd-status hidden></p>
+    <div class="table-scroll-x">
+      <table class="admin-table" data-user-table>
+        <thead>
+          <tr><th>User</th><th>Role</th><th>Last updated</th><th>Password digest</th><th></th></tr>
+        </thead>
+        <tbody data-user-body></tbody>
+      </table>
+    </div>
+    <p class="muted" data-user-empty hidden>No users staged yet. Add at least a <em>view</em> user to begin.</p>
+    <div class="trish-callout trish-callout--right">
+      <img src="/img/trish-clipboard.svg" alt="Trish explaining roles">
+      <div class="bubble">
+        <strong>Access tiers:</strong>
+        Everyone starts at <em>view</em>. Elevate to <em>update</em> for mapping tweaks, <em>create</em> for claim uploads, and <em>admin</em> for everything.
+      </div>
+    </div>
+  </section>
+
+  <section class="card admin-auth">
+    <header class="card-header">
+      <div>
+        <h2>Authentication wiring</h2>
+        <p class="muted">Toggle future identity providers so ops can flip from local auth to LDAP or OIDC without redeploying.</p>
+      </div>
+    </header>
+    <div class="provider-grid">
+      <article class="provider-card">
+        <header>
+          <h3>htpasswd</h3>
+          <span class="provider-state" data-provider-status="htpasswd">Enabled</span>
+        </header>
+        <p class="muted">Mounted credential files that power today’s sessions.</p>
+        <label class="switch">
+          <input type="checkbox" data-provider-toggle="htpasswd" checked>
+          <span>Enable</span>
+        </label>
+      </article>
+      <article class="provider-card">
+        <header>
+          <h3>LDAP / AD</h3>
+          <span class="provider-state" data-provider-status="ldap">Disabled</span>
+        </header>
+        <p class="muted">Connect to enterprise directories via secure bind with configurable base DN.</p>
+        <label class="switch">
+          <input type="checkbox" data-provider-toggle="ldap">
+          <span>Enable</span>
+        </label>
+      </article>
+      <article class="provider-card">
+        <header>
+          <h3>OIDC</h3>
+          <span class="provider-state" data-provider-status="oss">Disabled</span>
+        </header>
+        <p class="muted">Keycloak or other OSS identity providers using OpenID Connect.</p>
+        <label class="switch">
+          <input type="checkbox" data-provider-toggle="oss">
+          <span>Enable</span>
+        </label>
+      </article>
+    </div>
+    <div class="trish-callout">
+      <img src="/img/trish-peace.svg" alt="Trish highlighting auth wiring">
+      <div class="bubble">
+        <strong>Need SSO?</strong>
+        Flip the switches once ops has LDAP or OIDC ready—my config file already knows the endpoints to use.
+      </div>
+    </div>
+  </section>
 </main>
+
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
+<script src="/static/js/admin.js"></script>
+<script src="/static/js/chatbot.js"></script>
 </body>
 </html>
