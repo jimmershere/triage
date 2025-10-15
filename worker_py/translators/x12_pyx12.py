@@ -6,9 +6,6 @@ import io
 import logging
 import uuid
 from dataclasses import dataclass
-import subprocess
-import shutil
-import tempfile
 from pathlib import Path
 
 from . import AckRecord, TranslationOutcome, Translator, register
@@ -21,7 +18,7 @@ class _PyX12Support:
     params_mod: object
     x12file_mod: object
     map_if_mod: object
-    x12valid_path: str | None
+    x12n_document_mod: object
 
     def _new_params(self):
         params_cls = getattr(self.params_mod, "params", None)
@@ -52,56 +49,55 @@ class _PyX12Support:
         job_uuid: uuid.UUID,
         trading_partner_id: str | None,
     ) -> list[AckRecord]:
-        if not self.x12valid_path:
-            raise RuntimeError("x12valid not found in PATH; install pyx12 in this venv")
-        # Write the payload to a temp file (x12valid expects a filename).
-        with tempfile.TemporaryDirectory() as td:
-            in_path = Path(td) / "in.edi"
-            in_path.write_text(text, encoding="utf-8", errors="ignore")
-
-            # ``x12valid`` uses an ``argparse`` ``count`` action for ``--verbose``
-            # that defaults to ``None``.  Older versions compare the value against
-            # integers, so we always supply ``-v`` to coerce it to ``1`` and then
-            # pair it with ``-q`` to keep logging noise down.
-            cmd = [self.x12valid_path, "-v", "-q", str(in_path)]
-            proc = subprocess.run(cmd, capture_output=True, text=True)
-            stdout = proc.stdout or ""
-            stderr = proc.stderr or ""
-
-            ack_records: list[AckRecord] = []
-            ack_candidates = (
-                (".999", "999"),
-                (".997", "997"),
-                (".277", "277CA"),
+        ack_records: list[AckRecord] = []
+        ack_buffer = io.StringIO()
+        html_buffer = io.StringIO()
+        param = self._new_params()
+        map_path = None
+        param_get = getattr(param, "get", None)
+        if callable(param_get):
+            try:
+                candidate = param_get("map_path")
+            except Exception:
+                candidate = None
+            if candidate:
+                try:
+                    if Path(candidate).exists():
+                        map_path = candidate
+                except Exception:
+                    map_path = None
+        try:
+            ok = self.x12n_document_mod.x12n_document(
+                param=param,
+                src_file=io.StringIO(text),
+                fd_997=ack_buffer,
+                fd_html=html_buffer,
+                map_path=map_path,
             )
-            for suffix, ack_type in ack_candidates:
-                ack_path = Path(f"{in_path}{suffix}")
-                if ack_path.exists():
-                    ack_text = ack_path.read_text(encoding="utf-8", errors="ignore")
-                    if ack_text:
-                        ack_records.append(AckRecord(ack_type, ack_text))
+        except Exception as exc:
+            diagnostic = f"pyx12 validation failed: {exc}"
+            logger.warning("pyx12 x12n_document raised while processing job %s: %s", job_uuid, exc)
+            return [AckRecord("NOTICE", diagnostic)]
 
-            if not ack_records and proc.returncode == 0:
-                ack_type = "999" if "ST*999" in stdout or "X231" in stdout else "997"
-                ack_records.append(AckRecord(ack_type, stdout))
+        ack_text = ack_buffer.getvalue().strip()
+        html_text = html_buffer.getvalue().strip()
 
-            if proc.returncode != 0:
-                diagnostic = (stderr or stdout or f"x12valid failed with code {proc.returncode}").strip()
-                first_line = diagnostic.splitlines()[0] if diagnostic else ""
-                logger.warning(
-                    "x12valid exited with %s while processing job %s: %s",
-                    proc.returncode,
-                    job_uuid,
-                    first_line,
-                )
-                if not ack_records:
-                    ack_records.append(AckRecord("NOTICE", diagnostic or "x12valid failed without diagnostic output"))
+        if ack_text:
+            ack_type = "999" if "ST*999" in ack_text else "997"
+            ack_records.append(AckRecord(ack_type, ack_text))
 
-            if not ack_records:
-                logger.info("x12valid did not emit acknowledgement content; falling back to notice")
-                return [AckRecord("NOTICE", stdout or stderr or "pyx12 failed to produce acknowledgement data")]
+        if not ack_records and html_text:
+            ack_records.append(AckRecord("NOTICE", html_text))
 
-            return ack_records
+        if not ack_records:
+            fallback_text = (
+                "pyx12 validation succeeded but no acknowledgement content was produced"
+                if ok
+                else "pyx12 validation failed without acknowledgement content"
+            )
+            ack_records.append(AckRecord("NOTICE", fallback_text))
+
+        return ack_records
 
 _SUPPORT_ERROR: str | None = None
 
@@ -111,19 +107,17 @@ def _load_support() -> _PyX12Support | None:
         params_mod = importlib.import_module("pyx12.params")
         x12file_mod = importlib.import_module("pyx12.x12file")
         map_if_mod = importlib.import_module("pyx12.map_if")
-        x12valid_path = shutil.which("x12valid")
-        if not x12valid_path:
-            raise RuntimeError("x12valid not found (pyx12 not installed in this environment)")
+        x12n_document_mod = importlib.import_module("pyx12.x12n_document")
         return _PyX12Support(
             params_mod=params_mod,
             x12file_mod=x12file_mod,
             map_if_mod=map_if_mod,
-            x12valid_path=x12valid_path,
+            x12n_document_mod=x12n_document_mod,
         )
     except Exception as exc:
         _SUPPORT_ERROR = f"{type(exc).__name__}: {exc}"
         logger.info(
-            "pyx12 translator disabled; ensure pyx12 is installed and x12valid is on PATH (%s)",
+            "pyx12 translator disabled; ensure pyx12 and its maps are installed (%s)",
             _SUPPORT_ERROR,
         )
         return None
