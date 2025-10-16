@@ -68,7 +68,9 @@ def main(inn, out):
 
     # Validate minimums
     if not (payer_id and provider_id and subscriber and dos):
-        raise TranslationError("Missing required fields: need payer_id, provider_id, subscriber_id, dos (YYYYMMDD). Provide via partner profile + payload.")
+        raise TranslationError(
+            "Missing required fields: need payer_id, provider_id, subscriber_id, dos (YYYYMMDD). Provide via partner profile + payload."
+        )
 
     # Envelope hints from profile (optional; bots partner config still applies)
     set_envelope_from_profile(out, prof)
