@@ -63,6 +63,7 @@ services:
       RABBITMQ_URL: amqp://ediapp:3wm078uu@rabbitmq:5672/
       RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
       ARCHIVE_DIR: /archive
+      HEDI_SHARED_SECRET: turbohedi-shared-secret
     ports:
       - "8000:8000"
     volumes:
@@ -108,8 +109,7 @@ services:
     environment:
       HEDI_API_BASE: http://api:8000
       HEDI_SESSION_SECRET: "HediMAsonarySCRewBitSEMINar3194"
-      PORTAL_HTPASSWD: /app/auth/portal.htpasswd
-      ADMIN_HTPASSWD: /app/auth/admin.htpasswd
+      HEDI_SHARED_SECRET: turbohedi-shared-secret
       # LDAP_URL: ldap://ldap:389
       # LDAP_BASE_DN: dc=example,dc=org
       # LDAP_USER_ATTR: uid
@@ -119,7 +119,6 @@ services:
       KEY_FILE: /app/turbohedi0.1/deploy/httpd/certs/server.key
     volumes:
       - ./frontend_go/public:/app/public:Z
-      - ./frontend_go/auth:/app/auth:Z
       - ./deploy/httpd/certs:/app/turbohedi0.1/deploy/httpd/certs:Z,ro
     ports:
       - "8080:8080"
