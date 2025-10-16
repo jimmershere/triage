@@ -382,6 +382,9 @@ func adminUserDetailAPIRouter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	suffix := strings.TrimPrefix(r.URL.Path, "/admin/api/users/")
+	if suffix == r.URL.Path {
+		suffix = strings.TrimPrefix(r.URL.Path, "/admin/users/")
+	}
 	handleAdminUserDetail(w, r, suffix)
 }
 
