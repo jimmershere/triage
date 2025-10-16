@@ -7,7 +7,7 @@
   <title>HEDI — Admin Portal</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
-<body>
+<body data-requires-auth="admin">
 <header class="site-header">
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
@@ -17,16 +17,166 @@
   </nav>
 </header>
 
-<main class="container">
-  <div class="card">
-    <h2>Admin Tools</h2>
-    <ul>
-      <li>Queues & Workers</li>
-      <li>User Accounts (htpasswd / LDAP)</li>
-      <li>System Health</li>
-    </ul>
-    <p style="color:var(--muted);">Future: integrate live metrics & RBAC here.</p>
-  </div>
+<main class="container admin-page">
+  <section class="card admin-hero">
+    <div>
+      <h1>Administrator Dashboard</h1>
+      <p>Monitor Trish’s help tickets, orchestrate access, and wire in enterprise authentication.</p>
+    </div>
+    <div class="admin-shortcuts">
+      <a class="pill-button" data-requires-role="view" href="/portal.html">Open Claims Portal</a>
+      <a class="pill-button" data-requires-role="create" href="/claim-entry.html">Jump to Claim Entry</a>
+      <a class="pill-button" data-requires-role="update" href="/edi-mapping.html">Launch HEDI Mapping</a>
+    </div>
+  </section>
+
+  <section class="card admin-support" data-ticket-table>
+    <header class="card-header">
+      <div>
+        <h2>Active support requests</h2>
+        <p class="muted">Trish captures severity, timestamps, and ticket IDs whenever a user reports trouble.</p>
+      </div>
+    </header>
+    <div class="table-scroll-x">
+      <table class="admin-table" data-ticket-table>
+        <thead>
+          <tr><th>Request</th><th>Severity</th><th>Submitted</th><th>Summary</th><th></th></tr>
+        </thead>
+        <tbody data-ticket-body></tbody>
+      </table>
+    </div>
+    <p class="muted" data-ticket-empty hidden>No active requests yet — Trish will log them as users ask for help.</p>
+    <div class="trish-callout">
+      <img src="/img/trish-laptop.svg" alt="Trish monitoring tickets">
+      <div class="bubble">
+        <strong>I’ve got the console!</strong>
+        When someone says “error” I’ll ask for severity 1–4, drop the ticket here, and offer quick escalation links.
+      </div>
+    </div>
+  </section>
+
+  <section class="card admin-users">
+    <header class="card-header">
+      <div>
+        <h2>User &amp; role management</h2>
+        <p class="muted">Provision accounts straight into PostgreSQL, assign roles, and decide which portals each user can access.</p>
+      </div>
+    </header>
+    <form class="admin-form" data-user-form>
+      <div class="field-grid">
+        <label>
+          <span>Username</span>
+          <input name="username" type="text" placeholder="jane.doe" required data-user-username>
+        </label>
+        <label>
+          <span>Password</span>
+          <input name="password" type="password" placeholder="Generate a strong secret" required data-user-password>
+        </label>
+        <label>
+          <span>Confirm password</span>
+          <input name="confirm" type="password" placeholder="Re-enter password" required data-user-confirm>
+        </label>
+        <label>
+          <span>Role</span>
+          <select name="role" required data-user-role>
+            <option value="view">view</option>
+            <option value="update">update</option>
+            <option value="create">create</option>
+            <option value="admin">admin</option>
+          </select>
+        </label>
+      </div>
+      <div class="access-grid">
+        <label class="switch">
+          <input type="checkbox" name="allow_portal" checked data-user-portal>
+          <span>Claims Portal access</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" name="allow_admin" data-user-admin>
+          <span>Admin Console access</span>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" data-user-submit>Create user</button>
+        <button type="button" class="ghost" data-user-cancel hidden>Cancel edit</button>
+        <span class="muted">Passwords are hashed with PBKDF2 and stored securely in PostgreSQL.</span>
+      </div>
+    </form>
+    <p class="form-status" data-user-status hidden></p>
+    <div class="table-scroll-x">
+      <table class="admin-table" data-user-table>
+        <thead>
+          <tr><th>User</th><th>Role</th><th>Access</th><th>Last updated</th><th></th></tr>
+        </thead>
+        <tbody data-user-body></tbody>
+      </table>
+    </div>
+    <p class="muted" data-user-empty hidden>No users yet. Add at least a <em>view</em> user to begin.</p>
+    <div class="trish-callout trish-callout--right">
+      <img src="/img/trish-clipboard.svg" alt="Trish explaining roles">
+      <div class="bubble">
+        <strong>Portal permits:</strong>
+        Mix and match access—<em>view</em> for dashboards, <em>create</em> for submissions, and <em>admin</em> for full control.
+      </div>
+    </div>
+  </section>
+
+  <section class="card admin-auth">
+    <header class="card-header">
+      <div>
+        <h2>Authentication wiring</h2>
+        <p class="muted">Toggle future identity providers so ops can flip from local auth to LDAP or OIDC without redeploying.</p>
+      </div>
+    </header>
+    <div class="provider-grid">
+      <article class="provider-card">
+        <header>
+          <h3>Database</h3>
+          <span class="provider-state" data-provider-status="database">Enabled</span>
+        </header>
+        <p class="muted">PostgreSQL-backed accounts managed from this console.</p>
+        <label class="switch">
+          <input type="checkbox" data-provider-toggle="database" checked>
+          <span>Enable</span>
+        </label>
+      </article>
+      <article class="provider-card">
+        <header>
+          <h3>LDAP / AD</h3>
+          <span class="provider-state" data-provider-status="ldap">Disabled</span>
+        </header>
+        <p class="muted">Connect to enterprise directories via secure bind with configurable base DN.</p>
+        <label class="switch">
+          <input type="checkbox" data-provider-toggle="ldap">
+          <span>Enable</span>
+        </label>
+      </article>
+      <article class="provider-card">
+        <header>
+          <h3>OIDC</h3>
+          <span class="provider-state" data-provider-status="oss">Disabled</span>
+        </header>
+        <p class="muted">Keycloak or other OSS identity providers using OpenID Connect.</p>
+        <label class="switch">
+          <input type="checkbox" data-provider-toggle="oss">
+          <span>Enable</span>
+        </label>
+      </article>
+    </div>
+    <div class="trish-callout">
+      <img src="/img/trish-peace.svg" alt="Trish highlighting auth wiring">
+      <div class="bubble">
+        <strong>Need SSO?</strong>
+        Flip the switches once ops has LDAP or OIDC ready—my config file already knows the endpoints to use.
+      </div>
+    </div>
+  </section>
 </main>
+
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
+<script src="/static/js/admin.js"></script>
+<script src="/static/js/chatbot.js"></script>
 </body>
 </html>

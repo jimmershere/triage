@@ -6,9 +6,6 @@ import io
 import logging
 import uuid
 from dataclasses import dataclass
-import subprocess
-import shutil
-import tempfile
 from pathlib import Path
 
 from . import AckRecord, TranslationOutcome, Translator, register
@@ -21,7 +18,7 @@ class _PyX12Support:
     params_mod: object
     x12file_mod: object
     map_if_mod: object
-    x12valid_path: str | None
+    x12n_document_mod: object
 
     def _new_params(self):
         params_cls = getattr(self.params_mod, "params", None)
@@ -52,19 +49,63 @@ class _PyX12Support:
         job_uuid: uuid.UUID,
         trading_partner_id: str | None,
     ) -> list[AckRecord]:
-        if not self.x12valid_path:
-            raise RuntimeError("x12valid not found in PATH; install pyx12 in this venv")
-        # Write the payload to a temp file (x12valid expects a filename).
-        with tempfile.TemporaryDirectory() as td:
-            in_path = Path(td) / "in.edi"
-            in_path.write_text(text, encoding="utf-8", errors="ignore")
-            proc = subprocess.run([self.x12valid_path, str(in_path)],
-                                  capture_output=True, text=True)
-            if proc.returncode != 0:
-                raise RuntimeError(proc.stderr or proc.stdout or "x12valid failed")
-            out = proc.stdout or ""
-            ack_type = "999" if "ST*999" in out or "X231" in out else "997"
-            return [AckRecord(ack_type, out)]
+        ack_records: list[AckRecord] = []
+        ack_buffer = io.StringIO()
+        html_buffer = io.StringIO()
+        param = self._new_params()
+        map_path = None
+        param_get = getattr(param, "get", None)
+        if callable(param_get):
+            try:
+                candidate = param_get("map_path")
+            except Exception:
+                candidate = None
+            if candidate:
+                try:
+                    if Path(candidate).exists():
+                        map_path = candidate
+                except Exception:
+                    map_path = None
+        try:
+            ok = self.x12n_document_mod.x12n_document(
+                param=param,
+                src_file=io.StringIO(text),
+                fd_997=ack_buffer,
+                fd_html=html_buffer,
+                map_path=map_path,
+            )
+        except Exception as exc:
+            diagnostic = f"pyx12 validation failed: {exc}"
+            logger.warning("pyx12 x12n_document raised while processing job %s: %s", job_uuid, exc)
+            return [AckRecord("ERROR", diagnostic)]
+
+        ack_text = ack_buffer.getvalue().strip()
+        html_text = html_buffer.getvalue().strip()
+
+        if ack_text:
+            upper_text = ack_text.upper()
+            if "ST*999" in upper_text:
+                ack_type = "999"
+            elif "ST*277" in upper_text:
+                ack_type = "277CA"
+            elif "ST*997" in upper_text:
+                ack_type = "997"
+            else:
+                ack_type = "ACK"
+            ack_records.append(AckRecord(ack_type, ack_text))
+
+        if not ack_records and html_text:
+            ack_records.append(AckRecord("ERROR" if not ok else "NOTICE", html_text))
+
+        if not ack_records:
+            fallback_text = (
+                "pyx12 validation succeeded but no acknowledgement content was produced"
+                if ok
+                else "pyx12 validation failed without acknowledgement content"
+            )
+            ack_records.append(AckRecord("ERROR" if not ok else "NOTICE", fallback_text))
+
+        return ack_records
 
 _SUPPORT_ERROR: str | None = None
 
@@ -74,19 +115,17 @@ def _load_support() -> _PyX12Support | None:
         params_mod = importlib.import_module("pyx12.params")
         x12file_mod = importlib.import_module("pyx12.x12file")
         map_if_mod = importlib.import_module("pyx12.map_if")
-        x12valid_path = shutil.which("x12valid")
-        if not x12valid_path:
-            raise RuntimeError("x12valid not found (pyx12 not installed in this environment)")
+        x12n_document_mod = importlib.import_module("pyx12.x12n_document")
         return _PyX12Support(
             params_mod=params_mod,
             x12file_mod=x12file_mod,
             map_if_mod=map_if_mod,
-            x12valid_path=x12valid_path,
+            x12n_document_mod=x12n_document_mod,
         )
     except Exception as exc:
         _SUPPORT_ERROR = f"{type(exc).__name__}: {exc}"
         logger.info(
-            "pyx12 translator disabled; ensure pyx12 is installed and x12valid is on PATH (%s)",
+            "pyx12 translator disabled; ensure pyx12 and its maps are installed (%s)",
             _SUPPORT_ERROR,
         )
         return None

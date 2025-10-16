@@ -8,12 +8,12 @@
   <link rel="stylesheet" href="/static/css/styles.css"/>
   <script src="/config.js"></script>
 </head>
-<body>
+<body data-requires-auth="portal">
 <header class="site-header">
   <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
   <nav class="nav">
     <a href="/portal.html" aria-current="page">Portal</a>
-    <a href="/edi-mapping.html">EDI Mapping</a>
+    <a href="/edi-mapping.html">HEDI Mapping</a>
     <a href="/claim-entry.html">Claim Entry</a>
     <a href="/logout">Logout</a>
   </nav>
@@ -24,27 +24,49 @@
     <h2>Submit X12 Files</h2>
     <p>Upload one or many X12 files for fast queueing and processing. Real-time status shown below.</p>
     <form id="uploadForm" enctype="multipart/form-data" method="post">
-      <input type="file" id="file" name="file" multiple required>
+      <input type="file" id="file" name="file" multiple required data-requires-role="create">
       <div style="margin-top:1rem;">
-        <button type="submit">Submit Files</button>
+        <button type="submit" data-requires-role="create">Submit Files</button>
       </div>
     </form>
     <div id="result" class="card" style="margin-top:12px;display:none;"></div>
+
+    <div class="trish-callout">
+      <img src="/img/trish-badge.svg" alt="Trish cheering on uploads">
+      <div class="bubble">
+        <strong>Uploading tips:</strong>
+        Pick your .x12 files and I’ll attach job IDs so they’re easy to spot in the history table.
+      </div>
+    </div>
   </div>
 
   <div class="card" style="margin-top:24px;">
     <h3>Recent Activity</h3>
-    <table>
-      <thead>
-        <tr><th>File</th><th>Status</th><th>Queued</th></tr>
-      </thead>
-      <tbody id="activityRows">
-        <tr><td>example_837_01.txt</td><td>Queued</td><td>Just now</td></tr>
-      </tbody>
-    </table>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr><th>File</th><th>Status</th><th>Queued</th></tr>
+        </thead>
+        <tbody id="activityRows">
+          <tr><td>example_837_01.txt</td><td>Queued</td><td>Just now</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="trish-callout trish-callout--right">
+      <img src="/img/trish-clipboard.svg" alt="Trish pointing to history">
+      <div class="bubble">
+        <strong>Quick view:</strong>
+        Click into Processed Files from the main portal to pull acknowledgements and original uploads.
+      </div>
+    </div>
   </div>
 </main>
 
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
+<script src="/static/js/chatbot.js"></script>
 <script>
 const INGEST_URL = window.HEDI_INGEST_URL || "/ingest";
 
