@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220">
+  <defs>
+    <linearGradient id="hairGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff4fa3"/>
+      <stop offset="100%" stop-color="#d6248f"/>
+    </linearGradient>
+    <linearGradient id="shirtGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <circle cx="110" cy="110" r="108" fill="#f8f5ff" stroke="#312e81" stroke-width="4"/>
+  <circle cx="110" cy="105" r="72" fill="#0f172a"/>
+  <path d="M44 122c14 36 44 62 66 62s52-26 66-62" fill="#111827"/>
+  <path d="M54 92c6-28 30-54 56-54s50 26 56 54c-12 18-36 30-56 30s-44-12-56-30z" fill="url(#hairGradient)"/>
+  <circle cx="110" cy="106" r="44" fill="#fef3c7"/>
+  <ellipse cx="90" cy="102" rx="8" ry="10" fill="#1f2937"/>
+  <ellipse cx="130" cy="102" rx="8" ry="10" fill="#1f2937"/>
+  <path d="M92 134c10 8 26 8 36 0" fill="none" stroke="#1f2937" stroke-width="5" stroke-linecap="round"/>
+  <path d="M70 160c10-14 30-22 40-22s30 8 40 22v30H70z" fill="url(#shirtGradient)"/>
+  <rect x="78" y="158" width="64" height="26" rx="12" ry="12" fill="#0f172a"/>
+  <path d="M70 160h12l8 36-12 8z" fill="#1e293b" opacity="0.7"/>
+  <path d="M150 160h-12l-8 36 12 8z" fill="#1e293b" opacity="0.7"/>
+  <rect x="74" y="178" width="72" height="40" rx="18" fill="#1e3a8a"/>
+  <text x="110" y="207" font-family="'Segoe UI',sans-serif" font-size="18" text-anchor="middle" fill="#f8fafc">TRISH · TEAM HEDI</text>
+  <path d="M52 130c-18 20-26 42-26 56 18 18 48 28 84 28s66-10 84-28c0-14-8-36-26-56" fill="none" stroke="#4338ca" stroke-width="6" stroke-linecap="round"/>
+</svg>

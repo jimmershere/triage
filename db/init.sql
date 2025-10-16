@@ -67,3 +67,15 @@ CREATE TABLE IF NOT EXISTS acks (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   content TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS app_users (
+  username TEXT PRIMARY KEY,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('view','update','create','admin')),
+  allow_portal BOOLEAN NOT NULL DEFAULT TRUE,
+  allow_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS app_users_role_idx ON app_users (role);
