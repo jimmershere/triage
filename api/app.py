@@ -7,7 +7,16 @@ import pika
 import psycopg2
 from psycopg2 import pool, errors
 from psycopg2.extras import RealDictCursor
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Query, Depends, Header
+from fastapi import (
+    FastAPI,
+    UploadFile,
+    File,
+    HTTPException,
+    Form,
+    Query,
+    Depends,
+    Header,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -496,8 +505,7 @@ def api_get_user(username: str, _: None = Depends(require_secret)):
         return {"user": UserOut(**row_to_user(record)).model_dump()}
 
 
-@app.get("/admin/users")
-def api_list_users(_: None = Depends(require_secret)):
+def list_users_impl() -> dict:
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
@@ -512,8 +520,12 @@ def api_list_users(_: None = Depends(require_secret)):
     return {"users": users}
 
 
-@app.post("/admin/users")
-def api_create_user(payload: UserCreate, _: None = Depends(require_secret)):
+@app.get("/admin/users")
+def api_list_users(_: None = Depends(require_secret)):
+    return list_users_impl()
+
+
+def create_user_impl(payload: UserCreate) -> dict:
     username = payload.username.strip()
     if not is_safe_username(username):
         raise HTTPException(status_code=400, detail="invalid username")
@@ -545,8 +557,12 @@ def api_create_user(payload: UserCreate, _: None = Depends(require_secret)):
     return {"user": UserOut(**row_to_user(row)).model_dump()}
 
 
-@app.put("/admin/users/{username}")
-def api_update_user(username: str, payload: UserUpdate, _: None = Depends(require_secret)):
+@app.post("/admin/users")
+def api_create_user(payload: UserCreate, _: None = Depends(require_secret)):
+    return create_user_impl(payload)
+
+
+def update_user_impl(username: str, payload: UserUpdate) -> dict:
     cleaned = (username or "").strip()
     if not cleaned:
         raise HTTPException(status_code=400, detail="username required")
@@ -587,8 +603,12 @@ def api_update_user(username: str, payload: UserUpdate, _: None = Depends(requir
     return {"user": UserOut(**row_to_user(row)).model_dump()}
 
 
-@app.delete("/admin/users/{username}")
-def api_delete_user(username: str, _: None = Depends(require_secret)):
+@app.put("/admin/users/{username}")
+def api_update_user(username: str, payload: UserUpdate, _: None = Depends(require_secret)):
+    return update_user_impl(username, payload)
+
+
+def delete_user_impl(username: str) -> dict:
     cleaned = (username or "").strip()
     if not cleaned:
         raise HTTPException(status_code=400, detail="username required")
@@ -601,6 +621,31 @@ def api_delete_user(username: str, _: None = Depends(require_secret)):
             raise HTTPException(status_code=404, detail="user not found")
         conn.commit()
     return {"ok": True}
+
+
+@app.delete("/admin/users/{username}")
+def api_delete_user(username: str, _: None = Depends(require_secret)):
+    return delete_user_impl(username)
+
+
+@app.get("/admin/api/users")
+def api_list_users_admin(_: None = Depends(require_secret)):
+    return list_users_impl()
+
+
+@app.post("/admin/api/users")
+def api_create_user_admin(payload: UserCreate, _: None = Depends(require_secret)):
+    return create_user_impl(payload)
+
+
+@app.put("/admin/api/users/{username}")
+def api_update_user_admin(username: str, payload: UserUpdate, _: None = Depends(require_secret)):
+    return update_user_impl(username, payload)
+
+
+@app.delete("/admin/api/users/{username}")
+def api_delete_user_admin(username: str, _: None = Depends(require_secret)):
+    return delete_user_impl(username)
 
 
 @app.post("/ingest")
