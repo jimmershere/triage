@@ -327,7 +327,7 @@ func handleAdminUserDetail(w http.ResponseWriter, r *http.Request, suffix string
 	}
 }
 
-func adminAPIRouter(w http.ResponseWriter, r *http.Request) {
+func adminUsersAPIRouter(w http.ResponseWriter, r *http.Request) {
 	user, ok := requireAuth(w, r)
 	if !ok {
 		return
@@ -336,24 +336,20 @@ func adminAPIRouter(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	handleAdminUsers(w, r)
+}
 
-	suffix := strings.TrimPrefix(r.URL.Path, "/admin/api/")
-	if suffix == "" {
-		http.NotFound(w, r)
+func adminUserDetailAPIRouter(w http.ResponseWriter, r *http.Request) {
+	user, ok := requireAuth(w, r)
+	if !ok {
 		return
 	}
-
-	if suffix == "users" || suffix == "users/" {
-		handleAdminUsers(w, r)
+	if !isAdminUser(user) {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-
-	if strings.HasPrefix(suffix, "users/") {
-		handleAdminUserDetail(w, r, strings.TrimPrefix(suffix, "users/"))
-		return
-	}
-
-	http.NotFound(w, r)
+	suffix := strings.TrimPrefix(r.URL.Path, "/admin/api/users/")
+	handleAdminUserDetail(w, r, suffix)
 }
 
 func configHandler(w http.ResponseWriter, r *http.Request) {
@@ -716,8 +712,8 @@ func main() {
 	mux.HandleFunc("/auth/me", meHandler)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/config.js", configHandler)
-	mux.HandleFunc("/admin/api", adminAPIRouter)
-	mux.HandleFunc("/admin/api/", adminAPIRouter)
+	mux.HandleFunc("/admin/api/users", adminUsersAPIRouter)
+	mux.HandleFunc("/admin/api/users/", adminUserDetailAPIRouter)
 
 	// everything else
 	mux.HandleFunc("/", staticHandler)
