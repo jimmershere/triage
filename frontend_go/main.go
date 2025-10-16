@@ -221,14 +221,21 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func adminFallbackPath(path string) string {
-	if !strings.HasPrefix(path, "/admin/") {
-		return path
+	if strings.HasPrefix(path, "/admin/api/") {
+		suffix := strings.TrimPrefix(path, "/admin/api/")
+		if suffix == "" {
+			return path
+		}
+		return "/admin/" + suffix
 	}
-	suffix := strings.TrimPrefix(path, "/admin/")
-	if suffix == "" {
-		return path
+	if strings.HasPrefix(path, "/admin/") {
+		suffix := strings.TrimPrefix(path, "/admin/")
+		if suffix == "" {
+			return path
+		}
+		return "/admin/api/" + suffix
 	}
-	return "/admin/api/" + suffix
+	return path
 }
 
 func callAdminEndpoint(ctx context.Context, method, path string, payload interface{}, out interface{}) (int, error) {
@@ -740,6 +747,8 @@ func main() {
 	mux.HandleFunc("/config.js", configHandler)
 	mux.HandleFunc("/admin/api/users", adminUsersAPIRouter)
 	mux.HandleFunc("/admin/api/users/", adminUserDetailAPIRouter)
+	mux.HandleFunc("/admin/users", adminUsersAPIRouter)
+	mux.HandleFunc("/admin/users/", adminUserDetailAPIRouter)
 
 	// everything else
 	mux.HandleFunc("/", staticHandler)

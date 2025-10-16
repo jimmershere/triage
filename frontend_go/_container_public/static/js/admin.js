@@ -2,6 +2,7 @@
   const TICKET_KEY = "hediSupportTickets";
   const PROVIDER_KEY = "hediAuthProviders";
   const ROLE_ORDER = ["view", "update", "create", "admin"];
+  const ADMIN_ENDPOINTS = ["/admin/api/users", "/admin/users"];
 
   function loadFromStorage(key, fallback) {
     try {
@@ -233,12 +234,7 @@
     if (!tableBody) return;
     try {
       setStatus("Loading users…", "info");
-      const response = await fetch("/admin/api/users", { credentials: "same-origin" });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || response.statusText);
-      }
-      const data = await response.json();
+      const { data } = await adminRequest("GET");
       const users = (data && data.users) || [];
       tableBody.innerHTML = "";
       if (!users.length) {
@@ -293,48 +289,25 @@
       }
     } catch (err) {
       console.error("Failed to load users", err);
-      setStatus(err.message || "Unable to load users", "error");
+      setStatus(
+        "Unable to load users from the admin API. Please verify the backend service is reachable.",
+        "error"
+      );
     }
   }
 
   async function createUser(payload) {
-    const response = await fetch("/admin/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || response.statusText);
-    }
-    return response.json();
+    const { data } = await adminRequest("POST", "", payload);
+    return data;
   }
 
   async function updateUser(username, payload) {
-    const response = await fetch(`/admin/api/users/${encodeURIComponent(username)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || response.statusText);
-    }
-    return response.json();
+    const { data } = await adminRequest("PUT", encodeURIComponent(username), payload);
+    return data;
   }
 
   async function deleteUser(username) {
-    const response = await fetch(`/admin/api/users/${encodeURIComponent(username)}`, {
-      method: "DELETE",
-      credentials: "same-origin",
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || response.statusText);
-    }
-    return response.json();
+    return adminRequest("DELETE", encodeURIComponent(username));
   }
 
   async function handleFormSubmit(event) {
@@ -476,4 +449,50 @@
     saveTickets(tickets);
     renderTickets();
   });
+  async function adminRequest(method, suffix = "", payload) {
+    let lastError = null;
+    const body = payload !== undefined ? JSON.stringify(payload) : null;
+    for (const base of ADMIN_ENDPOINTS) {
+      const url = suffix ? `${base}/${suffix}` : base;
+      const options = {
+        method,
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      };
+      if (body !== null) {
+        options.body = body;
+        options.headers["Content-Type"] = "application/json";
+      }
+      try {
+        const response = await fetch(url, options);
+        if (response.ok) {
+          if (response.status === 204) {
+            return { status: response.status, data: null };
+          }
+          const text = await response.text();
+          if (!text) {
+            return { status: response.status, data: null };
+          }
+          try {
+            return { status: response.status, data: JSON.parse(text) };
+          } catch (err) {
+            lastError = new Error(`invalid JSON from ${url}`);
+            continue;
+          }
+        }
+        const messageText = await response.text();
+        const message = messageText || response.statusText || `${response.status}`;
+        lastError = new Error(message);
+        if (response.status === 404) {
+          continue;
+        }
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("request failed");
+  }
+
 })();
+
