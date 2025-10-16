@@ -217,15 +217,7 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func adminUsersHandler(w http.ResponseWriter, r *http.Request) {
-	user, ok := requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !isAdminUser(user) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
+func handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		ctxGet, cancelGet := context.WithTimeout(r.Context(), 5*time.Second)
@@ -279,16 +271,7 @@ func adminUsersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func adminUserDetailHandler(w http.ResponseWriter, r *http.Request) {
-	user, ok := requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !isAdminUser(user) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-	suffix := strings.TrimPrefix(r.URL.Path, "/admin/api/users/")
+func handleAdminUserDetail(w http.ResponseWriter, r *http.Request, suffix string) {
 	if suffix == "" || strings.Contains(suffix, "/") {
 		http.Error(w, "invalid user path", http.StatusBadRequest)
 		return
@@ -342,6 +325,35 @@ func adminUserDetailHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Allow", "PUT, DELETE")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func adminAPIRouter(w http.ResponseWriter, r *http.Request) {
+	user, ok := requireAuth(w, r)
+	if !ok {
+		return
+	}
+	if !isAdminUser(user) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	suffix := strings.TrimPrefix(r.URL.Path, "/admin/api/")
+	if suffix == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	if suffix == "users" || suffix == "users/" {
+		handleAdminUsers(w, r)
+		return
+	}
+
+	if strings.HasPrefix(suffix, "users/") {
+		handleAdminUserDetail(w, r, strings.TrimPrefix(suffix, "users/"))
+		return
+	}
+
+	http.NotFound(w, r)
 }
 
 func configHandler(w http.ResponseWriter, r *http.Request) {
@@ -704,8 +716,8 @@ func main() {
 	mux.HandleFunc("/auth/me", meHandler)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/config.js", configHandler)
-	mux.HandleFunc("/admin/api/users", adminUsersHandler)
-	mux.HandleFunc("/admin/api/users/", adminUserDetailHandler)
+	mux.HandleFunc("/admin/api", adminAPIRouter)
+	mux.HandleFunc("/admin/api/", adminAPIRouter)
 
 	// everything else
 	mux.HandleFunc("/", staticHandler)
