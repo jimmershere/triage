@@ -8,12 +8,12 @@
   <link rel="stylesheet" href="/static/css/styles.css"/>
   <script src="/config.js"></script>
 </head>
-<body>
+<body data-requires-auth="portal">
 <header class="site-header">
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
     <a class="nav-pill" data-tone="portal" href="/portal.html" aria-current="page">Claims Portal</a>
-    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">EDI Mapping</a>
+    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
     <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
     <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
@@ -37,10 +37,18 @@
         </div>
       </div>
       <label for="file" class="file-label">Select X12 file(s)</label>
-      <input type="file" id="file" name="file" multiple required>
-      <button type="submit">Queue files</button>
+      <input type="file" id="file" name="file" multiple required data-requires-role="create">
+      <button type="submit" data-requires-role="create">Queue files</button>
     </form>
     <div id="result" class="status-panel" hidden></div>
+
+    <div class="trish-callout">
+      <img src="/img/trish-badge.svg" alt="Trish giving upload tips">
+      <div class="bubble">
+        <strong>Need a hand picking files?</strong>
+        Queue as many .x12 files as you like. I’ll tag each with a job ID so you can spot them in the search table below.
+      </div>
+    </div>
   </section>
 
   <section class="card search-card">
@@ -60,7 +68,7 @@
       <button type="submit">Search jobs</button>
     </form>
     <div class="table-wrapper">
-      <table>
+      <table class="jobs-table">
         <thead>
           <tr><th>Job</th><th>File</th><th>Status</th><th>Created</th><th>Outputs</th><th></th></tr>
         </thead>
@@ -68,6 +76,14 @@
           <tr><td colspan="6" class="muted">No jobs yet — run a search to load history.</td></tr>
         </tbody>
       </table>
+    </div>
+
+    <div class="trish-callout trish-callout--right">
+      <img src="/img/trish-clipboard.svg" alt="Trish pointing to results">
+      <div class="bubble">
+        <strong>Tip:</strong>
+        Click any row to jump into Processed Files. I’ll carry your login and partner filters with you and open the outputs.
+      </div>
     </div>
   </section>
 
@@ -77,6 +93,11 @@
   </section>
 </main>
 
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
+<script src="/static/js/login-modal.js"></script>
+<script src="/static/js/chatbot.js"></script>
 <script>
 const API_BASE = window.HEDI_API_BASE || "";
 const INGEST_URL = window.HEDI_INGEST_URL || (API_BASE ? `${API_BASE}/ingest` : "/ingest");
@@ -132,6 +153,13 @@ function renderJobs(jobs) {
 
   for (const job of jobs) {
     const tr = document.createElement("tr");
+    tr.dataset.jobId = job.job_id;
+    if (job.uploaded_by) {
+      tr.dataset.uploadedBy = job.uploaded_by;
+    }
+    if (job.trading_partner_id) {
+      tr.dataset.partnerId = job.trading_partner_id;
+    }
     const created = job.created_at ? new Date(job.created_at).toLocaleString() : "";
     tr.innerHTML = `
       <td><code>${job.job_id}</code></td>
@@ -217,6 +245,25 @@ async function fetchDetail(jobId) {
   }
 }
 
+function goToProcessed(row) {
+  if (!row) return;
+  const jobId = row.dataset.jobId;
+  const uploadedBy = row.dataset.uploadedBy || uploadedByInput.value.trim() || searchUploadedInput.value.trim();
+  const partnerId = row.dataset.partnerId || partnerInput.value.trim() || searchPartnerInput.value.trim();
+  const url = new URL("/processed.html", window.location.origin);
+  if (uploadedBy) {
+    url.searchParams.set("uploaded_by", uploadedBy);
+  }
+  if (partnerId) {
+    url.searchParams.set("trading_partner_id", partnerId);
+  }
+  if (jobId) {
+    url.searchParams.set("job_id", jobId);
+  }
+  row.classList.add("navigated");
+  window.location.href = url.toString();
+}
+
 uploadForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const files = Array.from(fileInput.files || []);
@@ -280,9 +327,18 @@ searchForm.addEventListener("submit", (e) => {
 
 jobsBody.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-detail]");
-  if (!btn) return;
-  const jobId = btn.getAttribute("data-detail");
-  fetchDetail(jobId);
+  if (btn) {
+    const jobId = btn.getAttribute("data-detail");
+    fetchDetail(jobId);
+    e.stopPropagation();
+    return;
+  }
+  if (e.target.closest("a") || e.target.closest("button")) {
+    return;
+  }
+  const row = e.target.closest("tr[data-job-id]");
+  if (!row) return;
+  goToProcessed(row);
 });
 </script>
 </body>

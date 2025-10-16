@@ -1,13 +1,13 @@
-import os, base64, json, uuid, logging, zipfile, time
+import os, base64, json, uuid, logging, zipfile, time, secrets, hashlib
 from contextlib import contextmanager
 from io import BytesIO
 from typing import List, Optional
 
 import pika
 import psycopg2
-from psycopg2 import pool
+from psycopg2 import pool, errors
 from psycopg2.extras import RealDictCursor
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Query, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -23,6 +23,15 @@ RMQ_QUEUE = os.getenv("RMQ_QUEUE", "edi_files")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://edi:edi@postgres:5432/edi")
 ALLOWED_ORIGINS_RAW = os.getenv("HEDI_CORS_ORIGINS", "*")
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
+SHARED_SECRET = os.getenv("HEDI_SHARED_SECRET", "change-me")
+PASSWORD_ITERATIONS = int(os.getenv("HEDI_PASSWORD_ITERATIONS", "180000"))
+PASSWORD_SCHEME = "pbkdf2_sha256"
+MIN_PASSWORD_LENGTH = int(os.getenv("HEDI_MIN_PASSWORD_LENGTH", "8"))
+BOOTSTRAP_ADMIN_USER = os.getenv("HEDI_BOOTSTRAP_ADMIN_USER", "admin").strip()
+BOOTSTRAP_ADMIN_HASH = os.getenv(
+    "HEDI_BOOTSTRAP_ADMIN_HASH",
+    "pbkdf2_sha256$180000$j3pt+dTfwUgP6VwHPPDNKA==$zojEXizGhZe8fEeCD655ThS8PIfIyz3jwgwWlUkS5hA=",
+).strip()
 
 app = FastAPI(title="TurboEDI Ingest API", version="0.2.0")
 
@@ -47,6 +56,7 @@ def run_startup_migrations() -> None:
             ensure_import_core_columns(conn)
             ensure_import_job_ids(conn)
             ensure_import_uploaded_by(conn)
+            ensure_app_users(conn)
     except Exception:
         logger.exception("Failed to run startup migrations")
         raise
@@ -67,6 +77,60 @@ def get_db():
         yield conn
     finally:
         get_pool().putconn(conn)
+
+
+def is_safe_username(value: str) -> bool:
+    if not value or len(value) > 96:
+        return False
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_@")
+    return all(ch in allowed for ch in value)
+
+
+def is_valid_role(role: str) -> bool:
+    return role in {"view", "update", "create", "admin"}
+
+
+def hash_password(password: str) -> str:
+    if not password or len(password) < MIN_PASSWORD_LENGTH:
+        raise ValueError("password too short")
+    salt = secrets.token_bytes(16)
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PASSWORD_ITERATIONS)
+    return f"{PASSWORD_SCHEME}${PASSWORD_ITERATIONS}${base64.b64encode(salt).decode()}${base64.b64encode(derived).decode()}"
+
+
+def verify_password(password: str, encoded: str) -> bool:
+    try:
+        scheme, iter_s, salt_b64, hash_b64 = encoded.split("$", 3)
+        if scheme != PASSWORD_SCHEME:
+            return False
+        iterations = int(iter_s)
+        salt = base64.b64decode(salt_b64)
+        expected = base64.b64decode(hash_b64)
+    except Exception:
+        return False
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    return secrets.compare_digest(derived, expected)
+
+
+def row_to_user(row) -> Optional[dict]:
+    if not row:
+        return None
+    return {
+        "username": row.get("username"),
+        "role": row.get("role"),
+        "allow_portal": row.get("allow_portal", False),
+        "allow_admin": row.get("allow_admin", False),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+    }
+
+
+def require_secret(header_value: Optional[str] = Header(None, alias="X-HEDI-SECRET")):
+    if not SHARED_SECRET:
+        return
+    if header_value is None or not secrets.compare_digest(header_value, SHARED_SECRET):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
 
 def ensure_import_job_ids(conn) -> None:
     """Backfill and enforce the job_id column on imports for older databases."""
@@ -167,6 +231,51 @@ def ensure_core_ingest_tables(conn) -> None:
     conn.commit()
 
 
+def ensure_app_users(conn) -> None:
+    logger.info("Ensuring app_users table exists")
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_users (
+                username TEXT PRIMARY KEY,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL CHECK (role IN ('view','update','create','admin')),
+                allow_portal BOOLEAN NOT NULL DEFAULT TRUE,
+                allow_admin BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS app_users_role_idx ON app_users (role)"
+        )
+    conn.commit()
+    ensure_bootstrap_admin(conn)
+
+
+def ensure_bootstrap_admin(conn) -> None:
+    if not BOOTSTRAP_ADMIN_USER or not BOOTSTRAP_ADMIN_HASH:
+        return
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(
+            "SELECT 1 FROM app_users WHERE username = %s",
+            (BOOTSTRAP_ADMIN_USER,),
+        )
+        exists = cur.fetchone() is not None
+        if exists:
+            return
+        logger.info("Seeding bootstrap admin account %s", BOOTSTRAP_ADMIN_USER)
+        cur.execute(
+            """
+            INSERT INTO app_users (username, password_hash, role, allow_portal, allow_admin)
+            VALUES (%s, %s, 'admin', TRUE, TRUE)
+            """,
+            (BOOTSTRAP_ADMIN_USER, BOOTSTRAP_ADMIN_HASH),
+        )
+    conn.commit()
+
+
 def ensure_import_core_columns(conn) -> None:
     """Ensure legacy imports tables have the columns expected by the app."""
 
@@ -217,6 +326,19 @@ def ensure_import_core_columns(conn) -> None:
         cur.execute("ALTER TABLE imports ALTER COLUMN created_at SET NOT NULL")
 
     conn.commit()
+
+
+def fetch_app_user(conn, username: str):
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(
+            """
+            SELECT username, password_hash, role, allow_portal, allow_admin, created_at, updated_at
+              FROM app_users
+             WHERE username = %s
+            """,
+            (username,),
+        )
+        return cur.fetchone()
 
 
 def ensure_import_uploaded_by(conn) -> None:
@@ -278,6 +400,45 @@ def ack_download_filename(job_id: str, ack_type: str, ack_id: int) -> str:
     return f"{base}{ack_file_extension(ack_type or '')}"
 
 
+class UserOut(BaseModel):
+    username: str
+    role: str
+    allow_portal: bool
+    allow_admin: bool
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class UserList(BaseModel):
+    users: List[UserOut]
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str
+    allow_portal: bool = True
+    allow_admin: bool = False
+
+
+class UserUpdate(BaseModel):
+    password: Optional[str] = None
+    role: str
+    allow_portal: bool
+    allow_admin: bool
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    ok: bool
+    user: Optional[UserOut] = None
+    error: Optional[str] = None
+
+
 class JobSummary(BaseModel):
     job_id: uuid.UUID
     filename: str
@@ -306,6 +467,140 @@ class Acknowledgement(AcknowledgementSummary):
 
 class JobDetail(JobSummary):
     acknowledgements: List[Acknowledgement]
+
+
+@app.post("/auth/login")
+def api_login(payload: LoginRequest, _: None = Depends(require_secret)):
+    username = (payload.username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="username required")
+    if not payload.password:
+        raise HTTPException(status_code=400, detail="password required")
+    with get_db() as conn:
+        record = fetch_app_user(conn, username)
+        if not record or not verify_password(payload.password, record.get("password_hash", "")):
+            raise HTTPException(status_code=401, detail="invalid credentials")
+        user = UserOut(**row_to_user(record))
+        return LoginResponse(ok=True, user=user).model_dump()
+
+
+@app.get("/auth/users/{username}")
+def api_get_user(username: str, _: None = Depends(require_secret)):
+    cleaned = (username or "").strip()
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="username required")
+    with get_db() as conn:
+        record = fetch_app_user(conn, cleaned)
+        if not record:
+            raise HTTPException(status_code=404, detail="user not found")
+        return {"user": UserOut(**row_to_user(record)).model_dump()}
+
+
+@app.get("/admin/users")
+def api_list_users(_: None = Depends(require_secret)):
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT username, role, allow_portal, allow_admin, created_at, updated_at
+                  FROM app_users
+                 ORDER BY username
+                """
+            )
+            rows = cur.fetchall()
+    users = [UserOut(**row_to_user(row)).model_dump() for row in rows]
+    return {"users": users}
+
+
+@app.post("/admin/users")
+def api_create_user(payload: UserCreate, _: None = Depends(require_secret)):
+    username = payload.username.strip()
+    if not is_safe_username(username):
+        raise HTTPException(status_code=400, detail="invalid username")
+    role = payload.role.strip().lower()
+    if not is_valid_role(role):
+        raise HTTPException(status_code=400, detail="invalid role")
+    password = payload.password.strip()
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail="password too short")
+    if not payload.allow_portal and not payload.allow_admin:
+        raise HTTPException(status_code=400, detail="grant portal or admin access")
+    hashed = hash_password(password)
+    with get_db() as conn:
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    INSERT INTO app_users (username, password_hash, role, allow_portal, allow_admin)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING username, role, allow_portal, allow_admin, created_at, updated_at
+                    """,
+                    (username, hashed, role, payload.allow_portal, payload.allow_admin),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        except errors.UniqueViolation:
+            conn.rollback()
+            raise HTTPException(status_code=409, detail="user already exists")
+    return {"user": UserOut(**row_to_user(row)).model_dump()}
+
+
+@app.put("/admin/users/{username}")
+def api_update_user(username: str, payload: UserUpdate, _: None = Depends(require_secret)):
+    cleaned = (username or "").strip()
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="username required")
+    role = payload.role.strip().lower()
+    if not is_valid_role(role):
+        raise HTTPException(status_code=400, detail="invalid role")
+    if not payload.allow_portal and not payload.allow_admin:
+        raise HTTPException(status_code=400, detail="grant portal or admin access")
+    new_hash = None
+    if payload.password is not None:
+        pwd = payload.password.strip()
+        if pwd and len(pwd) < MIN_PASSWORD_LENGTH:
+            raise HTTPException(status_code=400, detail="password too short")
+        if pwd:
+            new_hash = hash_password(pwd)
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            params = [role, payload.allow_portal, payload.allow_admin]
+            assignments = ["role = %s", "allow_portal = %s", "allow_admin = %s", "updated_at = NOW()"]
+            if new_hash:
+                assignments.insert(0, "password_hash = %s")
+                params.insert(0, new_hash)
+            params.append(cleaned)
+            cur.execute(
+                f"""
+                UPDATE app_users
+                   SET {', '.join(assignments)}
+                 WHERE username = %s
+             RETURNING username, role, allow_portal, allow_admin, created_at, updated_at
+                """,
+                params,
+            )
+            row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="user not found")
+        conn.commit()
+    return {"user": UserOut(**row_to_user(row)).model_dump()}
+
+
+@app.delete("/admin/users/{username}")
+def api_delete_user(username: str, _: None = Depends(require_secret)):
+    cleaned = (username or "").strip()
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="username required")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM app_users WHERE username = %s RETURNING username", (cleaned,))
+            deleted = cur.fetchone()
+        if not deleted:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="user not found")
+        conn.commit()
+    return {"ok": True}
 
 
 @app.post("/ingest")
