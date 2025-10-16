@@ -6,13 +6,35 @@
   }, {});
   const guardHandlers = new WeakMap();
 
-  let profile = {
+  const DEFAULT_PROFILE = {
     username: null,
     role: "view",
     allowPortal: false,
     allowAdmin: false,
     defaultDestination: "/",
   };
+
+  let profile = { ...DEFAULT_PROFILE };
+  let redirecting = false;
+  const requiresAuth = (document.body && document.body.getAttribute("data-requires-auth")) || "";
+
+  function sanitizeNextPath(path) {
+    if (!path) return "/";
+    if (path.startsWith("http://") || path.startsWith("https://")) return "/";
+    if (!path.startsWith("/")) return "/";
+    return path;
+  }
+
+  function redirectToLogin() {
+    if (!requiresAuth || redirecting) return;
+    const currentPath = sanitizeNextPath(window.location.pathname + window.location.search);
+    if (currentPath === "/" || currentPath.startsWith("/login")) {
+      return;
+    }
+    redirecting = true;
+    const nextParam = encodeURIComponent(currentPath || "/");
+    window.location.href = `/login?next=${nextParam}`;
+  }
 
   function enforceElement(el, roleIndex) {
     const required = el.getAttribute("data-requires-role");
@@ -96,14 +118,11 @@
     try {
       const response = await fetch("/auth/me", { credentials: "same-origin" });
       if (!response.ok) {
-        profile = {
-          username: null,
-          role: "view",
-          allowPortal: false,
-          allowAdmin: false,
-          defaultDestination: "/",
-        };
+        profile = { ...DEFAULT_PROFILE };
         applyAuthz();
+        if (response.status === 401 || response.status === 403) {
+          redirectToLogin();
+        }
         return;
       }
       const data = await response.json();
@@ -121,13 +140,10 @@
       window.HEDI_AUTHZ.defaultDestination = profile.defaultDestination;
     } catch (err) {
       console.warn("Unable to load profile", err);
-      profile = {
-        username: null,
-        role: "view",
-        allowPortal: false,
-        allowAdmin: false,
-        defaultDestination: "/",
-      };
+      profile = { ...DEFAULT_PROFILE };
+      if (requiresAuth) {
+        redirectToLogin();
+      }
     }
     applyAuthz();
   }

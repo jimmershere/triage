@@ -27,6 +27,11 @@ SHARED_SECRET = os.getenv("HEDI_SHARED_SECRET", "change-me")
 PASSWORD_ITERATIONS = int(os.getenv("HEDI_PASSWORD_ITERATIONS", "180000"))
 PASSWORD_SCHEME = "pbkdf2_sha256"
 MIN_PASSWORD_LENGTH = int(os.getenv("HEDI_MIN_PASSWORD_LENGTH", "8"))
+BOOTSTRAP_ADMIN_USER = os.getenv("HEDI_BOOTSTRAP_ADMIN_USER", "admin").strip()
+BOOTSTRAP_ADMIN_HASH = os.getenv(
+    "HEDI_BOOTSTRAP_ADMIN_HASH",
+    "pbkdf2_sha256$180000$j3pt+dTfwUgP6VwHPPDNKA==$zojEXizGhZe8fEeCD655ThS8PIfIyz3jwgwWlUkS5hA=",
+).strip()
 
 app = FastAPI(title="TurboEDI Ingest API", version="0.2.0")
 
@@ -244,6 +249,29 @@ def ensure_app_users(conn) -> None:
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS app_users_role_idx ON app_users (role)"
+        )
+    conn.commit()
+    ensure_bootstrap_admin(conn)
+
+
+def ensure_bootstrap_admin(conn) -> None:
+    if not BOOTSTRAP_ADMIN_USER or not BOOTSTRAP_ADMIN_HASH:
+        return
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(
+            "SELECT 1 FROM app_users WHERE username = %s",
+            (BOOTSTRAP_ADMIN_USER,),
+        )
+        exists = cur.fetchone() is not None
+        if exists:
+            return
+        logger.info("Seeding bootstrap admin account %s", BOOTSTRAP_ADMIN_USER)
+        cur.execute(
+            """
+            INSERT INTO app_users (username, password_hash, role, allow_portal, allow_admin)
+            VALUES (%s, %s, 'admin', TRUE, TRUE)
+            """,
+            (BOOTSTRAP_ADMIN_USER, BOOTSTRAP_ADMIN_HASH),
         )
     conn.commit()
 
