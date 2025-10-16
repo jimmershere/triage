@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -48,6 +49,8 @@ func init() {
 	if backendAPIBase == "" {
 		backendAPIBase = "http://localhost:8000"
 	}
+	mime.AddExtensionType(".svg", "image/svg+xml")
+	mime.AddExtensionType(".webp", "image/webp")
 }
 
 func envBool(key string, def bool) bool {
@@ -217,13 +220,36 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func adminFallbackPath(path string) string {
+	if !strings.HasPrefix(path, "/admin/") {
+		return path
+	}
+	suffix := strings.TrimPrefix(path, "/admin/")
+	if suffix == "" {
+		return path
+	}
+	return "/admin/api/" + suffix
+}
+
+func callAdminEndpoint(ctx context.Context, method, path string, payload interface{}, out interface{}) (int, error) {
+	status, err := callBackend(ctx, method, path, payload, out)
+	if err == nil || status != http.StatusNotFound {
+		return status, err
+	}
+	fallback := adminFallbackPath(path)
+	if fallback == path {
+		return status, err
+	}
+	return callBackend(ctx, method, fallback, payload, out)
+}
+
 func handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		ctxGet, cancelGet := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancelGet()
 		var resp userListResponse
-		if _, err := callBackend(ctxGet, http.MethodGet, "/admin/users", nil, &resp); err != nil {
+		if _, err := callAdminEndpoint(ctxGet, http.MethodGet, "/admin/users", nil, &resp); err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
@@ -256,7 +282,7 @@ func handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 		ctxPost, cancelPost := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancelPost()
 		var resp userEnvelope
-		if _, err := callBackend(ctxPost, http.MethodPost, "/admin/users", payload, &resp); err != nil {
+		if _, err := callAdminEndpoint(ctxPost, http.MethodPost, "/admin/users", payload, &resp); err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
@@ -308,7 +334,7 @@ func handleAdminUserDetail(w http.ResponseWriter, r *http.Request, suffix string
 		ctxPut, cancelPut := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancelPut()
 		var resp userEnvelope
-		if _, err := callBackend(ctxPut, http.MethodPut, "/admin/users/"+url.PathEscape(username), payload, &resp); err != nil {
+		if _, err := callAdminEndpoint(ctxPut, http.MethodPut, "/admin/users/"+url.PathEscape(username), payload, &resp); err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
@@ -316,7 +342,7 @@ func handleAdminUserDetail(w http.ResponseWriter, r *http.Request, suffix string
 	case http.MethodDelete:
 		ctxDelete, cancelDelete := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancelDelete()
-		if _, err := callBackend(ctxDelete, http.MethodDelete, "/admin/users/"+url.PathEscape(username), nil, nil); err != nil {
+		if _, err := callAdminEndpoint(ctxDelete, http.MethodDelete, "/admin/users/"+url.PathEscape(username), nil, nil); err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}

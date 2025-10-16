@@ -164,9 +164,14 @@
   const emptyState = document.querySelector("[data-user-empty]");
 
   let editingUser = null;
+  let statusTimer = null;
 
   function setStatus(message, state = "info") {
     if (!statusEl) return;
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+      statusTimer = null;
+    }
     if (!message) {
       statusEl.hidden = true;
       statusEl.textContent = "";
@@ -176,6 +181,13 @@
     statusEl.hidden = false;
     statusEl.dataset.state = state;
     statusEl.textContent = message;
+    if (state === "success") {
+      statusTimer = window.setTimeout(() => {
+        if (statusEl.dataset.state === "success") {
+          setStatus("", "info");
+        }
+      }, 4000);
+    }
   }
 
   function resetForm() {
@@ -276,7 +288,9 @@
         row.appendChild(actionsCell);
         tableBody.appendChild(row);
       });
-      setStatus("", "info");
+      if (!statusEl || statusEl.dataset.state !== "success") {
+        setStatus("", "info");
+      }
     } catch (err) {
       console.error("Failed to load users", err);
       setStatus(err.message || "Unable to load users", "error");
