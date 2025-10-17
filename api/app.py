@@ -124,9 +124,12 @@ def verify_password(password: str, encoded: str) -> bool:
 def row_to_user(row) -> Optional[dict]:
     if not row:
         return None
+    role = (row.get("role") or "").strip().lower()
+    if role not in {"view", "update", "create", "admin"}:
+        role = "view"
     return {
         "username": row.get("username"),
-        "role": row.get("role"),
+        "role": role,
         "allow_portal": row.get("allow_portal", False),
         "allow_admin": row.get("allow_admin", False),
         "created_at": row.get("created_at"),
@@ -268,11 +271,43 @@ def ensure_bootstrap_admin(conn) -> None:
         return
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
-            "SELECT 1 FROM app_users WHERE username = %s",
+            """
+            SELECT username, role, allow_portal, allow_admin, created_at, updated_at
+              FROM app_users
+             WHERE username = %s
+            """,
             (BOOTSTRAP_ADMIN_USER,),
         )
-        exists = cur.fetchone() is not None
-        if exists:
+        record = cur.fetchone()
+        if record:
+            updates = []
+            params: list[object] = []
+            current_role = (record.get("role") or "").strip()
+            if current_role != "admin":
+                updates.append("role = %s")
+                params.append("admin")
+            if not record.get("allow_portal", False):
+                updates.append("allow_portal = %s")
+                params.append(True)
+            if not record.get("allow_admin", False):
+                updates.append("allow_admin = %s")
+                params.append(True)
+            if updates:
+                if "updated_at" in record:
+                    updates.append("updated_at = NOW()")
+                cur.execute(
+                    f"""
+                    UPDATE app_users
+                       SET {', '.join(updates)}
+                     WHERE username = %s
+                    """,
+                    params + [BOOTSTRAP_ADMIN_USER],
+                )
+                logger.info(
+                    "Elevated bootstrap admin account %s to full portal/admin access",
+                    BOOTSTRAP_ADMIN_USER,
+                )
+                conn.commit()
             return
         logger.info("Seeding bootstrap admin account %s", BOOTSTRAP_ADMIN_USER)
         cur.execute(
