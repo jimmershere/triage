@@ -453,46 +453,43 @@ def ensure_x12_addon_tables(conn) -> None:
 def ensure_bootstrap_admin(conn) -> None:
     if not BOOTSTRAP_ADMIN_USER or not BOOTSTRAP_ADMIN_HASH:
         return
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT username, role, allow_portal, allow_admin, created_at, updated_at
-              FROM app_users
+            UPDATE app_users
+               SET role = 'admin',
+                   allow_portal = TRUE,
+                   allow_admin = TRUE,
+                   updated_at = NOW()
              WHERE username = %s
+               AND (
+                    role <> 'admin'
+                 OR allow_portal IS DISTINCT FROM TRUE
+                 OR allow_admin IS DISTINCT FROM TRUE
+                 OR updated_at IS NULL
+               )
             """,
             (BOOTSTRAP_ADMIN_USER,),
         )
-        record = cur.fetchone()
-        if record:
-            updates = []
-            params: list[object] = []
-            current_role = (record.get("role") or "").strip()
-            if current_role != "admin":
-                updates.append("role = %s")
-                params.append("admin")
-            if not record.get("allow_portal", False):
-                updates.append("allow_portal = %s")
-                params.append(True)
-            if not record.get("allow_admin", False):
-                updates.append("allow_admin = %s")
-                params.append(True)
-            if updates:
-                if "updated_at" in record:
-                    updates.append("updated_at = NOW()")
-                cur.execute(
-                    f"""
-                    UPDATE app_users
-                       SET {', '.join(updates)}
-                     WHERE username = %s
-                    """,
-                    params + [BOOTSTRAP_ADMIN_USER],
-                )
-                logger.info(
-                    "Elevated bootstrap admin account %s to full portal/admin access",
-                    BOOTSTRAP_ADMIN_USER,
-                )
-                conn.commit()
+        if cur.rowcount:
+            logger.info(
+                "Elevated bootstrap admin account %s to full portal/admin access",
+                BOOTSTRAP_ADMIN_USER,
+            )
+            conn.commit()
             return
+
+        cur.execute(
+            "SELECT 1 FROM app_users WHERE username = %s",
+            (BOOTSTRAP_ADMIN_USER,),
+        )
+        if cur.fetchone():
+            logger.debug(
+                "Bootstrap admin account %s already has full privileges", BOOTSTRAP_ADMIN_USER
+            )
+            return
+
+    with conn.cursor() as cur:
         logger.info("Seeding bootstrap admin account %s", BOOTSTRAP_ADMIN_USER)
         cur.execute(
             """
