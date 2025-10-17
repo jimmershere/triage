@@ -64,6 +64,8 @@ class LDAPConfig:
     bootstrap_username: str
     bootstrap_password_hash: str
     bootstrap_password_plain: Optional[str] = None
+    admin_dn: Optional[str] = None
+    admin_username: Optional[str] = None
 
 
 class LDAPUnavailableError(RuntimeError):
@@ -93,6 +95,12 @@ class LDAPManager:
             f"{config.trading_partners_ou},{self.root_dn}" if config.trading_partners_ou else self.root_dn
         )
         self.bootstrap_dn = f"uid={escape_rdn(config.bootstrap_username)},{self.users_dn}"
+        admin_dn = (config.admin_dn or "").strip()
+        self.admin_dn = admin_dn or None
+        self._admin_dn_lower = admin_dn.lower() if admin_dn else None
+        admin_username = (config.admin_username or "").strip()
+        self.admin_username = admin_username or None
+        self._admin_username_lower = admin_username.lower() if admin_username else None
 
     # ----- helpers -----
     def _server(self) -> Server:
@@ -133,6 +141,27 @@ class LDAPManager:
 
     def _role_group_dn(self, role: str) -> str:
         return f"cn={escape_rdn(role)},{self.roles_dn}"
+
+    def _is_admin_username(self, value: str) -> bool:
+        if not value or not self._admin_username_lower:
+            return False
+        return value.strip().lower() == self._admin_username_lower
+
+    def _is_admin_dn(self, value: str) -> bool:
+        if not value or not self._admin_dn_lower:
+            return False
+        return value.strip().lower() == self._admin_dn_lower
+
+    def _admin_profile(self, requested_username: Optional[str] = None) -> dict:
+        username = self.admin_username or (requested_username or "admin")
+        return {
+            "username": username,
+            "role": self.administrator_role,
+            "allow_portal": True,
+            "allow_admin": True,
+            "created_at": None,
+            "updated_at": None,
+        }
 
     def _ensure_entry(self, conn: Connection, dn: str, object_classes: List[str], attributes: dict[str, List[str]]) -> None:
         if not dn:
@@ -255,6 +284,13 @@ class LDAPManager:
         username = (username or "").strip()
         if not username or not password:
             return None
+        if self.admin_dn and (self._is_admin_username(username) or self._is_admin_dn(username)):
+            try:
+                with self.connection(user=self.admin_dn, password=password):
+                    pass
+            except LDAPException:
+                return None
+            return self._admin_profile(username)
         user_dn = f"uid={escape_rdn(username)},{self.users_dn}"
         try:
             with self.connection(user=user_dn, password=password):
@@ -267,6 +303,21 @@ class LDAPManager:
         username = (username or "").strip()
         if not username:
             return None
+        if self.admin_dn and (self._is_admin_username(username) or self._is_admin_dn(username)):
+            canonical = self.admin_username or username
+            try:
+                with self.connection() as conn:
+                    found = conn.search(
+                        self.admin_dn,
+                        "(objectClass=*)",
+                        search_scope=BASE,
+                        attributes=["cn", "uid"],
+                    )
+                    if found and conn.entries:
+                        return self._admin_profile(canonical)
+            except LDAPException:
+                LOGGER.debug("Failed to inspect admin DN %s", self.admin_dn)
+            return self._admin_profile(canonical)
         user_dn = f"uid={escape_rdn(username)},{self.users_dn}"
         with self.connection() as conn:
             found = conn.search(
@@ -303,6 +354,8 @@ class LDAPManager:
                     memberships.append(role)
         if memberships:
             return memberships[-1]
+        if len(self.role_hierarchy) > 1:
+            return self.role_hierarchy[1]
         return self.role_hierarchy[0]
 
     def list_users(self) -> List[dict]:
@@ -360,7 +413,10 @@ class LDAPManager:
                     members.add(dn)
                 else:
                     members.discard(dn)
-                conn.modify(group_dn, {"member": [(MODIFY_REPLACE, sorted(members))]})
+                try:
+                    conn.modify(group_dn, {"member": [(MODIFY_REPLACE, sorted(members))]})
+                except LDAPException:
+                    LOGGER.warning("Unable to update LDAP role group %s", group_dn)
         profile = self.fetch_user(username)
         if profile:
             return profile
