@@ -127,11 +127,19 @@ def row_to_user(row) -> Optional[dict]:
     role = (row.get("role") or "").strip().lower()
     if role not in {"view", "update", "create", "admin"}:
         role = "view"
+    allow_portal = bool(row.get("allow_portal", False))
+    allow_admin = bool(row.get("allow_admin", False))
+    if role == "admin":
+        # Admin accounts should always retain full administrative and portal privileges
+        # even if the stored flags drift. This guards the bootstrap admin as well as any
+        # other "admin"-role users from being locked out of required features.
+        allow_portal = True
+        allow_admin = True
     return {
         "username": row.get("username"),
         "role": role,
-        "allow_portal": row.get("allow_portal", False),
-        "allow_admin": row.get("allow_admin", False),
+        "allow_portal": allow_portal,
+        "allow_admin": allow_admin,
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
     }
@@ -570,7 +578,12 @@ def create_user_impl(payload: UserCreate) -> dict:
     password = payload.password.strip()
     if len(password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(status_code=400, detail="password too short")
-    if not payload.allow_portal and not payload.allow_admin:
+    allow_portal = bool(payload.allow_portal)
+    allow_admin = bool(payload.allow_admin)
+    if role == "admin":
+        allow_portal = True
+        allow_admin = True
+    if not allow_portal and not allow_admin:
         raise HTTPException(status_code=400, detail="grant portal or admin access")
     hashed = hash_password(password)
     with get_db() as conn:
@@ -582,7 +595,7 @@ def create_user_impl(payload: UserCreate) -> dict:
                     VALUES (%s, %s, %s, %s, %s)
                     RETURNING username, role, allow_portal, allow_admin, created_at, updated_at
                     """,
-                    (username, hashed, role, payload.allow_portal, payload.allow_admin),
+                    (username, hashed, role, allow_portal, allow_admin),
                 )
                 row = cur.fetchone()
             conn.commit()
@@ -604,7 +617,12 @@ def update_user_impl(username: str, payload: UserUpdate) -> dict:
     role = payload.role.strip().lower()
     if not is_valid_role(role):
         raise HTTPException(status_code=400, detail="invalid role")
-    if not payload.allow_portal and not payload.allow_admin:
+    allow_portal = bool(payload.allow_portal)
+    allow_admin = bool(payload.allow_admin)
+    if role == "admin":
+        allow_portal = True
+        allow_admin = True
+    if not allow_portal and not allow_admin:
         raise HTTPException(status_code=400, detail="grant portal or admin access")
     new_hash = None
     if payload.password is not None:
@@ -615,7 +633,7 @@ def update_user_impl(username: str, payload: UserUpdate) -> dict:
             new_hash = hash_password(pwd)
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            params = [role, payload.allow_portal, payload.allow_admin]
+            params = [role, allow_portal, allow_admin]
             assignments = ["role = %s", "allow_portal = %s", "allow_admin = %s", "updated_at = NOW()"]
             if new_hash:
                 assignments.insert(0, "password_hash = %s")
