@@ -268,11 +268,42 @@ def ensure_bootstrap_admin(conn) -> None:
         return
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
-            "SELECT 1 FROM app_users WHERE username = %s",
+            """
+            SELECT username, role, allow_portal, allow_admin, created_at, updated_at
+              FROM app_users
+             WHERE username = %s
+            """,
             (BOOTSTRAP_ADMIN_USER,),
         )
-        exists = cur.fetchone() is not None
-        if exists:
+        record = cur.fetchone()
+        if record:
+            updates = []
+            params: list[object] = []
+            if (record.get("role") or "").lower() != "admin":
+                updates.append("role = %s")
+                params.append("admin")
+            if not record.get("allow_portal", False):
+                updates.append("allow_portal = %s")
+                params.append(True)
+            if not record.get("allow_admin", False):
+                updates.append("allow_admin = %s")
+                params.append(True)
+            if updates:
+                if "updated_at" in record:
+                    updates.append("updated_at = NOW()")
+                cur.execute(
+                    f"""
+                    UPDATE app_users
+                       SET {', '.join(updates)}
+                     WHERE username = %s
+                    """,
+                    params + [BOOTSTRAP_ADMIN_USER],
+                )
+                logger.info(
+                    "Elevated bootstrap admin account %s to full portal/admin access",
+                    BOOTSTRAP_ADMIN_USER,
+                )
+                conn.commit()
             return
         logger.info("Seeding bootstrap admin account %s", BOOTSTRAP_ADMIN_USER)
         cur.execute(
