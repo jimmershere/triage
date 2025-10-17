@@ -52,9 +52,16 @@ The web UI now ships with the “Trish” customer advocate, complete with helpf
 - The admin portal renders active tickets raised by the chat assistant. Entries are stored in-browser under the `hediSupportTickets` key and surface the ID, submission timestamp, summary, and severity ranking.
 - Stage users and assign application roles (view → update → create → admin) from the Admin → “User & role management” card. Accounts are written to the `app_users` table in PostgreSQL with PBKDF2-hashed credentials and per-portal access flags.
 - A bootstrap administrator account is provisioned during API startup. By default the username is `admin` and the stored hash corresponds to the password `3wm078uu`. Override `HEDI_BOOTSTRAP_ADMIN_USER` and/or `HEDI_BOOTSTRAP_ADMIN_HASH` (a PBKDF2 string) to rotate these credentials before first run.
+- OpenLDAP is bundled in the compose stack for directory-backed authentication. The container exposes `ldap://localhost:389` with the base DN `dc=example,dc=com` and an administrative bind account `cn=admin,dc=example,dc=com` (`3wm078uu`). On startup the API seeds a matching `uid=admin,ou=users,dc=example,dc=com` entry along with role groups under `ou=roles,dc=example,dc=com` so you can sign in immediately.
 - Secure the coordination between the Go frontend and FastAPI backend by setting the same `HEDI_SHARED_SECRET` value for both services. The shared token gates `/auth/login` and `/admin/users` calls so only the frontend can manage identities.
 - Runtime authorization is coordinated by [`static/js/auth_config.js`](frontend_go/public/static/js/auth_config.js) and [`static/js/authz.js`](frontend_go/public/static/js/authz.js). Pages mark privileged controls with `data-requires-role`, and the helper script disables them unless the signed-in user meets the threshold.
 - Toggle future identity providers (LDAP/AD and OIDC) from the admin “Authentication wiring” section. The UI persists your switches to `hediAuthProviders`, ready for wiring into a real directory or SSO integration later.
+
+### Directory configuration quick reference
+
+- Compose brings up an `osixia/openldap` container with persistent volumes (`ldap_data`, `ldap_config`) so changes survive restarts.
+- Environment overrides in [`.env`](.env) control how the API connects and bootstraps the directory. Set `HEDI_LDAP_*` variables to point at an external LDAP server or disable the integration entirely by switching `HEDI_LDAP_ENABLED` to `false`.
+- The bootstrap administrator password is shared between PostgreSQL and LDAP (`3wm078uu` by default) to keep the sample experience consistent. Update both `HEDI_BOOTSTRAP_ADMIN_HASH` and `HEDI_LDAP_BOOTSTRAP_PASSWORD` when rotating secrets.
 
 ## Applying upstream patches
 
