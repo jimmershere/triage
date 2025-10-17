@@ -22,6 +22,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+from api import ldap_utils
+
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
@@ -41,6 +43,46 @@ BOOTSTRAP_ADMIN_HASH = os.getenv(
     "HEDI_BOOTSTRAP_ADMIN_HASH",
     "pbkdf2_sha256$180000$j3pt+dTfwUgP6VwHPPDNKA==$zojEXizGhZe8fEeCD655ThS8PIfIyz3jwgwWlUkS5hA=",
 ).strip()
+
+ROLE_VIEW = "view"
+ROLE_CREATE = "create"
+ROLE_UPDATE = "update"
+ROLE_ADMINISTRATOR = "administrator"
+ROLE_ALIASES = {
+    "admin": ROLE_ADMINISTRATOR,
+    "administrator": ROLE_ADMINISTRATOR,
+    ROLE_VIEW: ROLE_VIEW,
+    ROLE_CREATE: ROLE_CREATE,
+    ROLE_UPDATE: ROLE_UPDATE,
+}
+VALID_ROLES = {ROLE_VIEW, ROLE_CREATE, ROLE_UPDATE, ROLE_ADMINISTRATOR}
+ROLE_HIERARCHY = [ROLE_VIEW, ROLE_CREATE, ROLE_UPDATE, ROLE_ADMINISTRATOR]
+
+LDAP_ENABLED = os.getenv("HEDI_LDAP_ENABLED", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+LDAP_URI = os.getenv("HEDI_LDAP_URI", "ldap://ldap:389").strip()
+LDAP_BASE_DN = os.getenv("HEDI_LDAP_BASE_DN", "dc=example,dc=com").strip()
+LDAP_ROOT_CN = os.getenv("HEDI_LDAP_ROOT_CN", "cn=HEDI").strip()
+LDAP_USERS_OU = os.getenv("HEDI_LDAP_USERS_OU", "ou=users").strip()
+LDAP_ROLES_OU = os.getenv("HEDI_LDAP_ROLES_OU", "ou=roles").strip()
+LDAP_TRADING_OU = os.getenv("HEDI_LDAP_TRADING_OU", "ou=trading-partners").strip()
+LDAP_BIND_DN = os.getenv("HEDI_LDAP_BIND_DN", "").strip()
+LDAP_BIND_PASSWORD = os.getenv("HEDI_LDAP_BIND_PASSWORD", "").strip()
+LDAP_TIMEOUT = int(os.getenv("HEDI_LDAP_TIMEOUT", "10"))
+DEFAULT_LDAP_BOOTSTRAP_HASH = "{SSHA}X7IBzbN9pqFRQwwPu37o7OppFD69OTUK"
+LDAP_BOOTSTRAP_PASSWORD_HASH = os.getenv(
+    "HEDI_LDAP_BOOTSTRAP_PASSWORD_HASH", DEFAULT_LDAP_BOOTSTRAP_HASH
+).strip()
+LDAP_BOOTSTRAP_PASSWORD = os.getenv("HEDI_LDAP_BOOTSTRAP_PASSWORD", "").strip()
+LDAP_BOOTSTRAP_USERNAME = os.getenv(
+    "HEDI_LDAP_BOOTSTRAP_USERNAME", BOOTSTRAP_ADMIN_USER or "admin"
+).strip()
+
+ldap_manager: Optional[ldap_utils.LDAPManager] = None
 
 app = FastAPI(title="TurboEDI Ingest API", version="0.2.0")
 
@@ -67,6 +109,7 @@ def run_startup_migrations() -> None:
             ensure_import_uploaded_by(conn)
             ensure_app_users(conn)
             ensure_x12_addon_tables(conn)
+            ensure_ldap_bootstrap(conn)
     except Exception:
         logger.exception("Failed to run startup migrations")
         raise
@@ -89,6 +132,42 @@ def get_db():
         get_pool().putconn(conn)
 
 
+def get_ldap_manager() -> Optional[ldap_utils.LDAPManager]:
+    global ldap_manager
+    if not LDAP_ENABLED:
+        return None
+    if ldap_manager is not None:
+        return ldap_manager
+    config = ldap_utils.LDAPConfig(
+        uri=LDAP_URI,
+        base_dn=LDAP_BASE_DN,
+        root_cn=LDAP_ROOT_CN,
+        users_ou=LDAP_USERS_OU,
+        roles_ou=LDAP_ROLES_OU,
+        trading_partners_ou=LDAP_TRADING_OU,
+        bind_dn=LDAP_BIND_DN,
+        bind_password=LDAP_BIND_PASSWORD,
+        timeout=LDAP_TIMEOUT,
+        bootstrap_username=LDAP_BOOTSTRAP_USERNAME or BOOTSTRAP_ADMIN_USER,
+        bootstrap_password_hash=LDAP_BOOTSTRAP_PASSWORD_HASH or DEFAULT_LDAP_BOOTSTRAP_HASH,
+        bootstrap_password_plain=LDAP_BOOTSTRAP_PASSWORD or None,
+    )
+    try:
+        ldap_manager = ldap_utils.LDAPManager(
+            config,
+            role_hierarchy=ROLE_HIERARCHY,
+            role_aliases=ROLE_ALIASES,
+            administrator_role=ROLE_ADMINISTRATOR,
+        )
+    except ldap_utils.LDAPUnavailableError:
+        logger.warning("LDAP integration requested but ldap3 is not installed")
+        ldap_manager = None
+    except Exception:  # pragma: no cover - defensive logging
+        logger.exception("Failed to initialize LDAP manager")
+        ldap_manager = None
+    return ldap_manager
+
+
 def is_safe_username(value: str) -> bool:
     if not value or len(value) > 96:
         return False
@@ -96,8 +175,22 @@ def is_safe_username(value: str) -> bool:
     return all(ch in allowed for ch in value)
 
 
+def normalize_role(role: Optional[str]) -> str:
+    if not role:
+        return ROLE_VIEW
+    cleaned = role.strip().lower()
+    return ROLE_ALIASES.get(cleaned, cleaned if cleaned in VALID_ROLES else ROLE_VIEW)
+
+
 def is_valid_role(role: str) -> bool:
-    return role in {"view", "update", "create", "admin"}
+    if not role:
+        return False
+    cleaned = role.strip().lower()
+    return cleaned in VALID_ROLES or cleaned in ROLE_ALIASES
+
+
+def role_allows_admin(role: str) -> bool:
+    return normalize_role(role) == ROLE_ADMINISTRATOR
 
 
 def hash_password(password: str) -> str:
@@ -125,15 +218,13 @@ def verify_password(password: str, encoded: str) -> bool:
 def row_to_user(row) -> Optional[dict]:
     if not row:
         return None
-    role = (row.get("role") or "").strip().lower()
-    if role not in {"view", "update", "create", "admin"}:
-        role = "view"
+    role = normalize_role(row.get("role"))
     allow_portal = bool(row.get("allow_portal", False))
     allow_admin = bool(row.get("allow_admin", False))
-    if role == "admin":
-        # Admin accounts should always retain full administrative and portal privileges
-        # even if the stored flags drift. This guards the bootstrap admin as well as any
-        # other "admin"-role users from being locked out of required features.
+    if role_allows_admin(role):
+        # Administrator accounts should always retain full administrative and portal
+        # privileges even if the stored flags drift. This guards the bootstrap admin as
+        # well as any other elevated users from being locked out of required features.
         allow_portal = True
         allow_admin = True
     def _serialize_timestamp(value):
@@ -285,7 +376,7 @@ def ensure_app_users(conn) -> None:
             CREATE TABLE IF NOT EXISTS app_users (
                 username TEXT PRIMARY KEY,
                 password_hash TEXT NOT NULL,
-                role TEXT NOT NULL CHECK (role IN ('view','update','create','admin')),
+                role TEXT NOT NULL CHECK (role IN ('view','update','create','administrator')),
                 allow_portal BOOLEAN NOT NULL DEFAULT TRUE,
                 allow_admin BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -345,19 +436,11 @@ def ensure_app_users(conn) -> None:
             )
             cur.execute("ALTER TABLE app_users ALTER COLUMN updated_at SET NOT NULL")
 
+        logger.info("Refreshing app_users role constraint")
+        cur.execute("ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_role_check")
         cur.execute(
-            """
-            SELECT 1
-              FROM pg_constraint
-             WHERE conname = 'app_users_role_check'
-               AND conrelid = 'app_users'::regclass
-            """
+            "ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('view','update','create','administrator'))"
         )
-        if cur.fetchone() is None:
-            logger.info("Adding app_users_role_check constraint")
-            cur.execute(
-                "ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('view','update','create','admin'))"
-            )
     conn.commit()
 
     ensure_bootstrap_admin(conn)
@@ -453,55 +536,121 @@ def ensure_x12_addon_tables(conn) -> None:
 def ensure_bootstrap_admin(conn) -> None:
     if not BOOTSTRAP_ADMIN_USER or not BOOTSTRAP_ADMIN_HASH:
         return
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT username, role, allow_portal, allow_admin, created_at, updated_at
-              FROM app_users
+            UPDATE app_users
+               SET role = 'administrator',
+                   allow_portal = TRUE,
+                   allow_admin = TRUE,
+                   updated_at = NOW()
              WHERE username = %s
+               AND (
+                    role <> 'administrator'
+                 OR allow_portal IS DISTINCT FROM TRUE
+                 OR allow_admin IS DISTINCT FROM TRUE
+                 OR updated_at IS NULL
+               )
             """,
             (BOOTSTRAP_ADMIN_USER,),
         )
-        record = cur.fetchone()
-        if record:
-            updates = []
-            params: list[object] = []
-            current_role = (record.get("role") or "").strip()
-            if current_role != "admin":
-                updates.append("role = %s")
-                params.append("admin")
-            if not record.get("allow_portal", False):
-                updates.append("allow_portal = %s")
-                params.append(True)
-            if not record.get("allow_admin", False):
-                updates.append("allow_admin = %s")
-                params.append(True)
-            if updates:
-                if "updated_at" in record:
-                    updates.append("updated_at = NOW()")
-                cur.execute(
-                    f"""
-                    UPDATE app_users
-                       SET {', '.join(updates)}
-                     WHERE username = %s
-                    """,
-                    params + [BOOTSTRAP_ADMIN_USER],
-                )
-                logger.info(
-                    "Elevated bootstrap admin account %s to full portal/admin access",
-                    BOOTSTRAP_ADMIN_USER,
-                )
-                conn.commit()
+        if cur.rowcount:
+            logger.info(
+                "Elevated bootstrap admin account %s to full portal/admin access",
+                BOOTSTRAP_ADMIN_USER,
+            )
+            conn.commit()
             return
+
+        cur.execute(
+            "SELECT 1 FROM app_users WHERE username = %s",
+            (BOOTSTRAP_ADMIN_USER,),
+        )
+        if cur.fetchone():
+            logger.debug(
+                "Bootstrap admin account %s already has full privileges", BOOTSTRAP_ADMIN_USER
+            )
+            return
+
+    with conn.cursor() as cur:
         logger.info("Seeding bootstrap admin account %s", BOOTSTRAP_ADMIN_USER)
         cur.execute(
             """
             INSERT INTO app_users (username, password_hash, role, allow_portal, allow_admin)
-            VALUES (%s, %s, 'admin', TRUE, TRUE)
+            VALUES (%s, %s, 'administrator', TRUE, TRUE)
             """,
             (BOOTSTRAP_ADMIN_USER, BOOTSTRAP_ADMIN_HASH),
         )
     conn.commit()
+
+
+def fetch_trading_partner_ids(conn) -> List[str]:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT trading_partner_id
+              FROM imports
+             WHERE trading_partner_id IS NOT NULL
+               AND TRIM(trading_partner_id) <> ''
+             ORDER BY trading_partner_id
+            """
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+def ensure_ldap_bootstrap(conn) -> None:
+    manager = get_ldap_manager()
+    if not manager:
+        return
+    try:
+        partner_ids = fetch_trading_partner_ids(conn)
+    except Exception:
+        logger.exception("Failed to load trading partner IDs for LDAP bootstrap")
+        partner_ids = []
+    try:
+        manager.bootstrap(partner_ids)
+    except ldap_utils.LDAPUnavailableError:
+        logger.warning("LDAP manager unavailable during bootstrap")
+    except Exception:
+        logger.exception("Failed to bootstrap LDAP directory")
+
+
+def ldap_sync_user(
+    username: str,
+    role: str,
+    password: Optional[str],
+    *,
+    allow_portal: bool,
+    allow_admin: bool,
+) -> Optional[dict]:
+    manager = get_ldap_manager()
+    if not manager:
+        return None
+    try:
+        return manager.sync_user(
+            username,
+            role,
+            password,
+            portal=allow_portal,
+            admin=allow_admin,
+        )
+    except ldap_utils.LDAPUnavailableError:
+        return None
+    except Exception:
+        logger.exception("Failed to synchronize user %s with LDAP", username)
+        return None
+
+
+def ldap_delete_user(username: str) -> None:
+    manager = get_ldap_manager()
+    if not manager:
+        return
+    try:
+        manager.delete_user(username)
+    except ldap_utils.LDAPUnavailableError:
+        return
+    except Exception:
+        logger.exception("Failed to delete LDAP entry for %s", username)
 
 
 def ensure_import_core_columns(conn) -> None:
@@ -704,11 +853,31 @@ def api_login(payload: LoginRequest, _: None = Depends(require_secret)):
         raise HTTPException(status_code=400, detail="username required")
     if not payload.password:
         raise HTTPException(status_code=400, detail="password required")
+    manager = get_ldap_manager()
+    if manager:
+        try:
+            profile = manager.authenticate(username, payload.password)
+        except Exception:
+            logger.exception("LDAP authentication failed for %s", username)
+            profile = None
+        if profile:
+            user = UserOut(**profile)
+            return LoginResponse(ok=True, user=user).model_dump()
     with get_db() as conn:
         record = fetch_app_user(conn, username)
         if not record or not verify_password(payload.password, record.get("password_hash", "")):
             raise HTTPException(status_code=401, detail="invalid credentials")
-        user = UserOut(**row_to_user(record))
+        user_dict = row_to_user(record)
+        synced = ldap_sync_user(
+            username,
+            user_dict["role"],
+            payload.password,
+            allow_portal=user_dict["allow_portal"],
+            allow_admin=user_dict["allow_admin"],
+        )
+        if synced:
+            user_dict = synced
+        user = UserOut(**user_dict)
         return LoginResponse(ok=True, user=user).model_dump()
 
 
@@ -717,6 +886,15 @@ def api_get_user(username: str, _: None = Depends(require_secret)):
     cleaned = (username or "").strip()
     if not cleaned:
         raise HTTPException(status_code=400, detail="username required")
+    manager = get_ldap_manager()
+    if manager:
+        try:
+            profile = manager.fetch_user(cleaned)
+        except Exception:
+            logger.exception("Failed to fetch LDAP profile for %s", cleaned)
+            profile = None
+        if profile:
+            return {"user": UserOut(**profile).model_dump()}
     with get_db() as conn:
         record = fetch_app_user(conn, cleaned)
         if not record:
@@ -725,17 +903,42 @@ def api_get_user(username: str, _: None = Depends(require_secret)):
 
 
 def list_users_impl() -> dict:
+    ldap_users: dict[str, dict] = {}
+    manager = get_ldap_manager()
+    if manager:
+        try:
+            for profile in manager.list_users():
+                username = profile.get("username")
+                if not username:
+                    continue
+                normalized_role = normalize_role(profile.get("role"))
+                ldap_users[username] = {
+                    "username": username,
+                    "role": normalized_role,
+                    "allow_portal": bool(profile.get("allow_portal", True)) or normalized_role in VALID_ROLES,
+                    "allow_admin": bool(profile.get("allow_admin", False)) or role_allows_admin(normalized_role),
+                    "created_at": profile.get("created_at"),
+                    "updated_at": profile.get("updated_at"),
+                }
+        except Exception:
+            logger.exception("Failed to enumerate LDAP users")
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
                 SELECT username, role, allow_portal, allow_admin, created_at, updated_at
-                  FROM app_users
+                 FROM app_users
                  ORDER BY username
                 """
             )
             rows = cur.fetchall()
-    users = [UserOut(**row_to_user(row)).model_dump() for row in rows]
+    combined: dict[str, dict] = {}
+    for row in rows:
+        user = UserOut(**row_to_user(row)).model_dump()
+        combined[user["username"]] = user
+    for username, profile in ldap_users.items():
+        combined[username] = UserOut(**profile).model_dump()
+    users = [combined[key] for key in sorted(combined.keys())]
     return {"users": users}
 
 
@@ -748,15 +951,16 @@ def create_user_impl(payload: UserCreate) -> dict:
     username = payload.username.strip()
     if not is_safe_username(username):
         raise HTTPException(status_code=400, detail="invalid username")
-    role = payload.role.strip().lower()
-    if not is_valid_role(role):
+    role_input = payload.role.strip().lower()
+    if not is_valid_role(role_input):
         raise HTTPException(status_code=400, detail="invalid role")
+    role = normalize_role(role_input)
     password = payload.password.strip()
     if len(password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(status_code=400, detail="password too short")
     allow_portal = bool(payload.allow_portal)
     allow_admin = bool(payload.allow_admin)
-    if role == "admin":
+    if role_allows_admin(role):
         allow_portal = True
         allow_admin = True
     if not allow_portal and not allow_admin:
@@ -778,7 +982,17 @@ def create_user_impl(payload: UserCreate) -> dict:
         except errors.UniqueViolation:
             conn.rollback()
             raise HTTPException(status_code=409, detail="user already exists")
-    return {"user": UserOut(**row_to_user(row)).model_dump()}
+    profile = row_to_user(row)
+    synced = ldap_sync_user(
+        username,
+        profile["role"],
+        password,
+        allow_portal=profile["allow_portal"],
+        allow_admin=profile["allow_admin"],
+    )
+    if synced:
+        profile = synced
+    return {"user": UserOut(**profile).model_dump()}
 
 
 @app.post("/admin/users")
@@ -790,23 +1004,26 @@ def update_user_impl(username: str, payload: UserUpdate) -> dict:
     cleaned = (username or "").strip()
     if not cleaned:
         raise HTTPException(status_code=400, detail="username required")
-    role = payload.role.strip().lower()
-    if not is_valid_role(role):
+    role_input = payload.role.strip().lower()
+    if not is_valid_role(role_input):
         raise HTTPException(status_code=400, detail="invalid role")
+    role = normalize_role(role_input)
     allow_portal = bool(payload.allow_portal)
     allow_admin = bool(payload.allow_admin)
-    if role == "admin":
+    if role_allows_admin(role):
         allow_portal = True
         allow_admin = True
     if not allow_portal and not allow_admin:
         raise HTTPException(status_code=400, detail="grant portal or admin access")
     new_hash = None
+    password_plain: Optional[str] = None
     if payload.password is not None:
         pwd = payload.password.strip()
         if pwd and len(pwd) < MIN_PASSWORD_LENGTH:
             raise HTTPException(status_code=400, detail="password too short")
         if pwd:
             new_hash = hash_password(pwd)
+            password_plain = pwd
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             params = [role, allow_portal, allow_admin]
@@ -829,7 +1046,17 @@ def update_user_impl(username: str, payload: UserUpdate) -> dict:
             conn.rollback()
             raise HTTPException(status_code=404, detail="user not found")
         conn.commit()
-    return {"user": UserOut(**row_to_user(row)).model_dump()}
+    profile = row_to_user(row)
+    synced = ldap_sync_user(
+        cleaned,
+        profile["role"],
+        password_plain,
+        allow_portal=profile["allow_portal"],
+        allow_admin=profile["allow_admin"],
+    )
+    if synced:
+        profile = synced
+    return {"user": UserOut(**profile).model_dump()}
 
 
 @app.put("/admin/users/{username}")
@@ -849,6 +1076,7 @@ def delete_user_impl(username: str) -> dict:
             conn.rollback()
             raise HTTPException(status_code=404, detail="user not found")
         conn.commit()
+    ldap_delete_user(cleaned)
     return {"ok": True}
 
 

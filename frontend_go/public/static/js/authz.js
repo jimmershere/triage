@@ -1,5 +1,15 @@
 (function () {
-  const ROLE_ORDER = ["view", "update", "create", "admin"];
+  const ADMIN_ROLE = "administrator";
+  const ROLE_ORDER = ["view", "create", "update", ADMIN_ROLE];
+  const ROLE_ALIASES = {
+    admin: ADMIN_ROLE,
+    administrator: ADMIN_ROLE,
+  };
+  function normalizeRole(role) {
+    if (!role) return ROLE_ORDER[0];
+    const cleaned = String(role).trim().toLowerCase();
+    return ROLE_ALIASES[cleaned] || (ROLE_ORDER.includes(cleaned) ? cleaned : ROLE_ORDER[0]);
+  }
   const ROLE_INDEX = ROLE_ORDER.reduce((acc, role, idx) => {
     acc[role] = idx;
     return acc;
@@ -77,7 +87,8 @@
   }
 
   function enforceElement(el, roleIndex) {
-    const required = el.getAttribute("data-requires-role");
+    const requiredRaw = el.getAttribute("data-requires-role");
+    const required = normalizeRole(requiredRaw);
     if (!required) return;
     const needIndex = ROLE_INDEX[required] ?? 0;
     if (roleIndex >= needIndex) {
@@ -109,7 +120,8 @@
     if (!el.dataset.lockedTitle) {
       el.dataset.lockedTitle = el.getAttribute("title") || "";
     }
-    el.setAttribute("title", `Requires ${required} access`);
+      const label = required === ADMIN_ROLE ? "administrator" : required;
+      el.setAttribute("title", `Requires ${label} access`);
 
     if (el instanceof HTMLButtonElement || el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
       el.disabled = true;
@@ -127,15 +139,21 @@
   }
 
   function applyAuthz() {
-    const index = ROLE_INDEX[profile.role] ?? 0;
-    document.body.dataset.userRole = profile.role;
+    const normalizedRole = normalizeRole(profile.role);
+    const allowAdmin = normalizedRole === ADMIN_ROLE || Boolean(profile.allowAdmin);
+    const allowPortal = Boolean(profile.allowPortal || allowAdmin);
+    profile.role = normalizedRole;
+    profile.allowAdmin = allowAdmin;
+    profile.allowPortal = allowPortal;
+    const index = ROLE_INDEX[normalizedRole] ?? 0;
+    document.body.dataset.userRole = normalizedRole;
     if (profile.username) {
       document.body.dataset.userName = profile.username;
     } else {
       delete document.body.dataset.userName;
     }
-    document.body.dataset.allowPortal = profile.allowPortal ? "true" : "false";
-    document.body.dataset.allowAdmin = profile.allowAdmin ? "true" : "false";
+    document.body.dataset.allowPortal = allowPortal ? "true" : "false";
+    document.body.dataset.allowAdmin = allowAdmin ? "true" : "false";
     document.body.dataset.defaultDestination = profile.defaultDestination || "/";
 
     document
@@ -167,11 +185,13 @@
         return;
       }
       const data = await response.json();
+      const normalizedRole = normalizeRole(data.role || "view");
+      const allowAdmin = normalizedRole === ADMIN_ROLE || Boolean(data.allow_admin);
       profile = {
         username: data.username || null,
-        role: data.role || "view",
-        allowPortal: Boolean(data.allow_portal),
-        allowAdmin: Boolean(data.allow_admin),
+        role: normalizedRole,
+        allowPortal: Boolean(data.allow_portal !== undefined ? data.allow_portal : true),
+        allowAdmin,
         defaultDestination: data.default_destination || "/",
       };
       window.HEDI_AUTHZ = window.HEDI_AUTHZ || {};

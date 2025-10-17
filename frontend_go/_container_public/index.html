@@ -8,16 +8,43 @@
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
 <body>
-<header class="site-header">
-  <a href="/" class="brand"><img src="/img/hedi-logo.png" alt="HEDI" width="32" height="32"><span>HEDI</span></a>
-  <nav class="nav">
-    <a href="/login?next=/portal.html" data-login-trigger data-login-next="/portal.html">Claims Portal</a>
-    <a href="/login?next=/admin.html" data-login-trigger data-login-next="/admin.html">Admin</a>
-    <a class="cta" href="/login" data-login-trigger data-login-next="/portal.html">Login</a>
-  </nav>
-</header>
-
-<main class="container">
+  <div class="app-shell">
+    <aside class="site-sidebar">
+      <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Claims Portal</span>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/271.html">271 Responses</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/276.html">276 Status</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Workspace tools</span>
+          <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Resources</span>
+          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+        </div>
+        <div class="nav-group admin-only">
+          <span class="nav-group-label">Administration</span>
+          <a class="nav-pill admin-link" data-tone="admin" href="/admin.html">Admin</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="nav-pill requires-guest" data-tone="portal" href="/login?next=/portal.html" data-login-trigger data-login-next="/portal.html">Login</a>
+        <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
+      </div>
+    </aside>
+    <div class="app-main">
+      <main class="container">
   <section class="hero">
     <div class="card">
       <h1>Welcome to HEDI</h1>
@@ -122,6 +149,8 @@
     <p class="tiny muted">Swap in live RSS or JSON feeds by extending <code>static/js/chatbot.js</code> with your data sources.</p>
   </section>
 </main>
+    </div>
+  </div>
 
 <footer>© 2025 HEDI — Happy EDI. Fast. Friendly. Fierce.</footer>
 
