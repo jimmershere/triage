@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
   <title>HEDI — HEDI Mapping Studio</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
@@ -53,10 +53,10 @@
     <h2>HEDI Mapping</h2>
     <p>Build transaction flows by dragging X12 segment identifiers into a custom sequence. The palette highlights valid identifiers and the canvas arranges a positional grid that mirrors an XML-style representation of your structure.</p>
     <div class="trish-callout">
-      <img src="/img/trish-peace.svg" alt="Trish describing the canvas">
+      <img src="/img/trish-peace.svg" alt="Trish explaining the mapping studio">
       <div class="bubble">
-        <strong>Grid primer:</strong>
-        I preloaded a sample ISA through IEA message so you can see spacing. Drop more chips to extend or reorder.
+        <strong>How the grid works:</strong>
+        I preloaded a full ISA→IEA journey so you can see the spacing. Drop new chips to extend or reorder the XML-style blocks.
       </div>
     </div>
     <div class="row" style="gap:20px;align-items:flex-start;">
@@ -67,7 +67,7 @@
       </div>
       <div class="card" style="flex:1.5;">
         <h3>Mapping Canvas</h3>
-        <div id="canvas" class="canvas-grid" aria-live="polite" data-requires-role="update">
+        <div id="canvas" class="canvas-grid" aria-live="polite" data-requires-role="submit">
           <p id="canvasEmpty" class="canvas-empty">Drop segments here to build your flow…</p>
         </div>
       </div>

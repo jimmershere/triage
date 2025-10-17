@@ -45,18 +45,20 @@ BOOTSTRAP_ADMIN_HASH = os.getenv(
 ).strip()
 
 ROLE_VIEW = "view"
-ROLE_CREATE = "create"
-ROLE_UPDATE = "update"
+ROLE_SUBMIT = "submit"
 ROLE_ADMINISTRATOR = "administrator"
 ROLE_ALIASES = {
     "admin": ROLE_ADMINISTRATOR,
     "administrator": ROLE_ADMINISTRATOR,
+    "create": ROLE_SUBMIT,
+    "update": ROLE_SUBMIT,
+    "submitter": ROLE_SUBMIT,
+    "editor": ROLE_SUBMIT,
+    "submit": ROLE_SUBMIT,
     ROLE_VIEW: ROLE_VIEW,
-    ROLE_CREATE: ROLE_CREATE,
-    ROLE_UPDATE: ROLE_UPDATE,
 }
-VALID_ROLES = {ROLE_VIEW, ROLE_CREATE, ROLE_UPDATE, ROLE_ADMINISTRATOR}
-ROLE_HIERARCHY = [ROLE_VIEW, ROLE_CREATE, ROLE_UPDATE, ROLE_ADMINISTRATOR]
+VALID_ROLES = {ROLE_VIEW, ROLE_SUBMIT, ROLE_ADMINISTRATOR}
+ROLE_HIERARCHY = [ROLE_VIEW, ROLE_SUBMIT, ROLE_ADMINISTRATOR]
 
 LDAP_ENABLED = os.getenv("HEDI_LDAP_ENABLED", "false").strip().lower() in {
     "1",
@@ -193,6 +195,11 @@ def role_allows_admin(role: str) -> bool:
     return normalize_role(role) == ROLE_ADMINISTRATOR
 
 
+def role_allows_portal(role: str) -> bool:
+    normalized = normalize_role(role)
+    return normalized in ROLE_HIERARCHY
+
+
 def hash_password(password: str) -> str:
     if not password or len(password) < MIN_PASSWORD_LENGTH:
         raise ValueError("password too short")
@@ -219,8 +226,8 @@ def row_to_user(row) -> Optional[dict]:
     if not row:
         return None
     role = normalize_role(row.get("role"))
-    allow_portal = bool(row.get("allow_portal", False))
-    allow_admin = bool(row.get("allow_admin", False))
+    allow_admin = role_allows_admin(role)
+    allow_portal = role_allows_portal(role)
     if role_allows_admin(role):
         # Administrator accounts should always retain full administrative and portal
         # privileges even if the stored flags drift. This guards the bootstrap admin as
@@ -371,25 +378,33 @@ def _fetch_app_user_columns(conn) -> dict[str, dict[str, str]]:
 def _normalize_app_user_roles(conn) -> int:
     updated = 0
     with conn.cursor() as cur:
-        cur.execute("SELECT username, role FROM app_users")
+        cur.execute("SELECT username, role, allow_portal, allow_admin FROM app_users")
         rows = cur.fetchall()
 
     if not rows:
         return 0
 
     with conn.cursor() as cur:
-        for username, role in rows:
+        for username, role, portal, admin in rows:
             normalized = normalize_role(role)
             if normalized not in VALID_ROLES:
                 normalized = ROLE_VIEW
-            if role != normalized:
+            desired_portal = role_allows_portal(normalized)
+            desired_admin = role_allows_admin(normalized)
+            if (
+                role != normalized
+                or bool(portal) != desired_portal
+                or bool(admin) != desired_admin
+            ):
                 cur.execute(
                     """
                     UPDATE app_users
-                       SET role = %s
+                       SET role = %s,
+                           allow_portal = %s,
+                           allow_admin = %s
                      WHERE username = %s
                     """,
-                    (normalized, username),
+                    (normalized, desired_portal, desired_admin, username),
                 )
                 updated += 1
     return updated
@@ -403,7 +418,7 @@ def ensure_app_users(conn) -> None:
             CREATE TABLE IF NOT EXISTS app_users (
                 username TEXT PRIMARY KEY,
                 password_hash TEXT NOT NULL,
-                role TEXT NOT NULL CHECK (role IN ('view','update','create','administrator')),
+                role TEXT NOT NULL CHECK (role IN ('view','submit','administrator')),
                 allow_portal BOOLEAN NOT NULL DEFAULT TRUE,
                 allow_admin BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -472,7 +487,7 @@ def ensure_app_users(conn) -> None:
 
     with conn.cursor() as cur:
         cur.execute(
-            "ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('view','update','create','administrator'))"
+            "ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('view','submit','administrator'))"
         )
     conn.commit()
 
@@ -827,15 +842,11 @@ class UserCreate(BaseModel):
     username: str
     password: str
     role: str
-    allow_portal: bool = True
-    allow_admin: bool = False
 
 
 class UserUpdate(BaseModel):
     password: Optional[str] = None
     role: str
-    allow_portal: bool
-    allow_admin: bool
 
 
 class LoginRequest(BaseModel):
@@ -945,11 +956,15 @@ def list_users_impl() -> dict:
                 if not username:
                     continue
                 normalized_role = normalize_role(profile.get("role"))
+                allow_admin = role_allows_admin(normalized_role) or bool(
+                    profile.get("allow_admin", False)
+                )
+                allow_portal = role_allows_portal(normalized_role)
                 ldap_users[username] = {
                     "username": username,
                     "role": normalized_role,
-                    "allow_portal": bool(profile.get("allow_portal", True)) or normalized_role in VALID_ROLES,
-                    "allow_admin": bool(profile.get("allow_admin", False)) or role_allows_admin(normalized_role),
+                    "allow_portal": allow_portal,
+                    "allow_admin": allow_admin,
                     "created_at": profile.get("created_at"),
                     "updated_at": profile.get("updated_at"),
                 }
@@ -991,13 +1006,8 @@ def create_user_impl(payload: UserCreate) -> dict:
     password = payload.password.strip()
     if len(password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(status_code=400, detail="password too short")
-    allow_portal = bool(payload.allow_portal)
-    allow_admin = bool(payload.allow_admin)
-    if role_allows_admin(role):
-        allow_portal = True
-        allow_admin = True
-    if not allow_portal and not allow_admin:
-        raise HTTPException(status_code=400, detail="grant portal or admin access")
+    allow_admin = role_allows_admin(role)
+    allow_portal = role_allows_portal(role)
     hashed = hash_password(password)
     with get_db() as conn:
         try:
@@ -1041,13 +1051,8 @@ def update_user_impl(username: str, payload: UserUpdate) -> dict:
     if not is_valid_role(role_input):
         raise HTTPException(status_code=400, detail="invalid role")
     role = normalize_role(role_input)
-    allow_portal = bool(payload.allow_portal)
-    allow_admin = bool(payload.allow_admin)
-    if role_allows_admin(role):
-        allow_portal = True
-        allow_admin = True
-    if not allow_portal and not allow_admin:
-        raise HTTPException(status_code=400, detail="grant portal or admin access")
+    allow_admin = role_allows_admin(role)
+    allow_portal = role_allows_portal(role)
     new_hash = None
     password_plain: Optional[str] = None
     if payload.password is not None:
