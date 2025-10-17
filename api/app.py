@@ -368,6 +368,33 @@ def _fetch_app_user_columns(conn) -> dict[str, dict[str, str]]:
         }
 
 
+def _normalize_app_user_roles(conn) -> int:
+    updated = 0
+    with conn.cursor() as cur:
+        cur.execute("SELECT username, role FROM app_users")
+        rows = cur.fetchall()
+
+    if not rows:
+        return 0
+
+    with conn.cursor() as cur:
+        for username, role in rows:
+            normalized = normalize_role(role)
+            if normalized not in VALID_ROLES:
+                normalized = ROLE_VIEW
+            if role != normalized:
+                cur.execute(
+                    """
+                    UPDATE app_users
+                       SET role = %s
+                     WHERE username = %s
+                    """,
+                    (normalized, username),
+                )
+                updated += 1
+    return updated
+
+
 def ensure_app_users(conn) -> None:
     logger.info("Ensuring app_users table exists")
     with conn.cursor() as cur:
@@ -438,6 +465,12 @@ def ensure_app_users(conn) -> None:
 
         logger.info("Refreshing app_users role constraint")
         cur.execute("ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_role_check")
+
+    normalized = _normalize_app_user_roles(conn)
+    if normalized:
+        logger.info("Normalized %s app_users role values", normalized)
+
+    with conn.cursor() as cur:
         cur.execute(
             "ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('view','update','create','administrator'))"
         )
