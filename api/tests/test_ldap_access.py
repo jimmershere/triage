@@ -33,14 +33,14 @@ def manager_factory(monkeypatch):
     monkeypatch.setattr(ldap_utils, "Server", DummyServer)
     monkeypatch.setattr(ldap_utils, "Connection", DummyConnection)
 
-    def factory():
-        config = ldap_utils.LDAPConfig(
+    def factory(**overrides):
+        params = dict(
             uri="ldap://example.com",
             base_dn="dc=example,dc=com",
-            root_cn="cn=HEDI",
+            root_cn="ou=HEDI",
             users_ou="ou=users",
             roles_ou="ou=roles",
-            trading_partners_ou="ou=trading",
+            trading_partners_ou="ou=trading-partners",
             bind_dn="cn=admin,dc=example,dc=com",
             bind_password="secret",
             timeout=5,
@@ -49,6 +49,8 @@ def manager_factory(monkeypatch):
             admin_dn="cn=admin,dc=example,dc=com",
             admin_username="admin",
         )
+        params.update(overrides)
+        config = ldap_utils.LDAPConfig(**params)
         return ldap_utils.LDAPManager(
             config,
             role_hierarchy=["view", "submit", "administrator"],
@@ -59,7 +61,7 @@ def manager_factory(monkeypatch):
     return factory
 
 
-def test_user_highest_role_defaults_to_submit(manager_factory):
+def test_user_highest_role_defaults_to_view(manager_factory):
     manager = manager_factory()
 
     class NoGroupsConn:
@@ -71,12 +73,12 @@ def test_user_highest_role_defaults_to_submit(manager_factory):
             return False
 
     result = manager._user_highest_role(
-        NoGroupsConn(), "uid=jim.doe,ou=users,cn=HEDI,dc=example,dc=com"
+        NoGroupsConn(), "uid=jim.doe,ou=users,ou=HEDI,dc=example,dc=com"
     )
-    assert result == "submit"
+    assert result == "view"
 
 
-def test_fetch_user_without_groups_returns_submit(monkeypatch, manager_factory):
+def test_fetch_user_without_groups_returns_view(monkeypatch, manager_factory):
     manager = manager_factory()
 
     class FetchConn:
@@ -106,7 +108,7 @@ def test_fetch_user_without_groups_returns_submit(monkeypatch, manager_factory):
 
     profile = manager.fetch_user("jim.doe")
     assert profile is not None
-    assert profile["role"] == "submit"
+    assert profile["role"] == "view"
     assert profile["allow_portal"] is True
     assert profile["allow_admin"] is False
 
@@ -197,4 +199,19 @@ def test_fetch_admin_user_returns_admin_profile(monkeypatch, manager_factory):
     assert profile["username"] == "admin"
     assert profile["role"] == "administrator"
     assert profile["allow_admin"] is True
+
+
+def test_container_components_are_normalized(manager_factory):
+    manager = manager_factory(
+        root_cn="cn=LegacyRoot",
+        users_ou="users",
+        roles_ou="roles",
+        trading_partners_ou="trading",
+    )
+    assert manager.root_attribute == "ou"
+    assert manager.root_dn == "ou=LegacyRoot,dc=example,dc=com"
+    assert manager.users_attribute == "ou"
+    assert manager.users_dn == "ou=users,ou=LegacyRoot,dc=example,dc=com"
+    assert manager.roles_dn == "ou=roles,ou=LegacyRoot,dc=example,dc=com"
+    assert manager.trading_dn == "ou=trading,ou=LegacyRoot,dc=example,dc=com"
 
