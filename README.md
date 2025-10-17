@@ -61,6 +61,9 @@ The web UI now ships with the “Trish” customer advocate, complete with helpf
 
 - Compose brings up an `osixia/openldap` container with persistent volumes (`ldap_data`, `ldap_config`) so changes survive restarts.
 - Environment overrides in [`.env`](.env) control how the API connects and bootstraps the directory. Set `HEDI_LDAP_*` variables to point at an external LDAP server or disable the integration entirely by switching `HEDI_LDAP_ENABLED` to `false`.
+- Use `LDAP_HOST_PORT` if the host machine already consumes port 389; the container still listens on 389 internally so other services reach it via `ldap://ldap:389`.
+- The stack now reuses the HTTPS certificate for LDAP. Override `LDAP_TLS_*` entries in [`.env`](.env) to supply a different certificate/key bundle or fall back to the auto-generated self-signed pair.
+- Ensure the mapped certificate files remain writable from the container so the OpenLDAP entrypoint can adjust ownership and permissions during startup; otherwise the TLS bootstrap aborts early.
 - The bootstrap administrator password is shared between PostgreSQL and LDAP (`3wm078uu` by default) to keep the sample experience consistent. Update both `HEDI_BOOTSTRAP_ADMIN_HASH` and `HEDI_LDAP_BOOTSTRAP_PASSWORD` when rotating secrets.
 
 ## Applying upstream patches

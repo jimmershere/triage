@@ -22,7 +22,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from api import ldap_utils
+from . import ldap_utils
 
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
