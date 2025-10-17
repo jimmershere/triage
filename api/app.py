@@ -303,6 +303,7 @@ def ensure_bootstrap_admin(conn) -> None:
                     "Elevated bootstrap admin account %s to full portal/admin access",
                     BOOTSTRAP_ADMIN_USER,
                 )
+                conn.commit()
             return
         logger.info("Seeding bootstrap admin account %s", BOOTSTRAP_ADMIN_USER)
         cur.execute(
