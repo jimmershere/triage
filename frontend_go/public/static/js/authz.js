@@ -6,6 +6,38 @@
   }, {});
   const guardHandlers = new WeakMap();
 
+  function normalizePrefix(prefix) {
+    if (!prefix) return "";
+    if (prefix === "/") return "";
+    return prefix.replace(/\/+$/, "");
+  }
+
+  const PATH_PREFIX = (() => {
+    if (typeof window.HEDI_PATH_PREFIX === "string") {
+      return normalizePrefix(window.HEDI_PATH_PREFIX);
+    }
+    const path = window.location.pathname || "";
+    const match = path.match(/^(.*)\/[A-Za-z0-9._-]+\.html?$/);
+    if (!match || !match[1]) {
+      return "";
+    }
+    return normalizePrefix(match[1]);
+  })();
+
+  window.HEDI_PATH_PREFIX = PATH_PREFIX;
+
+  if (typeof window.hediResolve !== "function") {
+    window.hediResolve = (path) => {
+      if (!path || path[0] !== "/") {
+        return path;
+      }
+      if (!PATH_PREFIX) {
+        return path;
+      }
+      return `${PATH_PREFIX}${path}`;
+    };
+  }
+
   const DEFAULT_PROFILE = {
     username: null,
     role: "view",
@@ -116,7 +148,8 @@
 
   async function fetchProfile() {
     try {
-      const response = await fetch("/auth/me", { credentials: "same-origin" });
+      const url = window.hediResolve ? window.hediResolve("/auth/me") : "/auth/me";
+      const response = await fetch(url, { credentials: "same-origin" });
       if (!response.ok) {
         profile = { ...DEFAULT_PROFILE };
         applyAuthz();
