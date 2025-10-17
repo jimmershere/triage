@@ -1,4 +1,4 @@
-import os, base64, json, uuid, logging, zipfile, time, secrets, hashlib
+import os, base64, json, uuid, logging, zipfile, time, secrets, hashlib, datetime
 from contextlib import contextmanager
 from io import BytesIO
 from typing import List, Optional
@@ -136,13 +136,24 @@ def row_to_user(row) -> Optional[dict]:
         # other "admin"-role users from being locked out of required features.
         allow_portal = True
         allow_admin = True
+    def _serialize_timestamp(value):
+        if value is None:
+            return None
+        if isinstance(value, (datetime.datetime, datetime.date)):
+            # Ensure timezone-aware datetimes retain their offset and naive values
+            # are treated as UTC to avoid ambiguity for the API consumers.
+            if isinstance(value, datetime.datetime) and value.tzinfo is None:
+                value = value.replace(tzinfo=datetime.timezone.utc)
+            return value.isoformat()
+        return str(value)
+
     return {
         "username": row.get("username"),
         "role": role,
         "allow_portal": allow_portal,
         "allow_admin": allow_admin,
-        "created_at": row.get("created_at"),
-        "updated_at": row.get("updated_at"),
+        "created_at": _serialize_timestamp(row.get("created_at")),
+        "updated_at": _serialize_timestamp(row.get("updated_at")),
     }
 
 
