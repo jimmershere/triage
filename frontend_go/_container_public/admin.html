@@ -46,14 +46,18 @@
     <div class="app-main">
       <main class="container admin-page">
   <section class="card admin-hero">
+    <figure class="card-photo admin-hero-image">
+      <img src="https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Administrator monitoring real-time dashboards">
+      <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/NsPDiPFTp4c" target="_blank" rel="noreferrer">Luke Peters</a> on Unsplash</figcaption>
+    </figure>
     <div>
       <h1>Administrator Dashboard</h1>
       <p>Monitor Trish’s help tickets, orchestrate access, and wire in enterprise authentication.</p>
     </div>
     <div class="admin-shortcuts">
       <a class="pill-button" data-requires-role="view" href="/portal.html">Open Claims Portal</a>
-      <a class="pill-button" data-requires-role="create" href="/claim-entry.html">Jump to Claim Entry</a>
-      <a class="pill-button" data-requires-role="update" href="/edi-mapping.html">Launch HEDI Mapping</a>
+      <a class="pill-button" data-requires-role="submit" href="/claim-entry.html">Jump to Claim Entry</a>
+      <a class="pill-button" data-requires-role="submit" href="/edi-mapping.html">Launch HEDI Mapping</a>
     </div>
   </section>
 
@@ -107,20 +111,9 @@
           <span>Role</span>
           <select name="role" required data-user-role>
             <option value="view">view</option>
-            <option value="create">create</option>
-            <option value="update">update</option>
+            <option value="submit">submit</option>
             <option value="administrator">administrator</option>
           </select>
-        </label>
-      </div>
-      <div class="access-grid">
-        <label class="switch">
-          <input type="checkbox" name="allow_portal" checked data-user-portal>
-          <span>Claims Portal access</span>
-        </label>
-        <label class="switch">
-          <input type="checkbox" name="allow_admin" data-user-admin>
-          <span>Admin Console access</span>
         </label>
       </div>
       <div class="form-actions">
@@ -133,7 +126,7 @@
     <div class="table-scroll-x">
       <table class="admin-table" data-user-table>
         <thead>
-          <tr><th>User</th><th>Role</th><th>Access</th><th>Last updated</th><th></th></tr>
+          <tr><th>User</th><th>Role</th><th>Access level</th><th>Last updated</th><th></th></tr>
         </thead>
         <tbody data-user-body></tbody>
       </table>
@@ -143,7 +136,7 @@
       <img src="/img/trish-clipboard.svg" alt="Trish explaining roles">
       <div class="bubble">
         <strong>Portal permits:</strong>
-        Mix and match access—<em>view</em> for dashboards, <em>create</em> for submissions, and <em>admin</em> for full control.
+        Pick a level—<em>view</em> for dashboards, <em>submit</em> to upload and edit, and <em>admin</em> for full control.
       </div>
     </div>
   </section>

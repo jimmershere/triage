@@ -26,6 +26,7 @@
         <div class="nav-group portal-only">
           <span class="nav-group-label">Workspace tools</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
           <a class="nav-pill portal-link" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
         </div>
         <div class="nav-group">
@@ -73,8 +74,8 @@
         </div>
       </div>
       <label for="file" class="file-label">Select X12 file(s)</label>
-      <input type="file" id="file" name="file" multiple required data-requires-role="create">
-      <button type="submit" data-requires-role="create">Queue files</button>
+      <input type="file" id="file" name="file" multiple required data-requires-role="submit">
+      <button type="submit" data-requires-role="submit">Queue files</button>
     </form>
     <div id="result" class="status-panel" hidden></div>
 
