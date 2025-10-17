@@ -75,6 +75,8 @@ LDAP_TRADING_OU = os.getenv("HEDI_LDAP_TRADING_OU", "ou=trading-partners").strip
 LDAP_BIND_DN = os.getenv("HEDI_LDAP_BIND_DN", "").strip()
 LDAP_BIND_PASSWORD = os.getenv("HEDI_LDAP_BIND_PASSWORD", "").strip()
 LDAP_TIMEOUT = int(os.getenv("HEDI_LDAP_TIMEOUT", "10"))
+LDAP_ADMIN_DN = os.getenv("HEDI_LDAP_ADMIN_DN", "").strip()
+LDAP_ADMIN_USERNAME = os.getenv("HEDI_LDAP_ADMIN_USERNAME", BOOTSTRAP_ADMIN_USER).strip()
 DEFAULT_LDAP_BOOTSTRAP_HASH = "{SSHA}X7IBzbN9pqFRQwwPu37o7OppFD69OTUK"
 LDAP_BOOTSTRAP_PASSWORD_HASH = os.getenv(
     "HEDI_LDAP_BOOTSTRAP_PASSWORD_HASH", DEFAULT_LDAP_BOOTSTRAP_HASH
@@ -153,6 +155,8 @@ def get_ldap_manager() -> Optional[ldap_utils.LDAPManager]:
         bootstrap_username=LDAP_BOOTSTRAP_USERNAME or BOOTSTRAP_ADMIN_USER,
         bootstrap_password_hash=LDAP_BOOTSTRAP_PASSWORD_HASH or DEFAULT_LDAP_BOOTSTRAP_HASH,
         bootstrap_password_plain=LDAP_BOOTSTRAP_PASSWORD or None,
+        admin_dn=LDAP_ADMIN_DN or None,
+        admin_username=LDAP_ADMIN_USERNAME or None,
     )
     try:
         ldap_manager = ldap_utils.LDAPManager(
