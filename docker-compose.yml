@@ -146,9 +146,9 @@ services:
     volumes:
       - ldap_data:/var/lib/ldap
       - ldap_config:/etc/ldap/slapd.d
-      - ${LDAP_TLS_CERT_PATH:-./deploy/httpd/certs/server.crt}:/container/service/slapd/assets/certs/${LDAP_TLS_CRT_FILENAME:-ldap.crt}:ro
-      - ${LDAP_TLS_KEY_PATH:-./deploy/httpd/certs/server.key}:/container/service/slapd/assets/certs/${LDAP_TLS_KEY_FILENAME:-ldap.key}:ro
-      - ${LDAP_TLS_CA_PATH:-./deploy/httpd/certs/server.crt}:/container/service/slapd/assets/certs/${LDAP_TLS_CA_CRT_FILENAME:-ca.crt}:ro
+      - ${LDAP_TLS_CERT_PATH:-./deploy/httpd/certs/server.crt}:/container/service/slapd/assets/certs/${LDAP_TLS_CRT_FILENAME:-ldap.crt}:Z
+      - ${LDAP_TLS_KEY_PATH:-./deploy/httpd/certs/server.key}:/container/service/slapd/assets/certs/${LDAP_TLS_KEY_FILENAME:-ldap.key}:Z
+      - ${LDAP_TLS_CA_PATH:-./deploy/httpd/certs/server.crt}:/container/service/slapd/assets/certs/${LDAP_TLS_CA_CRT_FILENAME:-ca.crt}:Z
     healthcheck:
       test:
         - CMD-SHELL
