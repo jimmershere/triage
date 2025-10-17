@@ -693,12 +693,142 @@ footer {
   align-items: start;
 }
 
+.portal.portal-landing {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+
 .portal .search-card {
   grid-column: 1 / -1;
 }
 
 .portal .detail-card {
   grid-column: 1 / -1;
+}
+
+.portal-landing .claim-menu,
+.portal-landing .hero-card {
+  grid-column: 1 / -1;
+}
+
+.claim-type-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.08);
+}
+
+.claim-type-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--accent-strong);
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.claim-type-nav a[aria-current="page"] {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(79, 70, 229, 0.22);
+}
+
+.claim-type-nav a:hover {
+  transform: translateY(-1px);
+  background: rgba(79, 70, 229, 0.18);
+}
+
+.portal-landing .hero-card {
+  text-align: left;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(244, 114, 182, 0.12));
+  border: 1px solid rgba(79, 70, 229, 0.18);
+}
+
+.portal-landing .hero-card h1 {
+  font-size: clamp(2.1rem, 2.6vw + 1.6rem, 3rem);
+  margin-bottom: 0.6rem;
+}
+
+.portal-landing .hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.portal-landing .hero-actions .pill-button {
+  font-size: 1rem;
+}
+
+.pill-button.ghost {
+  background: transparent;
+  color: var(--accent-strong);
+  border: 1px solid rgba(79, 70, 229, 0.4);
+  box-shadow: none;
+}
+
+.pill-button.ghost:hover {
+  background: rgba(79, 70, 229, 0.1);
+  color: var(--accent-strong);
+}
+
+.portal-landing .claim-menu {
+  padding: 2rem;
+}
+
+.claim-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.4rem;
+  margin-top: 1.5rem;
+}
+
+.claim-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.4rem;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 39, 64, 0.08);
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 16px 36px rgba(15, 39, 64, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.claim-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 44px rgba(15, 39, 64, 0.12);
+  border-color: rgba(79, 70, 229, 0.3);
+}
+
+.claim-card h3 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.claim-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.claim-tag {
+  align-self: flex-start;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.14);
+  color: var(--accent-strong);
 }
 
 .upload-form .file-label {

@@ -3,64 +3,76 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
   <title>HEDI — Claims Portal</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
   <script src="/config.js"></script>
 </head>
 <body data-requires-auth="portal">
 <header class="site-header">
-  <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
-  <nav class="nav">
-    <a href="/portal.html" aria-current="page">Portal</a>
-    <a href="/edi-mapping.html">HEDI Mapping</a>
-    <a href="/claim-entry.html">Claim Entry</a>
-    <a href="/logout">Logout</a>
+  <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
+  <nav class="nav-cluster push-end">
+    <a class="nav-pill" data-tone="portal" href="/portal.html" aria-current="page">Portal Home</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/837.html">837 Claims</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/271.html">271 Responses</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/276.html">276 Status</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
+    <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+    <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
+    <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
   </nav>
 </header>
 
-<main class="container">
-  <div class="card">
-    <h2>Submit X12 Files</h2>
-    <p>Upload one or many X12 files for fast queueing and processing. Real-time status shown below.</p>
-    <form id="uploadForm" enctype="multipart/form-data" method="post">
-      <input type="file" id="file" name="file" multiple required data-requires-role="create">
-      <div style="margin-top:1rem;">
-        <button type="submit" data-requires-role="create">Submit Files</button>
-      </div>
-    </form>
-    <div id="result" class="card" style="margin-top:12px;display:none;"></div>
-
-    <div class="trish-callout">
-      <img src="/img/trish-badge.svg" alt="Trish cheering on uploads">
-      <div class="bubble">
-        <strong>Uploading tips:</strong>
-        Pick your .x12 files and I’ll attach job IDs so they’re easy to spot in the history table.
-      </div>
+<main class="container portal portal-landing">
+  <section class="card hero-card">
+    <div class="badge badge-loud">Welcome back</div>
+    <h1>Pick the HEDI workflow you need</h1>
+    <p>Launch into Medicare claim intake, eligibility checks, status inquiries, or remittance tracking. Every workspace inherits your portal permissions, role-based controls, and trading partner defaults.</p>
+    <div class="hero-actions">
+      <a class="pill-button" href="/portal/837.html">Go to 837 claims</a>
+      <a class="pill-button ghost" href="/processed.html">View processed files</a>
     </div>
-  </div>
+  </section>
 
-  <div class="card" style="margin-top:24px;">
-    <h3>Recent Activity</h3>
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr><th>File</th><th>Status</th><th>Queued</th></tr>
-        </thead>
-        <tbody id="activityRows">
-          <tr><td>example_837_01.txt</td><td>Queued</td><td>Just now</td></tr>
-        </tbody>
-      </table>
+  <section class="card claim-menu" aria-label="Claim type menu">
+    <h2>Claims &amp; EDI workspaces</h2>
+    <p class="muted">Choose a transaction set to upload files, track acknowledgements, and collaborate with HEDI.</p>
+    <div class="claim-grid">
+      <a class="claim-card" href="/portal/837.html">
+        <span class="claim-tag">837</span>
+        <h3>Professional &amp; Institutional Claims</h3>
+        <p>Upload HIPAA-compliant 837 files, monitor processing, and retrieve acknowledgements without leaving the portal.</p>
+      </a>
+      <a class="claim-card" href="/portal/835.html">
+        <span class="claim-tag">835</span>
+        <h3>Remittance Advice</h3>
+        <p>Review remittance deliveries, reconcile payments, and export ERA data directly to your downstream systems.</p>
+      </a>
+      <a class="claim-card" href="/portal/270.html">
+        <span class="claim-tag">270</span>
+        <h3>Eligibility &amp; Benefit Inquiry</h3>
+        <p>Submit 270 requests in bulk or individually, then track payer responses from the paired 271 workspace.</p>
+      </a>
+      <a class="claim-card" href="/portal/271.html">
+        <span class="claim-tag">271</span>
+        <h3>Eligibility Response</h3>
+        <p>Inspect payer responses, download structured payloads, and hand off results to intake or customer service teams.</p>
+      </a>
+      <a class="claim-card" href="/portal/276.html">
+        <span class="claim-tag">276</span>
+        <h3>Claim Status Inquiry</h3>
+        <p>Generate and monitor 276 inquiries, receive 277 responses, and pivot into follow-up tasks with HEDI.</p>
+      </a>
+      <a class="claim-card" href="/portal/837d.html">
+        <span class="claim-tag">837D</span>
+        <h3>Dental Claims</h3>
+        <p>Stage and validate 837D submissions, route them through HEDI’s dental-specific edits, and capture acknowledgements.</p>
+      </a>
     </div>
-
-    <div class="trish-callout trish-callout--right">
-      <img src="/img/trish-clipboard.svg" alt="Trish pointing to history">
-      <div class="bubble">
-        <strong>Quick view:</strong>
-        Click into Processed Files from the main portal to pull acknowledgements and original uploads.
-      </div>
-    </div>
-  </div>
+  </section>
 </main>
 
 <script src="/static/js/support_config.js"></script>
@@ -68,20 +80,5 @@
 <script src="/static/js/authz.js"></script>
 <script src="/static/js/login-modal.js"></script>
 <script src="/static/js/chatbot.js"></script>
-<script>
-const INGEST_URL = window.HEDI_INGEST_URL || "/ingest";
-
-document.getElementById("uploadForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const files = document.getElementById("file").files;
-  if (!files.length) return;
-  const form = new FormData();
-  form.append("file", files[0]); // first only for now
-  const res = await fetch(INGEST_URL, { method: "POST", body: form });
-  const box = document.getElementById("result");
-  box.style.display = "block";
-  box.textContent = res.ok ? "File queued successfully." : ("Failed: " + await res.text());
-});
-</script>
 </body>
 </html>

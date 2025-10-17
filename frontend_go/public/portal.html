@@ -12,7 +12,13 @@
 <header class="site-header">
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
-    <a class="nav-pill" data-tone="portal" href="/portal.html" aria-current="page">Claims Portal</a>
+    <a class="nav-pill" data-tone="portal" href="/portal.html" aria-current="page">Portal Home</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/837.html">837 Claims</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/271.html">271 Responses</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/276.html">276 Status</a>
+    <a class="nav-pill" data-tone="portal" href="/portal/837d.html">837D Dental</a>
     <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
     <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
@@ -20,76 +26,52 @@
   </nav>
 </header>
 
-<main class="container portal">
-  <section class="card upload-card">
-    <div class="badge badge-loud">Upload &amp; Track</div>
-    <h2>Submit Medicare X12 files</h2>
-    <p>Drop in individual or bulk files. HEDI stores every upload, routes work to Python 3.12 workers, and captures the translated acknowledgements for on-demand download.</p>
-    <form id="uploadForm" enctype="multipart/form-data" method="post" class="upload-form">
-      <div class="row">
-        <div>
-          <label for="uploadedBy">Login ID</label>
-          <input type="text" id="uploadedBy" name="uploaded_by" placeholder="your.login" required>
-        </div>
-        <div>
-          <label for="partnerId">Trading Partner ID</label>
-          <input type="text" id="partnerId" name="trading_partner_id" placeholder="TP123456"/>
-        </div>
-      </div>
-      <label for="file" class="file-label">Select X12 file(s)</label>
-      <input type="file" id="file" name="file" multiple required data-requires-role="create">
-      <button type="submit" data-requires-role="create">Queue files</button>
-    </form>
-    <div id="result" class="status-panel" hidden></div>
-
-    <div class="trish-callout">
-      <img src="/img/trish-badge.svg" alt="Trish giving upload tips">
-      <div class="bubble">
-        <strong>Need a hand picking files?</strong>
-        Queue as many .x12 files as you like. I’ll tag each with a job ID so you can spot them in the search table below.
-      </div>
+<main class="container portal portal-landing">
+  <section class="card hero-card">
+    <div class="badge badge-loud">Welcome back</div>
+    <h1>Pick the HEDI workflow you need</h1>
+    <p>Launch into Medicare claim intake, eligibility checks, status inquiries, or remittance tracking. Every workspace inherits your portal permissions, role-based controls, and trading partner defaults.</p>
+    <div class="hero-actions">
+      <a class="pill-button" href="/portal/837.html">Go to 837 claims</a>
+      <a class="pill-button ghost" href="/processed.html">View processed files</a>
     </div>
   </section>
 
-  <section class="card search-card">
-    <h3>Find your submissions</h3>
-    <p>Look up queued or completed jobs by login ID, trading partner, or both. Results include original file downloads and generated acknowledgement content.</p>
-    <form id="searchForm" class="search-form">
-      <div class="row">
-        <div>
-          <label for="searchUploadedBy">Login ID</label>
-          <input type="text" id="searchUploadedBy" placeholder="your.login" required>
-        </div>
-        <div>
-          <label for="searchPartnerId">Trading Partner ID</label>
-          <input type="text" id="searchPartnerId" placeholder="TP123456">
-        </div>
-      </div>
-      <button type="submit">Search jobs</button>
-    </form>
-    <div class="table-wrapper">
-      <table class="jobs-table">
-        <thead>
-          <tr><th>Job</th><th>File</th><th>Status</th><th>Created</th><th>Outputs</th><th></th></tr>
-        </thead>
-        <tbody id="jobsBody">
-          <tr><td colspan="6" class="muted">No jobs yet — run a search to load history.</td></tr>
-        </tbody>
-      </table>
+  <section class="card claim-menu" aria-label="Claim type menu">
+    <h2>Claims &amp; EDI workspaces</h2>
+    <p class="muted">Choose a transaction set to upload files, track acknowledgements, and collaborate with HEDI.</p>
+    <div class="claim-grid">
+      <a class="claim-card" href="/portal/837.html">
+        <span class="claim-tag">837</span>
+        <h3>Professional &amp; Institutional Claims</h3>
+        <p>Upload HIPAA-compliant 837 files, monitor processing, and retrieve acknowledgements without leaving the portal.</p>
+      </a>
+      <a class="claim-card" href="/portal/835.html">
+        <span class="claim-tag">835</span>
+        <h3>Remittance Advice</h3>
+        <p>Review remittance deliveries, reconcile payments, and export ERA data directly to your downstream systems.</p>
+      </a>
+      <a class="claim-card" href="/portal/270.html">
+        <span class="claim-tag">270</span>
+        <h3>Eligibility &amp; Benefit Inquiry</h3>
+        <p>Submit 270 requests in bulk or individually, then track payer responses from the paired 271 workspace.</p>
+      </a>
+      <a class="claim-card" href="/portal/271.html">
+        <span class="claim-tag">271</span>
+        <h3>Eligibility Response</h3>
+        <p>Inspect payer responses, download structured payloads, and hand off results to intake or customer service teams.</p>
+      </a>
+      <a class="claim-card" href="/portal/276.html">
+        <span class="claim-tag">276</span>
+        <h3>Claim Status Inquiry</h3>
+        <p>Generate and monitor 276 inquiries, receive 277 responses, and pivot into follow-up tasks with HEDI.</p>
+      </a>
+      <a class="claim-card" href="/portal/837d.html">
+        <span class="claim-tag">837D</span>
+        <h3>Dental Claims</h3>
+        <p>Stage and validate 837D submissions, route them through HEDI’s dental-specific edits, and capture acknowledgements.</p>
+      </a>
     </div>
-
-    <div class="trish-callout trish-callout--right">
-      <img src="/img/trish-clipboard.svg" alt="Trish pointing to results">
-      <div class="bubble">
-        <strong>Tip:</strong>
-        Click any row to jump into Processed Files. I’ll carry your login and partner filters with you and open the outputs.
-      </div>
-    </div>
-  </section>
-
-  <section class="card detail-card" id="detailCard" hidden>
-    <h3>Job details</h3>
-    <div id="detailContent" class="detail-content"></div>
   </section>
 </main>
 
@@ -98,248 +80,5 @@
 <script src="/static/js/authz.js"></script>
 <script src="/static/js/login-modal.js"></script>
 <script src="/static/js/chatbot.js"></script>
-<script>
-const API_BASE = window.HEDI_API_BASE || "";
-const INGEST_URL = window.HEDI_INGEST_URL || (API_BASE ? `${API_BASE}/ingest` : "/ingest");
-const JOBS_URL = window.HEDI_JOBS_URL || (API_BASE ? `${API_BASE}/jobs` : "/jobs");
-const JOBS_DOWNLOAD_BASE = JOBS_URL.replace(/\/$/, "");
-
-const uploadForm = document.getElementById("uploadForm");
-const uploadResult = document.getElementById("result");
-const fileInput = document.getElementById("file");
-const uploadedByInput = document.getElementById("uploadedBy");
-const partnerInput = document.getElementById("partnerId");
-const jobsBody = document.getElementById("jobsBody");
-const searchForm = document.getElementById("searchForm");
-const searchUploadedInput = document.getElementById("searchUploadedBy");
-const searchPartnerInput = document.getElementById("searchPartnerId");
-const detailCard = document.getElementById("detailCard");
-const detailContent = document.getElementById("detailContent");
-
-function formatBytes(size) {
-  if (size === undefined || size === null) return "";
-  if (size === 0) return "0 bytes";
-  const units = ["bytes", "KB", "MB", "GB"];
-  const power = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
-  const value = size / Math.pow(1024, power);
-  return `${value.toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
-}
-
-function sendToLogin() {
-  const next = encodeURIComponent(window.location.pathname);
-  window.location.href = `/login?next=${next}`;
-}
-
-function redirectIfUnauthorized(res) {
-  if (res.status === 401 || res.status === 403) {
-    sendToLogin();
-    return true;
-  }
-  return false;
-}
-
-function showStatus(message, tone = "info") {
-  uploadResult.hidden = false;
-  uploadResult.textContent = message;
-  uploadResult.dataset.tone = tone;
-}
-
-function renderJobs(jobs) {
-  jobsBody.innerHTML = "";
-  if (!jobs.length) {
-    jobsBody.innerHTML = '<tr><td colspan="6" class="muted">No jobs match your filters yet.</td></tr>';
-    return;
-  }
-
-  for (const job of jobs) {
-    const tr = document.createElement("tr");
-    tr.dataset.jobId = job.job_id;
-    if (job.uploaded_by) {
-      tr.dataset.uploadedBy = job.uploaded_by;
-    }
-    if (job.trading_partner_id) {
-      tr.dataset.partnerId = job.trading_partner_id;
-    }
-    const created = job.created_at ? new Date(job.created_at).toLocaleString() : "";
-    tr.innerHTML = `
-      <td><code>${job.job_id}</code></td>
-      <td>${job.filename}</td>
-      <td><span class="status status-${job.status}">${job.status}</span></td>
-      <td>${created}</td>
-      <td>${job.ack_count ?? 0}</td>
-      <td class="actions">
-        <button class="ghost" data-detail="${job.job_id}">Details</button>
-        <a class="ghost" href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/download" target="_blank" rel="noopener">Download</a>
-      </td>`;
-    jobsBody.appendChild(tr);
-  }
-}
-
-async function fetchJobs(uploadedBy, partnerId, silent = false) {
-  const params = new URLSearchParams();
-  if (uploadedBy) params.set("uploaded_by", uploadedBy);
-  if (partnerId) params.set("trading_partner_id", partnerId);
-  try {
-    const res = await fetch(`${JOBS_URL}?${params.toString()}`);
-    if (redirectIfUnauthorized(res)) {
-      return;
-    }
-    if (!res.ok) {
-      const msg = await res.text();
-      if (!silent) showStatus(`Search failed: ${msg}`, "error");
-      return;
-    }
-    const data = await res.json();
-    renderJobs(data);
-  } catch (err) {
-    console.error(err);
-    if (!silent) showStatus("Unable to load jobs — please try again.", "error");
-  }
-}
-
-async function fetchDetail(jobId) {
-  try {
-    const res = await fetch(`${JOBS_URL}/${jobId}`);
-    if (redirectIfUnauthorized(res)) {
-      return;
-    }
-    if (!res.ok) {
-      detailCard.hidden = false;
-      detailContent.textContent = `Unable to load job ${jobId}: ${await res.text()}`;
-      return;
-    }
-    const job = await res.json();
-    detailCard.hidden = false;
-    detailContent.innerHTML = `
-      <div class="detail-grid">
-        <div><strong>Job ID:</strong> <code>${job.job_id}</code></div>
-        <div><strong>File name:</strong> ${job.filename}</div>
-        <div><strong>Status:</strong> ${job.status}</div>
-        <div><strong>Uploaded by:</strong> ${job.uploaded_by || "—"}</div>
-        <div><strong>Trading partner:</strong> ${job.trading_partner_id || "—"}</div>
-        <div><strong>Created:</strong> ${job.created_at ? new Date(job.created_at).toLocaleString() : "—"}</div>
-        <div><strong>Processed:</strong> ${job.processed_at ? new Date(job.processed_at).toLocaleString() : "—"}</div>
-        <div><strong>Claims detected:</strong> ${job.claims_count ?? "—"}</div>
-        <div><strong>Order lines:</strong> ${job.order_lines_count ?? "—"}</div>
-        <div><strong>Output files:</strong> ${job.ack_count ?? 0}</div>
-      </div>
-      <div class="ack-block">
-        <h4>Acknowledgements</h4>
-        ${job.ack_count ? `<div class="ack-actions"><a class="ghost" href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/acks.zip" target="_blank" rel="noopener">Download all</a></div>` : ""}
-        ${job.acknowledgements && job.acknowledgements.length ? job.acknowledgements.map(ack => `
-          <article>
-            <header>
-              <span class="badge">${ack.ack_type}</span>
-              <span class="timestamp">${ack.created_at ? new Date(ack.created_at).toLocaleString() : ""}</span>
-              <a class="ghost" href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/acks/${ack.id}/download" target="_blank" rel="noopener">Download</a>
-            </header>
-            <p class="meta">${formatBytes(ack.size_bytes) || ""}</p>
-            <pre>${ack.content}</pre>
-          </article>
-        `).join("") : '<p class="muted">No acknowledgements generated yet.</p>'}
-      </div>`;
-  } catch (err) {
-    console.error(err);
-    detailCard.hidden = false;
-    detailContent.textContent = "Unexpected error loading job details.";
-  }
-}
-
-function goToProcessed(row) {
-  if (!row) return;
-  const jobId = row.dataset.jobId;
-  const uploadedBy = row.dataset.uploadedBy || uploadedByInput.value.trim() || searchUploadedInput.value.trim();
-  const partnerId = row.dataset.partnerId || partnerInput.value.trim() || searchPartnerInput.value.trim();
-  const url = new URL("/processed.html", window.location.origin);
-  if (uploadedBy) {
-    url.searchParams.set("uploaded_by", uploadedBy);
-  }
-  if (partnerId) {
-    url.searchParams.set("trading_partner_id", partnerId);
-  }
-  if (jobId) {
-    url.searchParams.set("job_id", jobId);
-  }
-  row.classList.add("navigated");
-  window.location.href = url.toString();
-}
-
-uploadForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const files = Array.from(fileInput.files || []);
-  if (!files.length) {
-    showStatus("Please choose at least one X12 file.", "warn");
-    return;
-  }
-  const uploadedBy = uploadedByInput.value.trim();
-  if (!uploadedBy) {
-    showStatus("Login ID is required to submit files.", "warn");
-    return;
-  }
-  const partnerId = partnerInput.value.trim();
-
-  showStatus(`Queuing ${files.length} file(s)…`, "info");
-
-  const outcomes = [];
-  for (const file of files) {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("uploaded_by", uploadedBy);
-    if (partnerId) form.append("trading_partner_id", partnerId);
-    try {
-      const res = await fetch(INGEST_URL, { method: "POST", body: form });
-      if (redirectIfUnauthorized(res)) {
-        return;
-      }
-      if (!res.ok) {
-        outcomes.push(`${file.name}: ${await res.text()}`);
-        continue;
-      }
-      const info = await res.json();
-      outcomes.push(`${file.name}: queued as ${info.job_id}`);
-    } catch (err) {
-      console.error(err);
-      outcomes.push(`${file.name}: network error`);
-    }
-  }
-
-  showStatus(outcomes.join("\n"), "info");
-  fileInput.value = "";
-  if (!searchUploadedInput.value) {
-    searchUploadedInput.value = uploadedBy;
-  }
-  if (partnerId && !searchPartnerInput.value) {
-    searchPartnerInput.value = partnerId;
-  }
-  fetchJobs(uploadedBy, partnerId, true);
-});
-
-searchForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const uploadedBy = searchUploadedInput.value.trim();
-  const partnerId = searchPartnerInput.value.trim();
-  if (!uploadedBy && !partnerId) {
-    showStatus("Enter at least a login ID to search.", "warn");
-    return;
-  }
-  fetchJobs(uploadedBy, partnerId);
-});
-
-jobsBody.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-detail]");
-  if (btn) {
-    const jobId = btn.getAttribute("data-detail");
-    fetchDetail(jobId);
-    e.stopPropagation();
-    return;
-  }
-  if (e.target.closest("a") || e.target.closest("button")) {
-    return;
-  }
-  const row = e.target.closest("tr[data-job-id]");
-  if (!row) return;
-  goToProcessed(row);
-});
-</script>
 </body>
 </html>
