@@ -15,7 +15,7 @@ This bundle drops into `turbohedi-0.2/` and adds:
    psql "$HEDI_PG_DSN" -f db/hedi_x12_addons.sql
    psql "$HEDI_PG_DSN" -f db/hedi_partner_profiles.sql
    ```
-4. Ensure env var `HEDI_PG_DSN` points at your DB (defaults to `postgresql://hedi:hedi@localhost:5432/hedi`).
+4. Ensure env var `HEDI_PG_DSN` points at your DB (defaults to `postgresql://edi:edi@localhost:5432/edi`).
 
 ## Queues expected
 

@@ -23,7 +23,7 @@ LIMIT 1
 """
 
 def load_profile(partner_key: str):
-    dsn = os.getenv("HEDI_PG_DSN","postgresql://hedi:hedi@localhost:5432/hedi")
+    dsn = os.getenv("HEDI_PG_DSN", "postgresql://edi:edi@localhost:5432/edi")
     with psycopg.connect(dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(PROFILE_SQL, (partner_key,))

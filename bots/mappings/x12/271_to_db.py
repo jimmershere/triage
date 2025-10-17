@@ -4,7 +4,9 @@ from bots.botslib import *
 import os, psycopg
 
 def main(inn, out):
-    with psycopg.connect(os.getenv("HEDI_PG_DSN","postgresql://hedi:hedi@localhost:5432/hedi"), autocommit=False) as conn:
+    with psycopg.connect(
+        os.getenv("HEDI_PG_DSN", "postgresql://edi:edi@localhost:5432/edi"), autocommit=False
+    ) as conn:
         with conn.cursor() as cur:
             stc = inn.get({'BOTSID':'ST','Control':None})
             for hl in inn.getloop({'BOTSID':'ST'},{'BOTSID':'HL'}):
