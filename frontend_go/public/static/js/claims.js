@@ -25,8 +25,14 @@ function formatBytes(size) {
 }
 
 function sendToLogin() {
-  const next = encodeURIComponent(window.location.pathname);
-  window.location.href = `/login?next=${next}`;
+  const next = `${window.location.pathname}${window.location.search || ""}`;
+  if (typeof window.hediLoginURL === "function") {
+    window.location.href = window.hediLoginURL(next);
+    return;
+  }
+  const base = (typeof window.HEDI_OAUTH2_START === "string" && window.HEDI_OAUTH2_START.trim()) || "/oauth2/start";
+  const separator = base.includes("?") ? "&" : "?";
+  window.location.href = `${base}${separator}rd=${encodeURIComponent(next || "/")}`;
 }
 
 function redirectIfUnauthorized(res) {

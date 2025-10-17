@@ -39,57 +39,53 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <a class="nav-pill requires-guest" data-tone="portal" href="/login?next=/portal.html" data-login-trigger data-login-next="/portal.html">Login</a>
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/portal.html" data-login-trigger data-login-next="/portal.html">Login</a>
         <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
       </div>
     </aside>
     <div class="app-main">
       <main class="container">
-  <div class="card" style="max-width:420px;margin:40px auto;">
-    <h2 style="text-align:center;">Sign in to HEDI</h2>
-    <form method="post" action="/auth/login">
-      <input type="hidden" name="next" value="{{NEXT}}">
-      <label>Username</label>
-      <input name="username" type="text" required>
-      <label style="margin-top:.6rem;">Password</label>
-      <input name="password" type="password" required>
-      <div style="margin-top:1rem;display:flex;gap:.6rem;align-items:center;">
-        <button type="submit">Sign in</button>
-        <a href="/" style="color:var(--muted);">Cancel</a>
-      </div>
-    </form>
-    <script>
-      // put current ?next= into hidden input so redirects land correctly
-      const params = new URLSearchParams(location.search);
-      const nxt = params.get('next') || '/portal.html';
-      document.querySelector('input[name="next"]').value = nxt;
-      const loginForm = document.querySelector('form[action="/auth/login"]');
-      if (loginForm) {
-        loginForm.addEventListener('submit', () => {
-          const username = loginForm.username.value.trim();
-          if (username) {
-            try {
-              localStorage.setItem('hediActiveUser', username);
-              sessionStorage.setItem('hediActiveUser', username);
-            } catch (err) {
-              console.warn('Unable to persist active user', err);
-            }
-          }
-        });
-      }
-    </script>
-    <p style="margin-top:.8rem;color:var(--muted);font-size:.92rem;">
-      Using PostgreSQL-backed authentication.<br>
-      Set LDAP/AD env to enable enterprise directory login.
-    </p>
+  <div class="card" style="max-width:460px;margin:40px auto;">
+    <h2 style="text-align:center;">Sign in with single sign-on</h2>
+    <p>HEDI now uses Keycloak and oauth2-proxy for authentication. Continue to your organization&rsquo;s login screen to access the claims portal.</p>
+    <a id="hediSsoLink" class="pill-button" data-tone="portal" href="/oauth2/start">Continue to secure login</a>
+    <p style="margin-top:.8rem;color:var(--muted);font-size:.92rem;">We&rsquo;ll redirect you automatically if the button doesn&rsquo;t load fast enough.</p>
     <div class="trish-callout">
       <img src="/img/trish-clipboard.svg" alt="Trish sharing login tips">
       <div class="bubble">
-        <strong>Forgot the route?</strong>
-        Use the same login you submit claims with. After sign-in I’ll drop you on the Claims Portal and keep your filters handy.
+        <strong>Need access?</strong>
+        Ask an administrator to add you to the correct Keycloak group: hedi-view for browsing, hedi-submit for uploads, or hedi-admin for full control.
       </div>
     </div>
   </div>
+  <script>
+    (function () {
+      const link = document.getElementById('hediSsoLink');
+      const params = new URLSearchParams(window.location.search);
+      const nextRaw = params.get('next') || '/portal.html';
+      const sanitize = (value) => {
+        if (typeof value !== 'string' || !value.trim()) return '/portal.html';
+        const trimmed = value.trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return '/portal.html';
+        if (!trimmed.startsWith('/')) return `/${trimmed.replace(/^\/+/, '')}`;
+        if (trimmed.startsWith('//')) return '/portal.html';
+        return trimmed;
+      };
+      const nextPath = sanitize(nextRaw);
+      const fallback = () => {
+        const base = (typeof window.HEDI_OAUTH2_START === 'string' && window.HEDI_OAUTH2_START.trim()) || '/oauth2/start';
+        const separator = base.includes('?') ? '&' : '?';
+        return `${base}${separator}rd=${encodeURIComponent(nextPath)}`;
+      };
+      const target = typeof window.hediLoginURL === 'function' ? window.hediLoginURL(nextPath) : fallback();
+      if (link) {
+        link.href = target;
+      }
+      window.setTimeout(() => {
+        window.location.href = target;
+      }, 300);
+    })();
+  </script>
 </main>
     </div>
   </div>

@@ -40,7 +40,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <a class="nav-pill requires-guest" data-tone="portal" href="/login?next=/processed.html" data-login-trigger data-login-next="/processed.html">Login</a>
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/processed.html" data-login-trigger data-login-next="/processed.html">Login</a>
         <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
       </div>
     </aside>
@@ -126,8 +126,14 @@ function formatBytes(size) {
 }
 
 function sendToLogin() {
-  const next = encodeURIComponent(window.location.pathname);
-  window.location.href = `/login?next=${next}`;
+  const next = `${window.location.pathname}${window.location.search || ""}`;
+  if (typeof window.hediLoginURL === "function") {
+    window.location.href = window.hediLoginURL(next);
+    return;
+  }
+  const base = (typeof window.HEDI_OAUTH2_START === "string" && window.HEDI_OAUTH2_START.trim()) || "/oauth2/start";
+  const separator = base.includes("?") ? "&" : "?";
+  window.location.href = `${base}${separator}rd=${encodeURIComponent(next || "/")}`;
 }
 
 function redirectIfUnauthorized(res) {
