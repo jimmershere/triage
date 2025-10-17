@@ -59,14 +59,14 @@ class FakeCursor:
                 self.rowcount = 0
             else:
                 needs_update = (
-                    (row.get("role", "").strip().lower() != "admin")
+                    (row.get("role", "").strip().lower() != "administrator")
                     or (not bool(row.get("allow_portal")))
                     or (not bool(row.get("allow_admin")))
                     or row.get("updated_at") is None
                 )
                 self.rowcount = 1 if needs_update else 0
                 if needs_update:
-                    row["role"] = "admin"
+                    row["role"] = "administrator"
                     row["allow_portal"] = True
                     row["allow_admin"] = True
                     row["updated_at"] = "now"
@@ -115,7 +115,7 @@ def test_ensure_app_users_adds_missing_columns_and_bootstrap_admin() -> None:
     assert any("ALTER TABLE app_users ADD COLUMN allow_admin" in stmt for stmt in statements)
     assert any("ALTER TABLE app_users ADD COLUMN created_at" in stmt for stmt in statements)
     assert any("ALTER TABLE app_users ADD COLUMN updated_at" in stmt for stmt in statements)
-    assert any("INSERT INTO app_users" in stmt and "VALUES (%s, %s, 'admin', TRUE, TRUE)" in stmt for stmt in statements)
+    assert any("INSERT INTO app_users" in stmt and "VALUES (%s, %s, 'administrator', TRUE, TRUE)" in stmt for stmt in statements)
     assert conn.commits >= 2
 
 
@@ -149,6 +149,6 @@ def test_ensure_bootstrap_admin_upgrades_existing_user() -> None:
     statements = _normalize_statements(conn)
     assert any(stmt.startswith("UPDATE app_users") for stmt in statements)
     assert conn.commits >= 1
-    assert conn.bootstrap_admin_row["role"] == "admin"
+    assert conn.bootstrap_admin_row["role"] == "administrator"
     assert conn.bootstrap_admin_row["allow_portal"] is True
     assert conn.bootstrap_admin_row["allow_admin"] is True

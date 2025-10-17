@@ -1,7 +1,17 @@
 (function () {
   const TICKET_KEY = "hediSupportTickets";
   const PROVIDER_KEY = "hediAuthProviders";
-  const ROLE_ORDER = ["view", "update", "create", "admin"];
+  const ADMIN_ROLE = "administrator";
+  const ROLE_ORDER = ["view", "create", "update", ADMIN_ROLE];
+  const ROLE_ALIASES = {
+    admin: ADMIN_ROLE,
+    administrator: ADMIN_ROLE,
+  };
+  function normalizeRole(role) {
+    if (!role) return ROLE_ORDER[0];
+    const cleaned = String(role).trim().toLowerCase();
+    return ROLE_ALIASES[cleaned] || (ROLE_ORDER.includes(cleaned) ? cleaned : ROLE_ORDER[0]);
+  }
   const resolvePath =
     typeof window.hediResolve === "function" ? window.hediResolve : (path) => path;
   const ADMIN_ENDPOINTS = [
@@ -216,7 +226,7 @@
     editingUser = user.username;
     form.username.value = user.username;
     form.username.setAttribute("disabled", "disabled");
-    form.role.value = user.role;
+    form.role.value = normalizeRole(user.role);
     if (form.allow_portal) form.allow_portal.checked = Boolean(user.allow_portal);
     if (form.allow_admin) form.allow_admin.checked = Boolean(user.allow_admin);
     form.password.value = "";
@@ -230,7 +240,7 @@
   function describeAccess(user) {
     const bits = [];
     if (user.allow_portal) bits.push("Portal");
-    if (user.allow_admin) bits.push("Admin");
+    if (user.allow_admin) bits.push("Administrator");
     if (!bits.length) bits.push("None");
     return bits.join(", ");
   }
@@ -249,25 +259,34 @@
       }
       if (emptyState) emptyState.hidden = true;
       users.forEach((user) => {
+        const normalizedRole = normalizeRole(user.role);
+        const adminAccess = Boolean(user.allow_admin) || normalizedRole === ADMIN_ROLE;
+        const portalAccess = Boolean(user.allow_portal) || adminAccess;
+        const profile = {
+          ...user,
+          role: normalizedRole,
+          allow_admin: adminAccess,
+          allow_portal: portalAccess,
+        };
         const row = document.createElement("tr");
-        row.dataset.username = user.username;
+        row.dataset.username = profile.username;
 
         const nameCell = document.createElement("td");
         const code = document.createElement("code");
-        code.textContent = user.username;
+        code.textContent = profile.username;
         nameCell.appendChild(code);
         row.appendChild(nameCell);
 
         const roleCell = document.createElement("td");
-        roleCell.textContent = user.role;
+        roleCell.textContent = profile.role;
         row.appendChild(roleCell);
 
         const accessCell = document.createElement("td");
-        accessCell.textContent = describeAccess(user);
+        accessCell.textContent = describeAccess(profile);
         row.appendChild(accessCell);
 
         const updatedCell = document.createElement("td");
-        updatedCell.textContent = formatTimestamp(user.updated_at);
+        updatedCell.textContent = formatTimestamp(profile.updated_at);
         row.appendChild(updatedCell);
 
         const actionsCell = document.createElement("td");
@@ -275,14 +294,14 @@
         const editBtn = document.createElement("button");
         editBtn.type = "button";
         editBtn.className = "ghost";
-        editBtn.dataset.userEdit = user.username;
+        editBtn.dataset.userEdit = profile.username;
         editBtn.textContent = "Edit";
         actionsCell.appendChild(editBtn);
 
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "ghost danger";
-        deleteBtn.dataset.userDelete = user.username;
+        deleteBtn.dataset.userDelete = profile.username;
         deleteBtn.textContent = "Delete";
         actionsCell.appendChild(deleteBtn);
 
@@ -319,7 +338,7 @@
     event.preventDefault();
     if (!form) return;
     const username = form.username.value.trim();
-    const role = form.role.value;
+    const role = normalizeRole(form.role.value);
     const allowPortal = form.allow_portal ? form.allow_portal.checked : false;
     const allowAdmin = form.allow_admin ? form.allow_admin.checked : false;
     const password = form.password.value;
@@ -390,10 +409,10 @@
       const username = target.getAttribute("data-user-edit");
       const row = target.closest("tr");
       if (!row) return;
-      const role = row.children[1]?.textContent || "view";
+      const role = normalizeRole(row.children[1]?.textContent || "view");
       const access = (row.children[2]?.textContent || "").toLowerCase();
       const allowPortal = access.includes("portal");
-      const allowAdmin = access.includes("admin");
+      const allowAdmin = access.includes("admin") || access.includes("administrator");
       fillForm({ username, role, allow_portal: allowPortal, allow_admin: allowAdmin });
       setStatus(`Editing ${username}`, "info");
     } else if (target.matches("[data-user-delete]")) {

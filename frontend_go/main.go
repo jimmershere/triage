@@ -268,7 +268,7 @@ func handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid username", http.StatusBadRequest)
 			return
 		}
-		payload.Role = strings.ToLower(strings.TrimSpace(payload.Role))
+		payload.Role = normalizeRole(payload.Role)
 		if !isValidRole(payload.Role) {
 			http.Error(w, "invalid role", http.StatusBadRequest)
 			return
@@ -317,7 +317,7 @@ func handleAdminUserDetail(w http.ResponseWriter, r *http.Request, suffix string
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		payload.Role = strings.ToLower(strings.TrimSpace(payload.Role))
+		payload.Role = normalizeRole(payload.Role)
 		if !isValidRole(payload.Role) {
 			http.Error(w, "invalid role", http.StatusBadRequest)
 			return
@@ -435,9 +435,23 @@ func isSafeUsername(v string) bool {
 	return true
 }
 
+func normalizeRole(role string) string {
+	cleaned := strings.ToLower(strings.TrimSpace(role))
+	switch cleaned {
+	case "administrator", "admin":
+		return "administrator"
+	case "create":
+		return "create"
+	case "update":
+		return "update"
+	default:
+		return "view"
+	}
+}
+
 func isValidRole(role string) bool {
 	switch strings.ToLower(strings.TrimSpace(role)) {
-	case "view", "update", "create", "admin":
+	case "view", "update", "create", "admin", "administrator":
 		return true
 	default:
 		return false
@@ -561,6 +575,10 @@ func fetchUserProfile(ctx context.Context, username string) (*userProfile, error
 	if resp.User == nil {
 		return nil, nil
 	}
+	resp.User.Role = normalizeRole(resp.User.Role)
+	if resp.User.AllowAdmin {
+		resp.User.Role = "administrator"
+	}
 	return resp.User, nil
 }
 
@@ -578,6 +596,10 @@ func authenticateUser(ctx context.Context, username, password string) (*userProf
 	}
 	if !resp.OK || resp.User == nil {
 		return nil, errors.New("authentication failed")
+	}
+	resp.User.Role = normalizeRole(resp.User.Role)
+	if resp.User.AllowAdmin {
+		resp.User.Role = "administrator"
 	}
 	return resp.User, nil
 }
@@ -606,20 +628,20 @@ func classifyPath(p string) accessLevel {
 	if strings.HasPrefix(p+"/", "/admin/") {
 		return accessAdmin
 	}
-        portalExact := map[string]bool{
-                "/portal":           true,
-                "/portal.html":      true,
-                "/processed":        true,
-                "/processed.html":   true,
-                "/claim-entry":      true,
-                "/claim-entry.html": true,
-                "/edi-mapping":      true,
-                "/edi-mapping.html": true,
-                "/about":            true,
-                "/about.html":       true,
-                "/edi-news":         true,
-                "/edi-news.html":    true,
-        }
+	portalExact := map[string]bool{
+		"/portal":           true,
+		"/portal.html":      true,
+		"/processed":        true,
+		"/processed.html":   true,
+		"/claim-entry":      true,
+		"/claim-entry.html": true,
+		"/edi-mapping":      true,
+		"/edi-mapping.html": true,
+		"/about":            true,
+		"/about.html":       true,
+		"/edi-news":         true,
+		"/edi-news.html":    true,
+	}
 	if portalExact[p] {
 		return accessPortal
 	}
@@ -636,7 +658,7 @@ func isAdminUser(user *userProfile) bool {
 	if user == nil {
 		return false
 	}
-	return user.AllowAdmin && strings.EqualFold(user.Role, "admin")
+	return user.AllowAdmin && (strings.EqualFold(user.Role, "administrator") || strings.EqualFold(user.Role, "admin"))
 }
 
 func userCanAccess(user *userProfile, path string) bool {
