@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
+  <title>HEDI — EDI in the News</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+  <script src="/config.js"></script>
+</head>
+<body data-requires-auth="portal">
+<header class="site-header">
+  <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
+  <nav class="nav-cluster push-end">
+    <details class="nav-dropdown">
+      <summary class="nav-pill nav-pill--trigger" data-tone="portal">Portal Home</summary>
+      <div class="dropdown-panel">
+        <a class="dropdown-link" href="/portal.html">Portal overview</a>
+        <a class="dropdown-link" href="/portal/837.html">837 Claims</a>
+        <a class="dropdown-link" href="/portal/835.html">835 Remittance</a>
+        <a class="dropdown-link" href="/portal/270.html">270 Eligibility</a>
+        <a class="dropdown-link" href="/portal/271.html">271 Responses</a>
+        <a class="dropdown-link" href="/portal/276.html">276 Status</a>
+        <a class="dropdown-link" href="/portal/837d.html">837D Dental</a>
+      </div>
+    </details>
+    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
+    <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+    <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
+    <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
+    <a class="nav-pill" data-tone="news" href="/edi-news.html" aria-current="page">EDI in the News</a>
+    <a class="nav-pill" data-tone="admin" href="/admin.html">Admin</a>
+    <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
+  </nav>
+</header>
+
+<main class="container news-page">
+  <section class="card" style="margin-bottom:24px;">
+    <div class="badge badge-loud">Industry intel</div>
+    <h1>What&apos;s happening across EDI and healthcare data</h1>
+    <p>Keep your team current with the latest movements in CMS contracting, interoperability modernization, and the open-source tools that power HEDI.</p>
+  </section>
+
+  <section class="card" style="margin-bottom:24px;">
+    <h2>CMS contracting &amp; policy watch</h2>
+    <ul>
+      <li>CMS Innovation Center expanded its <strong>Value-Based Insurance Design</strong> model, emphasizing faster 837 and 835 exchanges to prove outcomes.</li>
+      <li>Medicare Administrative Contractors are piloting <strong>FHIR-based prior authorization</strong> updates that will flow alongside 278 and 275 transactions.</li>
+      <li>Unified Program Integrity Contractors continue to request <strong>real-time 277CA visibility</strong> to tighten fraud analytics.</li>
+    </ul>
+  </section>
+
+  <section class="card" style="margin-bottom:24px;">
+    <h2>EDI transformation highlights</h2>
+    <ul>
+      <li>Large clearinghouses are co-publishing <strong>JSON mirrors of X12 payloads</strong>, making cross-team debugging easier.</li>
+      <li>State Medicaid agencies are leaning on <strong>cloud-native RabbitMQ clusters</strong> to balance 270/271 inquiry volumes.</li>
+      <li>ANSI X12 released guidance for <strong>hybrid batch + API acknowledgements</strong>, paving the way for asynchronous retries.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Tech stack shout-outs</h2>
+    <div class="row" style="gap:1.5rem;align-items:flex-start;">
+      <div style="flex:1;min-width:220px;">
+        <h3>PostgreSQL</h3>
+        <p>PG 16&apos;s logical replication tuning lets us broadcast claim events to analytics sandboxes without slowing transactional workloads.</p>
+      </div>
+      <div style="flex:1;min-width:220px;">
+        <h3>RabbitMQ</h3>
+        <p>Streams mode adoption is soaring—ideal for replaying acknowledgement traffic whenever payers resubmit delayed files.</p>
+      </div>
+      <div style="flex:1;min-width:220px;">
+        <h3>Linux Mint</h3>
+        <p>Our analysts love Mint 22 for its stability and hardware acceleration; every workstation ships with HEDI CLI shortcuts.</p>
+      </div>
+    </div>
+    <div class="row" style="gap:1.5rem;align-items:flex-start;margin-top:1.5rem;">
+      <div style="flex:1;min-width:220px;">
+        <h3>Golang</h3>
+        <p>Go 1.22&apos;s profile-guided optimizations shrink our file ingestion latency, keeping the portal responsive during peaks.</p>
+      </div>
+      <div style="flex:1;min-width:220px;">
+        <h3>Python</h3>
+        <p>Python 3.12 powers the translation workers with faster pattern matching—perfect for segment validation in pyx12 forks.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/static/js/support_config.js"></script>
+<script src="/static/js/auth_config.js"></script>
+<script src="/static/js/authz.js"></script>
+<script src="/static/js/login-modal.js"></script>
+<script src="/static/js/chatbot.js"></script>
+</body>
+</html>

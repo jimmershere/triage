@@ -12,16 +12,24 @@
 <header class="site-header">
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
-    <a class="nav-pill" data-tone="portal" href="/portal.html">Portal Home</a>
-    <a class="nav-pill" data-tone="portal" href="/portal/837.html" aria-current="page">837 Claims</a>
-    <a class="nav-pill" data-tone="portal" href="/portal/835.html">835 Remittance</a>
-    <a class="nav-pill" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
-    <a class="nav-pill" data-tone="portal" href="/portal/271.html">271 Responses</a>
-    <a class="nav-pill" data-tone="portal" href="/portal/276.html">276 Status</a>
-    <a class="nav-pill" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+    <details class="nav-dropdown">
+      <summary class="nav-pill nav-pill--trigger" data-tone="portal">Portal Home</summary>
+      <div class="dropdown-panel">
+        <a class="dropdown-link" href="/portal.html">Portal overview</a>
+        <a class="dropdown-link" href="/portal/837.html" aria-current="page">837 Claims</a>
+        <a class="dropdown-link" href="/portal/835.html">835 Remittance</a>
+        <a class="dropdown-link" href="/portal/270.html">270 Eligibility</a>
+        <a class="dropdown-link" href="/portal/271.html">271 Responses</a>
+        <a class="dropdown-link" href="/portal/276.html">276 Status</a>
+        <a class="dropdown-link" href="/portal/837d.html">837D Dental</a>
+      </div>
+    </details>
     <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
     <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
+    <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
+    <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+    <a class="nav-pill" data-tone="admin" href="/admin.html">Admin</a>
     <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
   </nav>
 </header>
@@ -36,9 +44,13 @@
     <a href="/portal/837d.html">837D Dental</a>
   </nav>
   <section class="card upload-card">
+    <figure class="card-photo">
+      <img src="https://images.unsplash.com/photo-1580281657521-63a70b203833?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Patient reviewing claim paperwork with a medical coordinator">
+      <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/Tmkwl3Fnnb4" target="_blank" rel="noreferrer">National Cancer Institute</a> on Unsplash</figcaption>
+    </figure>
     <div class="badge badge-loud">Upload &amp; Track</div>
-    <h2>Submit Medicare X12 files</h2>
-    <p>Drop in individual or bulk files. HEDI stores every upload, routes work to Python 3.12 workers, and captures the translated acknowledgements for on-demand download.</p>
+    <h2>Submit 837 claim files</h2>
+    <p>Drop in institutional or professional batches from your clearinghouse. HEDI stores every upload, routes work to Python 3.12 workers, and captures the translated acknowledgements for on-demand download.</p>
     <form id="uploadForm" enctype="multipart/form-data" method="post" class="upload-form">
       <div class="row">
         <div>

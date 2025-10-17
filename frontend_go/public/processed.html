@@ -12,16 +12,34 @@
 <header class="site-header">
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
-    <a class="nav-pill" data-tone="portal" href="/portal.html">Claims Portal</a>
+    <details class="nav-dropdown">
+      <summary class="nav-pill nav-pill--trigger" data-tone="portal">Portal Home</summary>
+      <div class="dropdown-panel">
+        <a class="dropdown-link" href="/portal.html">Portal overview</a>
+        <a class="dropdown-link" href="/portal/837.html">837 Claims</a>
+        <a class="dropdown-link" href="/portal/835.html">835 Remittance</a>
+        <a class="dropdown-link" href="/portal/270.html">270 Eligibility</a>
+        <a class="dropdown-link" href="/portal/271.html">271 Responses</a>
+        <a class="dropdown-link" href="/portal/276.html">276 Status</a>
+        <a class="dropdown-link" href="/portal/837d.html">837D Dental</a>
+      </div>
+    </details>
     <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
     <a class="nav-pill" data-tone="processed" href="/processed.html" aria-current="page">Processed Files</a>
+    <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
+    <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+    <a class="nav-pill" data-tone="admin" href="/admin.html">Admin</a>
     <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
   </nav>
 </header>
 
 <main class="container processed">
   <section class="card processed-card">
+    <figure class="card-photo">
+      <img src="https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Operations analyst reviewing processed EDI files">
+      <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/7okkFhxrxNw" target="_blank" rel="noreferrer">Campaign Creators</a> on Unsplash</figcaption>
+    </figure>
     <div class="badge badge-loud">Outputs Archive</div>
     <h2>Review processed submissions</h2>
     <p>Search by login ID and optional trading partner to review completed jobs, see generated acknowledgement files, and download them individually or as a bundle.</p>

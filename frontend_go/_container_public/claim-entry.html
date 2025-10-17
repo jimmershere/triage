@@ -10,19 +10,40 @@
 <body data-requires-auth="portal">
 <header class="site-header">
   <a href="/" class="brand"><img src="/img/hedi-logo.png" width="32" height="32" alt="HEDI"><span>HEDI</span></a>
-  <nav class="nav">
-    <a href="/portal.html">Portal</a>
-    <a href="/edi-mapping.html">HEDI Mapping</a>
-    <a href="/claim-entry.html" aria-current="page">Claim Entry</a>
-    <a href="/logout">Logout</a>
+  <nav class="nav-cluster push-end">
+    <details class="nav-dropdown">
+      <summary class="nav-pill nav-pill--trigger" data-tone="portal">Portal Home</summary>
+      <div class="dropdown-panel">
+        <a class="dropdown-link" href="/portal.html">Portal overview</a>
+        <a class="dropdown-link" href="/portal/837.html">837 Claims</a>
+        <a class="dropdown-link" href="/portal/835.html">835 Remittance</a>
+        <a class="dropdown-link" href="/portal/270.html">270 Eligibility</a>
+        <a class="dropdown-link" href="/portal/271.html">271 Responses</a>
+        <a class="dropdown-link" href="/portal/276.html">276 Status</a>
+        <a class="dropdown-link" href="/portal/837d.html">837D Dental</a>
+      </div>
+    </details>
+    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
+    <a class="nav-pill" data-tone="entry" href="/claim-entry.html" aria-current="page">Claim Entry</a>
+    <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
+    <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
+    <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+    <a class="nav-pill" data-tone="admin" href="/admin.html">Admin</a>
+    <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
   </nav>
 </header>
 
 <main class="container">
   <div class="card claim-entry-card">
     <header class="claim-card-header">
-      <h2>Claim Entry (837 Professional)</h2>
-      <p>Trace every loop of an 837P by filling in the XML-styled grid. The palette tracks required elements so production submissions pass pyx12 validation the first time.</p>
+      <div class="claim-card-copy">
+        <h2>Claim Entry (837 Professional)</h2>
+        <p>Trace every loop of an 837P by filling in the XML-styled grid. The palette tracks required elements so production submissions pass pyx12 validation the first time.</p>
+      </div>
+      <figure class="inline-photo">
+        <img src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&amp;fit=crop&amp;w=600&amp;q=80" alt="Analyst capturing claim details on a tablet">
+        <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/Im7lZjxeLhg" target="_blank" rel="noreferrer">National Cancer Institute</a> on Unsplash</figcaption>
+      </figure>
     </header>
 
     <div class="claim-copy-row">

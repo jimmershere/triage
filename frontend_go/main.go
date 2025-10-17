@@ -606,16 +606,20 @@ func classifyPath(p string) accessLevel {
 	if strings.HasPrefix(p+"/", "/admin/") {
 		return accessAdmin
 	}
-	portalExact := map[string]bool{
-		"/portal":           true,
-		"/portal.html":      true,
-		"/processed":        true,
-		"/processed.html":   true,
-		"/claim-entry":      true,
-		"/claim-entry.html": true,
-		"/edi-mapping":      true,
-		"/edi-mapping.html": true,
-	}
+        portalExact := map[string]bool{
+                "/portal":           true,
+                "/portal.html":      true,
+                "/processed":        true,
+                "/processed.html":   true,
+                "/claim-entry":      true,
+                "/claim-entry.html": true,
+                "/edi-mapping":      true,
+                "/edi-mapping.html": true,
+                "/about":            true,
+                "/about.html":       true,
+                "/edi-news":         true,
+                "/edi-news.html":    true,
+        }
 	if portalExact[p] {
 		return accessPortal
 	}
