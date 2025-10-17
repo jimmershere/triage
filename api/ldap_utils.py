@@ -8,7 +8,7 @@ import os
 import re
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterable, Iterator, List, Optional
+from typing import Iterable, Iterator, List, Optional, Tuple
 
 try:  # pragma: no cover - optional dependency for production deployments
     from ldap3 import BASE, SUBTREE, Connection, MODIFY_REPLACE, Server
@@ -50,6 +50,27 @@ def escape_rdn(value: str) -> str:
     return escaped
 
 
+def _parse_component(component: str, default_attr: str = "ou") -> Tuple[str, str]:
+    """Return the attribute and value for a DN component.
+
+    Parameters
+    ----------
+    component:
+        A component such as ``"ou=users"`` or simply ``"users"``.
+    default_attr:
+        Attribute name to assume when none is provided.
+    """
+
+    raw = (component or "").strip()
+    if not raw:
+        return "", ""
+    if "=" in raw:
+        attr, value = raw.split("=", 1)
+    else:
+        attr, value = default_attr, raw
+    return attr.strip(), value.strip()
+
+
 @dataclass
 class LDAPConfig:
     uri: str
@@ -88,13 +109,34 @@ class LDAPManager:
         self.administrator_role = administrator_role.lower()
         if self.administrator_role not in self.role_hierarchy:
             raise ValueError("administrator role must be in hierarchy")
-        self.root_dn = f"{config.root_cn},{config.base_dn}" if config.root_cn else config.base_dn
-        self.users_dn = f"{config.users_ou},{self.root_dn}" if config.users_ou else self.root_dn
-        self.roles_dn = f"{config.roles_ou},{self.root_dn}" if config.roles_ou else self.root_dn
-        self.trading_dn = (
-            f"{config.trading_partners_ou},{self.root_dn}" if config.trading_partners_ou else self.root_dn
+        self.base_dn = (config.base_dn or "").strip()
+        self.root_attribute, self.root_value, self.root_dn = self._normalize_container(
+            config.root_cn or "ou=HEDI",
+            parent=self.base_dn,
+            fallback_value="HEDI",
+            default_attr="ou",
         )
-        self.bootstrap_dn = f"uid={escape_rdn(config.bootstrap_username)},{self.users_dn}"
+        self.users_attribute, self.users_value, self.users_dn = self._normalize_container(
+            config.users_ou or "ou=users",
+            parent=self.root_dn,
+            fallback_value="users",
+            default_attr="ou",
+        )
+        self.roles_attribute, self.roles_value, self.roles_dn = self._normalize_container(
+            config.roles_ou or "ou=roles",
+            parent=self.root_dn,
+            fallback_value="roles",
+            default_attr="ou",
+        )
+        self.trading_attribute, self.trading_value, self.trading_dn = self._normalize_container(
+            config.trading_partners_ou or "ou=trading-partners",
+            parent=self.root_dn,
+            fallback_value="trading-partners",
+            default_attr="ou",
+        )
+        bootstrap_username = (config.bootstrap_username or "").strip() or "admin"
+        self.bootstrap_username = bootstrap_username
+        self.bootstrap_dn = f"uid={escape_rdn(bootstrap_username)},{self.users_dn}"
         admin_dn = (config.admin_dn or "").strip()
         self.admin_dn = admin_dn or None
         self._admin_dn_lower = admin_dn.lower() if admin_dn else None
@@ -129,6 +171,32 @@ class LDAPManager:
         cleaned = role.strip().lower()
         resolved = self.role_aliases.get(cleaned, cleaned)
         return resolved if resolved in self.role_hierarchy else self.role_hierarchy[0]
+
+    def _normalize_container(
+        self,
+        component: str,
+        *,
+        parent: Optional[str],
+        fallback_value: str,
+        default_attr: str = "ou",
+    ) -> Tuple[str, str, str]:
+        attr, value = _parse_component(component, default_attr=default_attr)
+        if not value:
+            value = fallback_value
+        if not attr:
+            attr = default_attr
+        if attr.lower() != default_attr.lower():
+            LOGGER.warning(
+                "Normalizing LDAP component %s to %s=%s for hierarchical compatibility",
+                component or "<missing>",
+                default_attr,
+                value,
+            )
+            attr = default_attr
+        normalized = f"{attr}={escape_rdn(value)}"
+        parent_dn = (parent or "").strip()
+        dn = f"{normalized},{parent_dn}" if parent_dn else normalized
+        return attr, value, dn
 
     def _role_groups(self, role: str) -> List[str]:
         normalized = self._normalize_role(role)
@@ -189,16 +257,26 @@ class LDAPManager:
             self._ensure_entry(
                 conn,
                 self.root_dn,
-                ["top", "organizationalRole"],
-                {"cn": [self.config.root_cn.replace("cn=", "")] if self.config.root_cn else ["HEDI"]},
+                ["top", "organizationalUnit"],
+                {self.root_attribute: [self.root_value]},
             )
-            self._ensure_entry(conn, self.users_dn, ["top", "organizationalUnit"], {"ou": ["users"]})
-            self._ensure_entry(conn, self.roles_dn, ["top", "organizationalUnit"], {"ou": ["roles"]})
+            self._ensure_entry(
+                conn,
+                self.users_dn,
+                ["top", "organizationalUnit"],
+                {self.users_attribute: [self.users_value]},
+            )
+            self._ensure_entry(
+                conn,
+                self.roles_dn,
+                ["top", "organizationalUnit"],
+                {self.roles_attribute: [self.roles_value]},
+            )
             self._ensure_entry(
                 conn,
                 self.trading_dn,
                 ["top", "organizationalUnit"],
-                {"ou": ["trading-partners"]},
+                {self.trading_attribute: [self.trading_value]},
             )
             self._ensure_admin_user(conn, password_hash)
             self._ensure_role_groups(conn)
@@ -207,7 +285,7 @@ class LDAPManager:
 
     def _ensure_admin_user(self, conn: Connection, password_hash: str) -> None:
         attributes = {
-            "uid": [self.config.bootstrap_username],
+            "uid": [self.bootstrap_username],
             "cn": ["Bootstrap Administrator"],
             "sn": ["Administrator"],
             "givenName": ["Bootstrap"],
@@ -354,8 +432,6 @@ class LDAPManager:
                     memberships.append(role)
         if memberships:
             return memberships[-1]
-        if len(self.role_hierarchy) > 1:
-            return self.role_hierarchy[1]
         return self.role_hierarchy[0]
 
     def list_users(self) -> List[dict]:

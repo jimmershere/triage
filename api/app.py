@@ -68,7 +68,7 @@ LDAP_ENABLED = os.getenv("HEDI_LDAP_ENABLED", "false").strip().lower() in {
 }
 LDAP_URI = os.getenv("HEDI_LDAP_URI", "ldap://ldap:389").strip()
 LDAP_BASE_DN = os.getenv("HEDI_LDAP_BASE_DN", "dc=example,dc=com").strip()
-LDAP_ROOT_CN = os.getenv("HEDI_LDAP_ROOT_CN", "cn=HEDI").strip()
+LDAP_ROOT_CN = os.getenv("HEDI_LDAP_ROOT_CN", "ou=HEDI").strip()
 LDAP_USERS_OU = os.getenv("HEDI_LDAP_USERS_OU", "ou=users").strip()
 LDAP_ROLES_OU = os.getenv("HEDI_LDAP_ROLES_OU", "ou=roles").strip()
 LDAP_TRADING_OU = os.getenv("HEDI_LDAP_TRADING_OU", "ou=trading-partners").strip()
