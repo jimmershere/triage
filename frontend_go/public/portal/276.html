@@ -9,32 +9,43 @@
   <script src="/config.js"></script>
 </head>
 <body data-requires-auth="portal">
-<header class="site-header">
-  <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
-  <nav class="nav-cluster push-end">
-    <details class="nav-dropdown">
-      <summary class="nav-pill nav-pill--trigger" data-tone="portal">Portal Home</summary>
-      <div class="dropdown-panel">
-        <a class="dropdown-link" href="/portal.html">Portal overview</a>
-        <a class="dropdown-link" href="/portal/837.html">837 Claims</a>
-        <a class="dropdown-link" href="/portal/835.html">835 Remittance</a>
-        <a class="dropdown-link" href="/portal/270.html">270 Eligibility</a>
-        <a class="dropdown-link" href="/portal/271.html">271 Responses</a>
-        <a class="dropdown-link" href="/portal/276.html" aria-current="page">276 Status</a>
-        <a class="dropdown-link" href="/portal/837d.html">837D Dental</a>
+  <div class="app-shell">
+    <aside class="site-sidebar">
+      <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Claims Portal</span>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/271.html">271 Responses</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/276.html" aria-current="page">276 Status</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Workspace tools</span>
+          <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Resources</span>
+          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+        </div>
+        <div class="nav-group admin-only">
+          <span class="nav-group-label">Administration</span>
+          <a class="nav-pill admin-link" data-tone="admin" href="/admin.html">Admin</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="nav-pill requires-guest" data-tone="portal" href="/login?next=/portal/276.html" data-login-trigger data-login-next="/portal/276.html">Login</a>
+        <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
       </div>
-    </details>
-    <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
-    <a class="nav-pill" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
-    <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
-    <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
-    <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
-    <a class="nav-pill" data-tone="admin" href="/admin.html">Admin</a>
-    <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
-  </nav>
-</header>
-
-<main class="container portal">
+    </aside>
+    <div class="app-main">
+      <main class="container portal">
   <nav class="claim-type-nav" aria-label="Claim type navigation">
     <a href="/portal/837.html">837 Claims</a>
     <a href="/portal/835.html">835 Remittance</a>
@@ -132,6 +143,8 @@
     <div id="detailContent" class="detail-content"></div>
   </section>
 </main>
+    </div>
+  </div>
 
 <script src="/static/js/support_config.js"></script>
 <script src="/static/js/auth_config.js"></script>
