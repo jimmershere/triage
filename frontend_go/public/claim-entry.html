@@ -11,9 +11,24 @@
 <header class="site-header">
   <a href="/" class="brand"><img src="/img/favicon.png" width="40" height="40" alt="HEDI mascot"><span>HEDI</span></a>
   <nav class="nav-cluster push-end">
-    <a class="nav-pill" data-tone="portal" href="/portal.html">Claims Portal</a>
+    <details class="nav-dropdown">
+      <summary class="nav-pill nav-pill--trigger" data-tone="portal">Portal Home</summary>
+      <div class="dropdown-panel">
+        <a class="dropdown-link" href="/portal.html">Portal overview</a>
+        <a class="dropdown-link" href="/portal/837.html">837 Claims</a>
+        <a class="dropdown-link" href="/portal/835.html">835 Remittance</a>
+        <a class="dropdown-link" href="/portal/270.html">270 Eligibility</a>
+        <a class="dropdown-link" href="/portal/271.html">271 Responses</a>
+        <a class="dropdown-link" href="/portal/276.html">276 Status</a>
+        <a class="dropdown-link" href="/portal/837d.html">837D Dental</a>
+      </div>
+    </details>
     <a class="nav-pill" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
     <a class="nav-pill" data-tone="entry" href="/claim-entry.html" aria-current="page">Claim Entry</a>
+    <a class="nav-pill" data-tone="processed" href="/processed.html">Processed Files</a>
+    <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
+    <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+    <a class="nav-pill" data-tone="admin" href="/admin.html">Admin</a>
     <a class="nav-pill" data-tone="logout" href="/logout">Logout</a>
   </nav>
 </header>
@@ -21,8 +36,14 @@
 <main class="container">
   <div class="card claim-entry-card">
     <header class="claim-card-header">
-      <h2>Claim Entry (837 Professional)</h2>
-      <p>Build a valid 837P transaction by filling in the XML-inspired grid. Every required loop is laid out in order so you can see the structure as you type.</p>
+      <div class="claim-card-copy">
+        <h2>Claim Entry (837 Professional)</h2>
+        <p>Build a valid 837P transaction by filling in the XML-inspired grid. Every required loop is laid out in order so you can see the structure as you type.</p>
+      </div>
+      <figure class="inline-photo">
+        <img src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&amp;fit=crop&amp;w=600&amp;q=80" alt="Analyst capturing claim details on a tablet">
+        <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/Im7lZjxeLhg" target="_blank" rel="noreferrer">National Cancer Institute</a> on Unsplash</figcaption>
+      </figure>
     </header>
 
     <div class="claim-copy-row">
