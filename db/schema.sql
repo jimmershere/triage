@@ -70,3 +70,66 @@ CREATE TABLE IF NOT EXISTS app_users (
 );
 
 CREATE INDEX IF NOT EXISTS app_users_role_idx ON app_users (role);
+
+CREATE TABLE IF NOT EXISTS era_835_header (
+    st_control TEXT PRIMARY KEY,
+    bpr_method TEXT,
+    bpr_amount NUMERIC,
+    trn_trace TEXT,
+    payer_name TEXT,
+    payer_id TEXT,
+    payee_name TEXT,
+    payee_id TEXT,
+    chk_date DATE
+);
+
+CREATE TABLE IF NOT EXISTS era_835_clp (
+    st_control TEXT,
+    claim_id TEXT,
+    status TEXT,
+    total_charge NUMERIC,
+    paid NUMERIC,
+    patient_resp NUMERIC,
+    payer_ctrl TEXT,
+    facility TEXT,
+    claim_freq TEXT
+);
+
+CREATE TABLE IF NOT EXISTS era_835_cas (
+    st_control TEXT,
+    claim_id TEXT,
+    adj_group TEXT,
+    adj_reason TEXT,
+    amount NUMERIC,
+    quantity INT
+);
+
+CREATE TABLE IF NOT EXISTS era_835_plb (
+    st_control TEXT,
+    provider_id TEXT,
+    fiscal_date DATE,
+    adj_qual TEXT,
+    ref_id TEXT,
+    amount NUMERIC
+);
+
+CREATE TABLE IF NOT EXISTS eligibility_271 (
+    st_control TEXT,
+    subscriber_id TEXT,
+    payer_id TEXT,
+    eb_code TEXT,
+    service_type TEXT,
+    coverage_plan TEXT,
+    network TEXT,
+    description TEXT
+);
+
+CREATE TABLE IF NOT EXISTS claim_status_277 (
+    st_control TEXT,
+    subscriber_id TEXT,
+    payer_claim_ctrl TEXT,
+    status_info TEXT,
+    status_date DATE,
+    amount NUMERIC,
+    quantity INT
+);

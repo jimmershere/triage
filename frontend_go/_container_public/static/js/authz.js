@@ -13,15 +13,23 @@
   }
 
   const PATH_PREFIX = (() => {
-    if (typeof window.HEDI_PATH_PREFIX === "string") {
-      return normalizePrefix(window.HEDI_PATH_PREFIX);
-    }
+    const fallback =
+      typeof window.HEDI_PATH_PREFIX === "string"
+        ? normalizePrefix(window.HEDI_PATH_PREFIX)
+        : "";
     const path = window.location.pathname || "";
-    const match = path.match(/^(.*)\/[A-Za-z0-9._-]+\.html?$/);
-    if (!match || !match[1]) {
-      return "";
+    if (!path) {
+      return fallback;
     }
-    return normalizePrefix(match[1]);
+    const idx = path.lastIndexOf("/");
+    if (idx <= 0) {
+      return fallback;
+    }
+    const derived = normalizePrefix(path.slice(0, idx));
+    if (derived) {
+      return derived;
+    }
+    return fallback;
   })();
 
   window.HEDI_PATH_PREFIX = PATH_PREFIX;
