@@ -124,9 +124,12 @@ def verify_password(password: str, encoded: str) -> bool:
 def row_to_user(row) -> Optional[dict]:
     if not row:
         return None
+    role = (row.get("role") or "").strip().lower()
+    if role not in {"view", "update", "create", "admin"}:
+        role = "view"
     return {
         "username": row.get("username"),
-        "role": row.get("role"),
+        "role": role,
         "allow_portal": row.get("allow_portal", False),
         "allow_admin": row.get("allow_admin", False),
         "created_at": row.get("created_at"),
@@ -279,7 +282,8 @@ def ensure_bootstrap_admin(conn) -> None:
         if record:
             updates = []
             params: list[object] = []
-            if (record.get("role") or "").lower() != "admin":
+            current_role = (record.get("role") or "").strip()
+            if current_role != "admin":
                 updates.append("role = %s")
                 params.append("admin")
             if not record.get("allow_portal", False):
