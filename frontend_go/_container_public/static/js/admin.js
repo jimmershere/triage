@@ -2,7 +2,12 @@
   const TICKET_KEY = "hediSupportTickets";
   const PROVIDER_KEY = "hediAuthProviders";
   const ROLE_ORDER = ["view", "update", "create", "admin"];
-  const ADMIN_ENDPOINTS = ["/admin/api/users", "/admin/users"];
+  const resolvePath =
+    typeof window.hediResolve === "function" ? window.hediResolve : (path) => path;
+  const ADMIN_ENDPOINTS = [
+    resolvePath("/admin/api/users"),
+    resolvePath("/admin/users"),
+  ];
 
   function loadFromStorage(key, fallback) {
     try {
