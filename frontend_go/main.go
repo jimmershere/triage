@@ -3,10 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -20,15 +16,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"hedi/frontend_go/rbac"
 )
 
 var (
 	publicDir = env("PUBLIC_DIR", "/app/public") // bind-mounted in the container
-	// session settings
-	cookieName    = "hedi_session"
-	sessionTTL    = 24 * time.Hour
-	sessionSecret = []byte(env("HEDI_SESSION_SECRET", "dev-secret-change-me"))
-	secureCookies = envBool("HEDI_SECURE_COOKIES", false)
 
 	rawAPIBase     = strings.TrimRight(env("HEDI_API_BASE", ""), "/")
 	backendAPIBase string
@@ -47,21 +40,6 @@ func init() {
 	}
 	mime.AddExtensionType(".svg", "image/svg+xml")
 	mime.AddExtensionType(".webp", "image/webp")
-}
-
-func envBool(key string, def bool) bool {
-	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	if v == "" {
-		return def
-	}
-	switch v {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return def
-	}
 }
 
 // ---------- small helpers ----------
@@ -88,80 +66,6 @@ func isProtectedPath(p string) bool {
 func serveFile(w http.ResponseWriter, r *http.Request, rel string) {
 	full := filepath.Join(publicDir, filepath.Clean(rel))
 	http.ServeFile(w, r, full)
-}
-
-// ---------- sessions (HMAC-signed cookie) ----------
-
-func makeSignature(payload string) string {
-	m := hmac.New(sha256.New, sessionSecret)
-	m.Write([]byte(payload))
-	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
-}
-
-func setSessionCookie(w http.ResponseWriter, user string) {
-	ts := time.Now().UTC().Format(time.RFC3339)
-	payload := user + "|" + ts
-	sig := makeSignature(payload)
-	val := base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + sig
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    val,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secureCookies,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   int(sessionTTL.Seconds()),
-	})
-}
-
-func clearSessionCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secureCookies,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   -1,
-	})
-}
-
-func sessionUser(r *http.Request) (string, error) {
-	c, err := r.Cookie(cookieName)
-	if err != nil || c.Value == "" {
-		return "", errors.New("missing session")
-	}
-	parts := strings.SplitN(c.Value, ".", 2)
-	if len(parts) != 2 {
-		return "", errors.New("malformed session")
-	}
-	rawPayload, err := base64.RawURLEncoding.DecodeString(parts[0])
-	if err != nil {
-		return "", fmt.Errorf("invalid payload: %w", err)
-	}
-	payload := string(rawPayload)
-	want := makeSignature(payload)
-	if subtle.ConstantTimeCompare([]byte(parts[1]), []byte(want)) != 1 {
-		return "", errors.New("signature mismatch")
-	}
-	ps := strings.SplitN(payload, "|", 2)
-	if len(ps) != 2 {
-		return "", errors.New("bad payload structure")
-	}
-	t, err := time.Parse(time.RFC3339, ps[1])
-	if err != nil {
-		return "", fmt.Errorf("invalid timestamp: %w", err)
-	}
-	if time.Since(t) > sessionTTL {
-		return "", errors.New("session expired")
-	}
-	return ps[0], nil
-}
-
-func isValidSession(r *http.Request) bool {
-	_, err := sessionUser(r)
-	return err == nil
 }
 
 // ---------- handlers ----------
@@ -192,18 +96,8 @@ func staticHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func meHandler(w http.ResponseWriter, r *http.Request) {
-	username, err := sessionUser(r)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	profile, err := fetchUserProfile(r.Context(), username)
-	if err != nil {
-		http.Error(w, "failed to load profile", http.StatusInternalServerError)
-		return
-	}
+	profile := profileFromRequest(r)
 	if profile == nil {
-		clearSessionCookie(w)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -455,15 +349,33 @@ type userProfile struct {
 	AllowAdmin  bool   `json:"allow_admin"`
 }
 
-type loginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type loginResponse struct {
-	OK   bool         `json:"ok"`
-	User *userProfile `json:"user"`
-	Err  string       `json:"error,omitempty"`
+func profileFromRequest(r *http.Request) *userProfile {
+	id := rbac.IdentityFromRequest(r)
+	switch {
+	case id.IsAdmin():
+		return &userProfile{
+			Username:    strings.TrimSpace(id.Username),
+			Role:        "administrator",
+			AllowPortal: true,
+			AllowAdmin:  true,
+		}
+	case id.IsSubmitter():
+		return &userProfile{
+			Username:    strings.TrimSpace(id.Username),
+			Role:        "submit",
+			AllowPortal: true,
+			AllowAdmin:  false,
+		}
+	case id.IsViewer():
+		return &userProfile{
+			Username:    strings.TrimSpace(id.Username),
+			Role:        "view",
+			AllowPortal: true,
+			AllowAdmin:  false,
+		}
+	default:
+		return nil
+	}
 }
 
 type userEnvelope struct {
@@ -542,52 +454,6 @@ func callBackend(ctx context.Context, method, path string, payload interface{}, 
 		}
 	}
 	return resp.StatusCode, nil
-}
-
-func fetchUserProfile(ctx context.Context, username string) (*userProfile, error) {
-	if username == "" {
-		return nil, errors.New("empty username")
-	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	var resp userEnvelope
-	status, err := callBackend(ctx, http.MethodGet, "/auth/users/"+url.PathEscape(username), nil, &resp)
-	if err != nil {
-		if status == http.StatusNotFound {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if resp.User == nil {
-		return nil, nil
-	}
-	resp.User.Role = normalizeRole(resp.User.Role)
-	if resp.User.AllowAdmin {
-		resp.User.Role = "administrator"
-	}
-	return resp.User, nil
-}
-
-func authenticateUser(ctx context.Context, username, password string) (*userProfile, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	payload := loginRequest{Username: username, Password: password}
-	var resp loginResponse
-	status, err := callBackend(ctx, http.MethodPost, "/auth/login", payload, &resp)
-	if err != nil {
-		if status == http.StatusUnauthorized {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if !resp.OK || resp.User == nil {
-		return nil, errors.New("authentication failed")
-	}
-	resp.User.Role = normalizeRole(resp.User.Role)
-	if resp.User.AllowAdmin {
-		resp.User.Role = "administrator"
-	}
-	return resp.User, nil
 }
 
 type accessLevel int
@@ -670,20 +536,9 @@ func defaultDestination(user *userProfile) string {
 }
 
 func requireAuth(w http.ResponseWriter, r *http.Request) (*userProfile, bool) {
-	username, err := sessionUser(r)
-	if err != nil {
-		clearSessionCookie(w)
-		http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.Path), http.StatusFound)
-		return nil, false
-	}
-	profile, err := fetchUserProfile(r.Context(), username)
-	if err != nil {
-		http.Error(w, "failed to load user profile", http.StatusInternalServerError)
-		return nil, false
-	}
+	profile := profileFromRequest(r)
 	if profile == nil {
-		clearSessionCookie(w)
-		http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.Path), http.StatusFound)
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return nil, false
 	}
 	if !userCanAccess(profile, r.URL.Path) {
@@ -693,36 +548,15 @@ func requireAuth(w http.ResponseWriter, r *http.Request) (*userProfile, bool) {
 	return profile, true
 }
 
-func loginPostHandler(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
-		return
-	}
-	user := strings.TrimSpace(r.FormValue("username"))
-	pass := r.FormValue("password")
-	nextRaw := r.FormValue("next")
-	profile, err := authenticateUser(r.Context(), user, pass)
-	if err != nil {
-		http.Error(w, "authentication backend error", http.StatusBadGateway)
-		return
-	}
-	if profile == nil {
-		time.Sleep(300 * time.Millisecond)
-		sanitized := sanitizeNext(nextRaw, nil)
-		http.Redirect(w, r, "/login?err=1&next="+url.QueryEscape(sanitized), http.StatusFound)
-		return
-	}
-	setSessionCookie(w, profile.Username)
-	target := sanitizeNext(nextRaw, profile)
-	if !userCanAccess(profile, target) {
-		target = defaultDestination(profile)
-	}
-	http.Redirect(w, r, target, http.StatusFound)
-}
-
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	clearSessionCookie(w)
-	http.Redirect(w, r, "/", http.StatusFound)
+	target := r.URL.Query().Get("next")
+	if target == "" {
+		target = "/"
+	}
+	if strings.Contains(target, "://") {
+		target = "/"
+	}
+	http.Redirect(w, r, "/oauth2/sign_out?rd="+url.QueryEscape(target), http.StatusFound)
 }
 
 func healthz(w http.ResponseWriter, r *http.Request) {
@@ -750,9 +584,8 @@ func main() {
 	mux := http.NewServeMux()
 
 	// static & auth endpoints
-	mux.HandleFunc("/login", staticHandler)         // GET -> /app/public/login.html
-	mux.HandleFunc("/logout", logoutHandler)        // clear cookie
-	mux.HandleFunc("/auth/login", loginPostHandler) // POST from login form
+	mux.HandleFunc("/login", staticHandler)  // GET -> /app/public/login.html
+	mux.HandleFunc("/logout", logoutHandler) // delegate to oauth2-proxy sign out
 	mux.HandleFunc("/auth/me", meHandler)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/config.js", configHandler)
@@ -770,9 +603,10 @@ func main() {
 			fmt.Printf("proxy error for %s: %v\n", r.URL.Path, err)
 			http.Error(w, "upstream unavailable", http.StatusBadGateway)
 		}
-		mux.Handle("/ingest", apiProxyHandler(proxy))
-		mux.Handle("/jobs", apiProxyHandler(proxy))
-		mux.Handle("/jobs/", apiProxyHandler(proxy))
+		handler := rbac.RequireSubmitterForWrite(apiProxyHandler(proxy))
+		mux.Handle("/ingest", handler)
+		mux.Handle("/jobs", handler)
+		mux.Handle("/jobs/", handler)
 		apiProxyEnabled = true
 	}
 
@@ -821,36 +655,9 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 // small Basic Auth wrapper for /portal/* and /admin/* trees
-func sanitizeNext(raw string, user *userProfile) string {
-	raw = strings.TrimSpace(raw)
-	def := defaultDestination(user)
-	if raw == "" {
-		return def
-	}
-	if strings.Contains(raw, "://") {
-		return def
-	}
-	if !strings.HasPrefix(raw, "/") {
-		return def
-	}
-	if strings.HasPrefix(raw, "//") {
-		return def
-	}
-	return raw
-}
-
 func apiProxyHandler(proxy *httputil.ReverseProxy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		username, err := sessionUser(r)
-		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		profile, err := fetchUserProfile(r.Context(), username)
-		if err != nil {
-			http.Error(w, "profile lookup failed", http.StatusBadGateway)
-			return
-		}
+		profile := profileFromRequest(r)
 		if profile == nil || !profile.AllowPortal {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return

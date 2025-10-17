@@ -61,6 +61,14 @@
     };
   }
 
+  const OAUTH_START_BASE = (() => {
+    if (typeof window.HEDI_OAUTH2_START === "string") {
+      const trimmed = window.HEDI_OAUTH2_START.trim();
+      if (trimmed) return trimmed;
+    }
+    return "/oauth2/start";
+  })();
+
   const DEFAULT_PROFILE = {
     username: null,
     role: "view",
@@ -81,15 +89,22 @@
     return path;
   }
 
+  function buildLoginURL(nextPath) {
+    const target = sanitizeNextPath(nextPath);
+    const separator = OAUTH_START_BASE.includes("?") ? "&" : "?";
+    return `${OAUTH_START_BASE}${separator}rd=${encodeURIComponent(target || "/")}`;
+  }
+
+  window.hediLoginURL = buildLoginURL;
+
   function redirectToLogin() {
     if (!requiresAuth || redirecting) return;
     const currentPath = sanitizeNextPath(window.location.pathname + window.location.search);
-    if (currentPath === "/" || currentPath.startsWith("/login")) {
+    if (currentPath === "/" || currentPath.startsWith("/oauth2/")) {
       return;
     }
     redirecting = true;
-    const nextParam = encodeURIComponent(currentPath || "/");
-    window.location.href = `/login?next=${nextParam}`;
+    window.location.href = buildLoginURL(currentPath || "/");
   }
 
   function enforceElement(el, roleIndex) {
