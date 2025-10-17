@@ -2,10 +2,15 @@
   const TICKET_KEY = "hediSupportTickets";
   const PROVIDER_KEY = "hediAuthProviders";
   const ADMIN_ROLE = "administrator";
-  const ROLE_ORDER = ["view", "create", "update", ADMIN_ROLE];
+  const ROLE_ORDER = ["view", "submit", ADMIN_ROLE];
   const ROLE_ALIASES = {
     admin: ADMIN_ROLE,
     administrator: ADMIN_ROLE,
+    submit: "submit",
+    submitter: "submit",
+    create: "submit",
+    update: "submit",
+    editor: "submit",
   };
   function normalizeRole(role) {
     if (!role) return ROLE_ORDER[0];
@@ -262,8 +267,6 @@
     if (cancelBtn) cancelBtn.hidden = true;
     form.password.value = "";
     form.confirm.value = "";
-    if (form.allow_portal) form.allow_portal.checked = true;
-    if (form.allow_admin) form.allow_admin.checked = false;
   }
 
   function fillForm(user) {
@@ -272,8 +275,6 @@
     form.username.value = user.username;
     form.username.setAttribute("disabled", "disabled");
     form.role.value = normalizeRole(user.role);
-    if (form.allow_portal) form.allow_portal.checked = Boolean(user.allow_portal);
-    if (form.allow_admin) form.allow_admin.checked = Boolean(user.allow_admin);
     form.password.value = "";
     form.confirm.value = "";
     form.password.required = false;
@@ -283,11 +284,10 @@
   }
 
   function describeAccess(user) {
-    const bits = [];
-    if (user.allow_portal) bits.push("Portal");
-    if (user.allow_admin) bits.push("Administrator");
-    if (!bits.length) bits.push("None");
-    return bits.join(", ");
+    const role = normalizeRole(user.role);
+    if (role === ADMIN_ROLE) return "Administrator";
+    if (role === "submit") return "Submitter";
+    return "View only";
   }
 
   async function loadUsers() {
@@ -305,13 +305,11 @@
       if (emptyState) emptyState.hidden = true;
       users.forEach((user) => {
         const normalizedRole = normalizeRole(user.role);
-        const adminAccess = Boolean(user.allow_admin) || normalizedRole === ADMIN_ROLE;
-        const portalAccess = Boolean(user.allow_portal) || adminAccess;
         const profile = {
           ...user,
           role: normalizedRole,
-          allow_admin: adminAccess,
-          allow_portal: portalAccess,
+          allow_admin: normalizedRole === ADMIN_ROLE,
+          allow_portal: true,
         };
         const row = document.createElement("tr");
         row.dataset.username = profile.username;
@@ -384,8 +382,6 @@
     if (!form) return;
     const username = form.username.value.trim();
     const role = normalizeRole(form.role.value);
-    const allowPortal = form.allow_portal ? form.allow_portal.checked : false;
-    const allowAdmin = form.allow_admin ? form.allow_admin.checked : false;
     const password = form.password.value;
     const confirm = form.confirm.value;
 
@@ -397,10 +393,6 @@
       setStatus("Select a valid role", "error");
       return;
     }
-    if (!allowPortal && !allowAdmin) {
-      setStatus("Choose at least one access area", "error");
-      return;
-    }
 
     try {
       if (editingUser) {
@@ -410,8 +402,6 @@
         }
         const payload = {
           role,
-          allow_portal: allowPortal,
-          allow_admin: allowAdmin,
         };
         if (password) {
           payload.password = password;
@@ -433,8 +423,6 @@
           username,
           password,
           role,
-          allow_portal: allowPortal,
-          allow_admin: allowAdmin,
         });
         setStatus(`Created ${username}`, "success");
       }
@@ -455,10 +443,7 @@
       const row = target.closest("tr");
       if (!row) return;
       const role = normalizeRole(row.children[1]?.textContent || "view");
-      const access = (row.children[2]?.textContent || "").toLowerCase();
-      const allowPortal = access.includes("portal");
-      const allowAdmin = access.includes("admin") || access.includes("administrator");
-      fillForm({ username, role, allow_portal: allowPortal, allow_admin: allowAdmin });
+      fillForm({ username, role });
       setStatus(`Editing ${username}`, "info");
     } else if (target.matches("[data-user-delete]")) {
       const username = target.getAttribute("data-user-delete");

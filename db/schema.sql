@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS acks (
 CREATE TABLE IF NOT EXISTS app_users (
     username TEXT PRIMARY KEY,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('view', 'update', 'create', 'admin')),
+    role TEXT NOT NULL CHECK (role IN ('view', 'submit', 'administrator')),
     allow_portal BOOLEAN NOT NULL DEFAULT TRUE,
     allow_admin BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -46,31 +46,52 @@ class FakeCursor:
             self._result = rows
         elif "FROM pg_constraint" in normalized:
             self._result = [(1,)] if self.connection.constraint_exists else []
-        elif normalized.startswith("SELECT username, role FROM app_users"):
-            self._result = list(self.connection.app_users_rows)
-        elif "FROM app_users" in normalized and "SELECT username" in normalized:
+        elif normalized.startswith("SELECT username, role") and "FROM app_users" in normalized:
+            include_flags = "allow_portal" in normalized
             if self.cursor_factory is RealDictCursor and self.connection.bootstrap_admin_row:
                 self._result = [self.connection.bootstrap_admin_row]
             else:
-                self._result = []
+                rows = []
+                for row in self.connection.app_users_rows:
+                    if include_flags:
+                        rows.append(
+                            (
+                                row.get("username"),
+                                row.get("role"),
+                                row.get("allow_portal"),
+                                row.get("allow_admin"),
+                            )
+                        )
+                    else:
+                        rows.append((row.get("username"), row.get("role")))
+                self._result = rows
         elif normalized.startswith("SELECT 1 FROM app_users"):
             self._result = [(1,)] if self.connection.bootstrap_admin_row else []
         elif normalized.startswith("UPDATE app_users SET role = %s"):
             if not params:
                 return
-            role_value, username = params
+            role_value, allow_portal, allow_admin, username = params
             new_rows = []
             updated = False
-            for existing_username, existing_role in self.connection.app_users_rows:
-                if existing_username == username:
-                    new_rows.append((existing_username, role_value))
-                    updated = True
+            for existing in self.connection.app_users_rows:
+                if existing.get("username") == username:
+                    new_row = {
+                        "username": existing.get("username"),
+                        "role": role_value,
+                        "allow_portal": allow_portal,
+                        "allow_admin": allow_admin,
+                    }
+                    if (
+                        existing.get("role") != role_value
+                        or bool(existing.get("allow_portal")) != bool(allow_portal)
+                        or bool(existing.get("allow_admin")) != bool(allow_admin)
+                    ):
+                        updated = True
+                    new_rows.append(new_row)
                 else:
-                    new_rows.append((existing_username, existing_role))
+                    new_rows.append(existing)
             if updated:
                 self.rowcount = 1
-            else:
-                self.rowcount = 0
             self.connection.app_users_rows = new_rows
         elif normalized.startswith("UPDATE app_users"):
             row = self.connection.bootstrap_admin_row
@@ -107,12 +128,35 @@ class FakeConnection:
         columns: Optional[Dict[str, Dict[str, Any]]] = None,
         constraint_exists: bool = False,
         bootstrap_admin_row: Optional[Dict[str, Any]] = None,
-        app_users_rows: Optional[List[Tuple[str, str]]] = None,
+        app_users_rows: Optional[List[Any]] = None,
     ) -> None:
         self.columns = columns or {}
         self.constraint_exists = constraint_exists
         self.bootstrap_admin_row = bootstrap_admin_row
-        self.app_users_rows = app_users_rows or []
+        normalized_rows: List[Dict[str, Any]] = []
+        for row in app_users_rows or []:
+            if isinstance(row, dict):
+                normalized_rows.append(
+                    {
+                        "username": row.get("username"),
+                        "role": row.get("role"),
+                        "allow_portal": row.get("allow_portal", True),
+                        "allow_admin": row.get("allow_admin", False),
+                    }
+                )
+            else:
+                username, role, *rest = row
+                allow_portal = rest[0] if len(rest) > 0 else True
+                allow_admin = rest[1] if len(rest) > 1 else False
+                normalized_rows.append(
+                    {
+                        "username": username,
+                        "role": role,
+                        "allow_portal": allow_portal,
+                        "allow_admin": allow_admin,
+                    }
+                )
+        self.app_users_rows = normalized_rows
         self.executed: List[Tuple[str, Optional[Iterable[Any]]]] = []
         self.commits: int = 0
 
@@ -141,11 +185,26 @@ def test_ensure_app_users_adds_missing_columns_and_bootstrap_admin() -> None:
 
 
 def test_ensure_app_users_normalizes_legacy_roles() -> None:
-    conn = FakeConnection(app_users_rows=[("legacy", "Admin ")])
+    conn = FakeConnection(
+        app_users_rows=[
+            ("legacy", "Admin "),
+            ("creator", "create"),
+            ("updater", "update"),
+        ]
+    )
 
     ensure_app_users(conn)
 
-    assert ("legacy", "administrator") in conn.app_users_rows
+    rows = {row["username"]: row for row in conn.app_users_rows}
+    assert rows["legacy"]["role"] == "administrator"
+    assert rows["legacy"]["allow_portal"] is True
+    assert rows["legacy"]["allow_admin"] is True
+    assert rows["creator"]["role"] == "submit"
+    assert rows["creator"]["allow_portal"] is True
+    assert rows["creator"]["allow_admin"] is False
+    assert rows["updater"]["role"] == "submit"
+    assert rows["updater"]["allow_portal"] is True
+    assert rows["updater"]["allow_admin"] is False
 
 
 def test_ensure_x12_addon_tables_creates_required_tables() -> None:

@@ -278,10 +278,6 @@ func handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "password must be at least 8 characters", http.StatusBadRequest)
 			return
 		}
-		if !payload.AllowPortal && !payload.AllowAdmin {
-			http.Error(w, "grant portal or admin access", http.StatusBadRequest)
-			return
-		}
 		ctxPost, cancelPost := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancelPost()
 		var resp userEnvelope
@@ -320,10 +316,6 @@ func handleAdminUserDetail(w http.ResponseWriter, r *http.Request, suffix string
 		payload.Role = normalizeRole(payload.Role)
 		if !isValidRole(payload.Role) {
 			http.Error(w, "invalid role", http.StatusBadRequest)
-			return
-		}
-		if !payload.AllowPortal && !payload.AllowAdmin {
-			http.Error(w, "grant portal or admin access", http.StatusBadRequest)
 			return
 		}
 		if payload.Password != nil {
@@ -440,10 +432,8 @@ func normalizeRole(role string) string {
 	switch cleaned {
 	case "administrator", "admin":
 		return "administrator"
-	case "create":
-		return "create"
-	case "update":
-		return "update"
+	case "submit", "submitter", "create", "update", "editor":
+		return "submit"
 	default:
 		return "view"
 	}
@@ -451,7 +441,7 @@ func normalizeRole(role string) string {
 
 func isValidRole(role string) bool {
 	switch strings.ToLower(strings.TrimSpace(role)) {
-	case "view", "update", "create", "admin", "administrator":
+	case "view", "submit", "admin", "administrator", "submitter", "create", "update", "editor":
 		return true
 	default:
 		return false
@@ -487,18 +477,14 @@ type userListResponse struct {
 }
 
 type userCreateRequest struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	Role        string `json:"role"`
-	AllowPortal bool   `json:"allow_portal"`
-	AllowAdmin  bool   `json:"allow_admin"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Role     string `json:"role"`
 }
 
 type userUpdateRequest struct {
-	Password    *string `json:"password,omitempty"`
-	Role        string  `json:"role"`
-	AllowPortal bool    `json:"allow_portal"`
-	AllowAdmin  bool    `json:"allow_admin"`
+	Password *string `json:"password,omitempty"`
+	Role     string  `json:"role"`
 }
 
 type apiError struct {

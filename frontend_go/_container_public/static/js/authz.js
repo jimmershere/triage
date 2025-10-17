@@ -1,9 +1,14 @@
 (function () {
   const ADMIN_ROLE = "administrator";
-  const ROLE_ORDER = ["view", "create", "update", ADMIN_ROLE];
+  const ROLE_ORDER = ["view", "submit", ADMIN_ROLE];
   const ROLE_ALIASES = {
     admin: ADMIN_ROLE,
     administrator: ADMIN_ROLE,
+    submitter: "submit",
+    submit: "submit",
+    create: "submit",
+    update: "submit",
+    editor: "submit",
   };
   function normalizeRole(role) {
     if (!role) return ROLE_ORDER[0];
@@ -61,6 +66,7 @@
     role: "view",
     allowPortal: false,
     allowAdmin: false,
+    allowSubmit: false,
     defaultDestination: "/",
   };
 
@@ -138,15 +144,27 @@
     }
   }
 
+  function resolveEffectiveRole(role, allowAdminFlag) {
+    const normalizedRole = normalizeRole(role);
+    if (allowAdminFlag || normalizedRole === ADMIN_ROLE) {
+      return ADMIN_ROLE;
+    }
+    return normalizedRole;
+  }
+
   function applyAuthz() {
-    const normalizedRole = normalizeRole(profile.role);
-    const allowAdmin = normalizedRole === ADMIN_ROLE || Boolean(profile.allowAdmin);
-    const allowPortal = Boolean(profile.allowPortal || allowAdmin);
-    profile.role = normalizedRole;
+    const effectiveRole = resolveEffectiveRole(profile.role, profile.allowAdmin);
+    const submitIndex = ROLE_INDEX["submit"] ?? ROLE_INDEX[ADMIN_ROLE] ?? 0;
+    const effectiveIndex = ROLE_INDEX[effectiveRole] ?? 0;
+    const allowSubmit = effectiveIndex >= submitIndex;
+    const allowAdmin = effectiveRole === ADMIN_ROLE;
+    const allowPortal = allowAdmin || allowSubmit || effectiveRole === ROLE_ORDER[0];
+    profile.role = effectiveRole;
     profile.allowAdmin = allowAdmin;
     profile.allowPortal = allowPortal;
-    const index = ROLE_INDEX[normalizedRole] ?? 0;
-    document.body.dataset.userRole = normalizedRole;
+    profile.allowSubmit = allowSubmit;
+    const index = effectiveIndex;
+    document.body.dataset.userRole = effectiveRole;
     if (profile.username) {
       document.body.dataset.userName = profile.username;
     } else {
@@ -154,6 +172,7 @@
     }
     document.body.dataset.allowPortal = allowPortal ? "true" : "false";
     document.body.dataset.allowAdmin = allowAdmin ? "true" : "false";
+    document.body.dataset.allowSubmit = allowSubmit ? "true" : "false";
     document.body.dataset.defaultDestination = profile.defaultDestination || "/";
 
     document
@@ -167,6 +186,7 @@
           role: profile.role,
           allowPortal: profile.allowPortal,
           allowAdmin: profile.allowAdmin,
+          allowSubmit: profile.allowSubmit,
         },
       }),
     );
@@ -187,11 +207,17 @@
       const data = await response.json();
       const normalizedRole = normalizeRole(data.role || "view");
       const allowAdmin = normalizedRole === ADMIN_ROLE || Boolean(data.allow_admin);
+      const effectiveRole = resolveEffectiveRole(normalizedRole, allowAdmin);
+      const allowSubmit = (ROLE_INDEX[effectiveRole] ?? 0) >= (ROLE_INDEX["submit"] ?? 1);
       profile = {
         username: data.username || null,
-        role: normalizedRole,
-        allowPortal: Boolean(data.allow_portal !== undefined ? data.allow_portal : true),
+        role: effectiveRole,
+        allowPortal:
+          data.allow_portal !== undefined
+            ? Boolean(data.allow_portal)
+            : allowAdmin || allowSubmit || effectiveRole === ROLE_ORDER[0],
         allowAdmin,
+        allowSubmit,
         defaultDestination: data.default_destination || "/",
       };
       window.HEDI_AUTHZ = window.HEDI_AUTHZ || {};

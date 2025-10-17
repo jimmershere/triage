@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS acks (
 CREATE TABLE IF NOT EXISTS app_users (
   username TEXT PRIMARY KEY,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('view','update','create','admin')),
+  role TEXT NOT NULL CHECK (role IN ('view','submit','administrator')),
   allow_portal BOOLEAN NOT NULL DEFAULT TRUE,
   allow_admin BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -111,7 +111,7 @@ BEGIN
      WHERE conname = 'app_users_role_check'
   ) THEN
     ALTER TABLE app_users
-      ADD CONSTRAINT app_users_role_check CHECK (role IN ('view','update','create','admin'));
+      ADD CONSTRAINT app_users_role_check CHECK (role IN ('view','submit','administrator'));
   END IF;
 END$$ LANGUAGE plpgsql;
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/png" href="/img/hedi-logo.png"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
   <title>HEDI — Claim Entry</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
@@ -49,7 +49,7 @@
     <header class="claim-card-header">
       <div class="claim-card-copy">
         <h2>Claim Entry (837 Professional)</h2>
-        <p>Trace every loop of an 837P by filling in the XML-styled grid. The palette tracks required elements so production submissions pass pyx12 validation the first time.</p>
+        <p>Build a valid 837P transaction by filling in the XML-inspired grid. Every required loop is laid out in order so you can see the structure as you type.</p>
       </div>
       <figure class="inline-photo">
         <img src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&amp;fit=crop&amp;w=600&amp;q=80" alt="Analyst capturing claim details on a tablet">
@@ -61,10 +61,10 @@
       <label>Copy Previous Claim ID
         <input type="text" placeholder="e.g., 2025-CLM-000123">
       </label>
-      <button type="button" data-requires-role="update">Load &amp; Copy</button>
+      <button type="button" data-requires-role="submit">Load &amp; Copy</button>
     </div>
 
-    <p class="claim-intro">Fill out the color-coded segments below to assemble a compliant 837P transaction set from ISA to SE without leaving the page.</p>
+    <p class="claim-intro">The segments below mirror an 837P transaction set with color-coded identifiers. Required data elements are marked so you never miss a compliance edit.</p>
 
     <form class="claim-xml" autocomplete="off">
       <div class="claim-row claim-row--boundary" aria-hidden="true">
@@ -606,18 +606,19 @@
     </form>
 
     <div class="claim-actions">
-      <button type="button" data-requires-role="update">Validate &amp; Save</button>
-      <button type="button" style="background:var(--ok);" data-requires-role="create">Queue for Processing</button>
+      <button type="button" data-requires-role="submit">Validate &amp; Save</button>
+      <button type="button" style="background:var(--ok);" data-requires-role="submit">Queue for Processing</button>
     </div>
 
     <p style="margin-top:12px;color:var(--muted);font-size:.92rem;">
       ✅ Edits auto-applied: CCI/NCD/LCD, Medicare &amp; commercial unbundling, CPT↔DX↔Modifiers, DX sequencing, eligibility, duplicates, gender/age rules.
     </p>
+
     <div class="trish-callout">
-      <img src="/img/trish-peace.svg" alt="Trish outlining shortcuts">
+      <img src="/img/trish-peace.svg" alt="Trish giving claim entry guidance">
       <div class="bubble">
         <strong>Shortcut:</strong>
-        Load a prior claim and I’ll project every required segment while you update the CPTs, modifiers, and diagnosis pointers.
+        Drop in a prior claim ID to auto-fill the subscriber, patient, and service line. I’ll keep the edits humming while you review the XML layout.
       </div>
     </div>
   </div>

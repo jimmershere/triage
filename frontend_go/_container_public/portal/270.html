@@ -26,6 +26,7 @@
         <div class="nav-group portal-only">
           <span class="nav-group-label">Workspace tools</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
           <a class="nav-pill portal-link" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
         </div>
         <div class="nav-group">
@@ -54,6 +55,10 @@
     <a href="/portal/837d.html">837D Dental</a>
   </nav>
   <section class="card upload-card">
+    <figure class="card-photo">
+      <img src="https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Eligibility specialist preparing medical inquiry forms">
+      <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/j5KAuRrYX7g" target="_blank" rel="noreferrer">rawpixel</a> on Unsplash</figcaption>
+    </figure>
     <div class="badge badge-loud">Check eligibility</div>
     <h2>Submit 270 inquiry files</h2>
     <p>Send eligibility and benefit inquiries to payers in bulk. HEDI queues each request, tracks acknowledgements, and pairs results with their 271 responses.</p>
@@ -69,8 +74,8 @@
         </div>
       </div>
       <label for="file" class="file-label">Select 270 file(s)</label>
-      <input type="file" id="file" name="file" multiple required data-requires-role="create">
-      <button type="submit" data-requires-role="create">Send eligibility requests</button>
+      <input type="file" id="file" name="file" multiple required data-requires-role="submit">
+      <button type="submit" data-requires-role="submit">Send eligibility requests</button>
     </form>
     <div id="result" class="status-panel" hidden></div>
 
@@ -116,6 +121,20 @@
         <strong>Pro move:</strong>
         Double-click a job to open the detail drawer and jump straight to any generated 271 or acknowledgement downloads.
       </div>
+    </div>
+  </section>
+
+  <section class="card trish-tips-card">
+    <div class="tips-art">
+      <img src="/img/trish-clipboard.svg" alt="Trish sharing eligibility tips">
+    </div>
+    <div>
+      <h3>Trish tips for spot-on 270s</h3>
+      <ul class="tip-list">
+        <li><strong>Bundle dependents:</strong> Queue related subscribers together so I can return grouped 271 responses.</li>
+        <li><strong>Track plan codes:</strong> Include payer plan IDs in filenames to filter responses faster.</li>
+        <li><strong>Review rejects early:</strong> Check the detail drawer within minutes—most eligibility errors surface instantly.</li>
+      </ul>
     </div>
   </section>
 

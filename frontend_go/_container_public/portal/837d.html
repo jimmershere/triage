@@ -26,6 +26,7 @@
         <div class="nav-group portal-only">
           <span class="nav-group-label">Workspace tools</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
           <a class="nav-pill portal-link" data-tone="mapping" href="/edi-mapping.html">HEDI Mapping</a>
         </div>
         <div class="nav-group">
@@ -55,8 +56,8 @@
   </nav>
   <section class="card upload-card">
     <figure class="card-photo">
-      <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Dental coordinator reviewing claim with patient">
-      <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/j5MLH4s61q8" target="_blank" rel="noreferrer">Alex Tan</a> on Unsplash</figcaption>
+      <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267f8?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Dental coordinator reviewing claim with patient">
+      <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/sibVwORYqs0" target="_blank" rel="noreferrer">Caroline LM</a> on Unsplash</figcaption>
     </figure>
     <div class="badge badge-loud">Dental optimized</div>
     <h2>Submit 837D dental claims</h2>
@@ -73,8 +74,8 @@
         </div>
       </div>
       <label for="file" class="file-label">Select 837D file(s)</label>
-      <input type="file" id="file" name="file" multiple required data-requires-role="create">
-      <button type="submit" data-requires-role="create">Queue dental claims</button>
+      <input type="file" id="file" name="file" multiple required data-requires-role="submit">
+      <button type="submit" data-requires-role="submit">Queue dental claims</button>
     </form>
     <div id="result" class="status-panel" hidden></div>
 
@@ -120,6 +121,20 @@
         <strong>Pro tip:</strong>
         Use the detail drawer to download payer-specific edit reports so clinical teams can correct procedures or tooth charts quickly.
       </div>
+    </div>
+  </section>
+
+  <section class="card trish-tips-card">
+    <div class="tips-art">
+      <img src="/img/trish-badge.svg" alt="Trish offering dental claim tips">
+    </div>
+    <div>
+      <h3>Trish tips for dazzling 837Ds</h3>
+      <ul class="tip-list">
+        <li><strong>Attach imagery:</strong> Include bitewing or pano references in filenames when attachments are expected.</li>
+        <li><strong>Surface tooth numbers:</strong> Fill the optional notes field with quadrant and surface hints for reviewers.</li>
+        <li><strong>Mind frequency edits:</strong> I’ll highlight claims that bump into frequency limits—add a comment explaining medical necessity.</li>
+      </ul>
     </div>
   </section>
 

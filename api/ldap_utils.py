@@ -205,8 +205,7 @@ class LDAPManager:
     def _ensure_role_groups(self, conn: Connection) -> None:
         descriptions = {
             "view": "Read-only portal access",
-            "create": "Create/upload permissions",
-            "update": "Update and mapping permissions",
+            "submit": "Submission and update permissions",
             self.administrator_role: "Full administrator access",
         }
         for role in self.role_hierarchy:
