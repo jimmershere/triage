@@ -144,18 +144,27 @@
     }
   }
 
+  function resolveEffectiveRole(role, allowAdminFlag) {
+    const normalizedRole = normalizeRole(role);
+    if (allowAdminFlag || normalizedRole === ADMIN_ROLE) {
+      return ADMIN_ROLE;
+    }
+    return normalizedRole;
+  }
+
   function applyAuthz() {
-    const normalizedRole = normalizeRole(profile.role);
-    const allowAdmin = normalizedRole === ADMIN_ROLE || Boolean(profile.allowAdmin);
+    const effectiveRole = resolveEffectiveRole(profile.role, profile.allowAdmin);
     const submitIndex = ROLE_INDEX["submit"] ?? ROLE_INDEX[ADMIN_ROLE] ?? 0;
-    const allowSubmit = (ROLE_INDEX[normalizedRole] ?? 0) >= submitIndex;
-    const allowPortal = allowAdmin || allowSubmit || normalizedRole === ROLE_ORDER[0];
-    profile.role = normalizedRole;
+    const effectiveIndex = ROLE_INDEX[effectiveRole] ?? 0;
+    const allowSubmit = effectiveIndex >= submitIndex;
+    const allowAdmin = effectiveRole === ADMIN_ROLE;
+    const allowPortal = allowAdmin || allowSubmit || effectiveRole === ROLE_ORDER[0];
+    profile.role = effectiveRole;
     profile.allowAdmin = allowAdmin;
     profile.allowPortal = allowPortal;
     profile.allowSubmit = allowSubmit;
-    const index = ROLE_INDEX[normalizedRole] ?? 0;
-    document.body.dataset.userRole = normalizedRole;
+    const index = effectiveIndex;
+    document.body.dataset.userRole = effectiveRole;
     if (profile.username) {
       document.body.dataset.userName = profile.username;
     } else {
@@ -198,14 +207,15 @@
       const data = await response.json();
       const normalizedRole = normalizeRole(data.role || "view");
       const allowAdmin = normalizedRole === ADMIN_ROLE || Boolean(data.allow_admin);
-      const allowSubmit = (ROLE_INDEX[normalizedRole] ?? 0) >= (ROLE_INDEX["submit"] ?? 1);
+      const effectiveRole = resolveEffectiveRole(normalizedRole, allowAdmin);
+      const allowSubmit = (ROLE_INDEX[effectiveRole] ?? 0) >= (ROLE_INDEX["submit"] ?? 1);
       profile = {
         username: data.username || null,
-        role: normalizedRole,
+        role: effectiveRole,
         allowPortal:
           data.allow_portal !== undefined
             ? Boolean(data.allow_portal)
-            : allowAdmin || allowSubmit || normalizedRole === ROLE_ORDER[0],
+            : allowAdmin || allowSubmit || effectiveRole === ROLE_ORDER[0],
         allowAdmin,
         allowSubmit,
         defaultDestination: data.default_destination || "/",
