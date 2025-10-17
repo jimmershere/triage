@@ -640,7 +640,7 @@ func userCanAccess(user *userProfile, path string) bool {
 	case accessAdmin:
 		return isAdminUser(user)
 	case accessPortal:
-		return user != nil && user.AllowPortal
+		return user != nil && (user.AllowPortal || isAdminUser(user))
 	default:
 		return true
 	}
