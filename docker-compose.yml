@@ -133,12 +133,12 @@ services:
     image: docker.io/osixia/openldap:1.5.0
     container_name: turboedi-starter_ldap_1
     environment:
-      LDAP_ORGANISATION: "TurboEDI"
+      LDAP_ORGANISATION: "TurboHEDI"
       LDAP_DOMAIN: example.com
       LDAP_ADMIN_PASSWORD: 3wm078uu
       LDAP_CONFIG_PASSWORD: 3wm078uu
     ports:
-      - "389:389"
+      - "3389:3389"
     volumes:
       - ldap_data:/var/lib/ldap
       - ldap_config:/etc/ldap/slapd.d
