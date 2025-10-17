@@ -66,6 +66,7 @@ def run_startup_migrations() -> None:
             ensure_import_job_ids(conn)
             ensure_import_uploaded_by(conn)
             ensure_app_users(conn)
+            ensure_x12_addon_tables(conn)
     except Exception:
         logger.exception("Failed to run startup migrations")
         raise
@@ -251,6 +252,20 @@ def ensure_core_ingest_tables(conn) -> None:
     conn.commit()
 
 
+def _fetch_app_user_columns(conn) -> dict[str, dict[str, str]]:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name, data_type, is_nullable
+              FROM information_schema.columns
+             WHERE table_name = 'app_users'
+            """
+        )
+        return {
+            row[0]: {"data_type": row[1], "is_nullable": row[2]} for row in cur.fetchall()
+        }
+
+
 def ensure_app_users(conn) -> None:
     logger.info("Ensuring app_users table exists")
     with conn.cursor() as cur:
@@ -271,7 +286,157 @@ def ensure_app_users(conn) -> None:
             "CREATE INDEX IF NOT EXISTS app_users_role_idx ON app_users (role)"
         )
     conn.commit()
+
+    columns = _fetch_app_user_columns(conn)
+
+    with conn.cursor() as cur:
+        if "allow_portal" not in columns:
+            logger.info("Adding allow_portal column to app_users table")
+            cur.execute(
+                "ALTER TABLE app_users ADD COLUMN allow_portal BOOLEAN NOT NULL DEFAULT TRUE"
+            )
+        else:
+            cur.execute("ALTER TABLE app_users ALTER COLUMN allow_portal SET DEFAULT TRUE")
+            cur.execute("UPDATE app_users SET allow_portal = TRUE WHERE allow_portal IS NULL")
+            cur.execute("ALTER TABLE app_users ALTER COLUMN allow_portal SET NOT NULL")
+
+        if "allow_admin" not in columns:
+            logger.info("Adding allow_admin column to app_users table")
+            cur.execute(
+                "ALTER TABLE app_users ADD COLUMN allow_admin BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        else:
+            cur.execute("ALTER TABLE app_users ALTER COLUMN allow_admin SET DEFAULT FALSE")
+            cur.execute("UPDATE app_users SET allow_admin = FALSE WHERE allow_admin IS NULL")
+            cur.execute("ALTER TABLE app_users ALTER COLUMN allow_admin SET NOT NULL")
+
+        if "created_at" not in columns:
+            logger.info("Adding created_at column to app_users table")
+            cur.execute(
+                "ALTER TABLE app_users ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+            )
+        else:
+            cur.execute("ALTER TABLE app_users ALTER COLUMN created_at SET DEFAULT NOW()")
+            cur.execute(
+                "UPDATE app_users SET created_at = NOW() WHERE created_at IS NULL"
+            )
+            cur.execute("ALTER TABLE app_users ALTER COLUMN created_at SET NOT NULL")
+
+        if "updated_at" not in columns:
+            logger.info("Adding updated_at column to app_users table")
+            cur.execute(
+                "ALTER TABLE app_users ADD COLUMN updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+            )
+        else:
+            cur.execute("ALTER TABLE app_users ALTER COLUMN updated_at SET DEFAULT NOW()")
+            cur.execute(
+                "UPDATE app_users SET updated_at = NOW() WHERE updated_at IS NULL"
+            )
+            cur.execute("ALTER TABLE app_users ALTER COLUMN updated_at SET NOT NULL")
+
+        cur.execute(
+            """
+            SELECT 1
+              FROM pg_constraint
+             WHERE conname = 'app_users_role_check'
+               AND conrelid = 'app_users'::regclass
+            """
+        )
+        if cur.fetchone() is None:
+            logger.info("Adding app_users_role_check constraint")
+            cur.execute(
+                "ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('view','update','create','admin'))"
+            )
+    conn.commit()
+
     ensure_bootstrap_admin(conn)
+
+
+def ensure_x12_addon_tables(conn) -> None:
+    logger.info("Ensuring X12 add-on tables exist")
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS era_835_header (
+                st_control TEXT PRIMARY KEY,
+                bpr_method TEXT,
+                bpr_amount NUMERIC,
+                trn_trace TEXT,
+                payer_name TEXT,
+                payer_id TEXT,
+                payee_name TEXT,
+                payee_id TEXT,
+                chk_date DATE
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS era_835_clp (
+                st_control TEXT,
+                claim_id TEXT,
+                status TEXT,
+                total_charge NUMERIC,
+                paid NUMERIC,
+                patient_resp NUMERIC,
+                payer_ctrl TEXT,
+                facility TEXT,
+                claim_freq TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS era_835_cas (
+                st_control TEXT,
+                claim_id TEXT,
+                adj_group TEXT,
+                adj_reason TEXT,
+                amount NUMERIC,
+                quantity INT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS era_835_plb (
+                st_control TEXT,
+                provider_id TEXT,
+                fiscal_date DATE,
+                adj_qual TEXT,
+                ref_id TEXT,
+                amount NUMERIC
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS eligibility_271 (
+                st_control TEXT,
+                subscriber_id TEXT,
+                payer_id TEXT,
+                eb_code TEXT,
+                service_type TEXT,
+                coverage_plan TEXT,
+                network TEXT,
+                description TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS claim_status_277 (
+                st_control TEXT,
+                subscriber_id TEXT,
+                payer_claim_ctrl TEXT,
+                status_info TEXT,
+                status_date DATE,
+                amount NUMERIC,
+                quantity INT
+            )
+            """
+        )
+    conn.commit()
 
 
 def ensure_bootstrap_admin(conn) -> None:
