@@ -85,7 +85,32 @@ a:hover {
   flex-direction: column;
   gap: 1.5rem;
   width: 100%;
+  flex: 1 1 auto;
+  overflow-y: hidden;
+  padding-right: 0.25rem;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.55) transparent;
 }
+
+.site-sidebar:hover .sidebar-nav,
+.site-sidebar:focus-within .sidebar-nav {
+  overflow-y: auto;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(148, 197, 255, 0.6), rgba(59, 130, 246, 0.65));
+  border-radius: 999px;
+}
+
 
 .nav-group {
   display: flex;
@@ -217,10 +242,10 @@ body[data-user-name] .requires-guest {
 }
 
 .site-sidebar .nav-pill {
-  background: linear-gradient(135deg, #7bafd4, #5fa8d3);
+  background: linear-gradient(135deg, #a6d1f2, #82bde8);
   color: #0b1742;
-  box-shadow: 0 14px 30px rgba(95, 168, 211, 0.35);
-  border: 1px solid rgba(11, 23, 66, 0.1);
+  box-shadow: 0 14px 30px rgba(130, 189, 232, 0.32);
+  border: 1px solid rgba(11, 23, 66, 0.08);
   filter: none;
   position: relative;
   overflow: hidden;
@@ -287,10 +312,10 @@ body[data-user-name] .requires-guest {
 }
 
 .site-sidebar .nav-pill[data-tone] {
-  background: linear-gradient(135deg, #7bafd4, #5fa8d3);
+  background: linear-gradient(135deg, #a6d1f2, #82bde8);
   color: #0b1742;
-  box-shadow: 0 14px 30px rgba(95, 168, 211, 0.35);
-  border: 1px solid rgba(11, 23, 66, 0.1);
+  box-shadow: 0 14px 30px rgba(130, 189, 232, 0.32);
+  border: 1px solid rgba(11, 23, 66, 0.08);
 }
 
 .nav-pill[aria-current="page"] {
@@ -1161,6 +1186,10 @@ footer {
   text-align: left;
   background: linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(244, 114, 182, 0.12));
   border: 1px solid rgba(79, 70, 229, 0.18);
+}
+
+.portal-hero-photo {
+  margin: 1.25rem -1.25rem 1.25rem;
 }
 
 .portal-landing .hero-card h1 {
