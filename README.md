@@ -54,6 +54,17 @@ If the upstream proxy uses a self-signed certificate, enable lenient TLS verific
 `HEDI_OAUTH2_PROXY_INSECURE_SKIP_VERIFY=true`. The flag only affects calls to the OAuth proxy; the
 API reverse proxy continues to enforce normal certificate validation.
 
+When the public OAuth URL differs from the network location the Go frontend can reach (for example
+when the hostname only resolves inside your cluster), set `HEDI_OAUTH2_PROXY_INTERNAL_URL` to the
+reachable origin. The frontend continues to advertise the external URL via `config.js`, while the
+internal URL drives the reverse proxy connection from the container:
+
+```bash
+HEDI_OAUTH2_PROXY_URL=https://oauth2-proxy.example.com/oauth2 \
+HEDI_OAUTH2_PROXY_INTERNAL_URL=http://rbac:4180/oauth2 \
+docker compose up frontend_go
+```
+
 The helper endpoint at `/config.js` also publishes `window.HEDI_OAUTH2_START`, so you can point the
 UI at a different login entrypoint if your deployment uses a non-standard path:
 

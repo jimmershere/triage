@@ -30,6 +30,7 @@ var (
 
 	rawAPIBase               = strings.TrimRight(env("HEDI_API_BASE", ""), "/")
 	rawOAuthProxyURL         = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_URL", ""))
+	rawOAuthProxyInternalURL = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_INTERNAL_URL", ""))
 	rawOAuthProxyInsecure    = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_INSECURE_SKIP_VERIFY", ""))
 	sessionSecretRaw         = strings.TrimSpace(env("HEDI_SESSION_SECRET", ""))
 	sessionSecret            = []byte(sessionSecretRaw)
@@ -37,9 +38,10 @@ var (
 	sharedSecret             = env("HEDI_SHARED_SECRET", "change-me")
 	oauthProxyInsecureConfig bool
 
-	apiProxyTarget   *url.URL
-	oauthProxyTarget *url.URL
-	apiProxyEnabled  bool
+	apiProxyTarget     *url.URL
+	oauthProxyTarget   *url.URL
+	oauthProxyInternal *url.URL
+	apiProxyEnabled    bool
 
 	httpClient = &http.Client{Timeout: 10 * time.Second}
 )
@@ -682,6 +684,15 @@ func main() {
 			fmt.Printf("Invalid HEDI_OAUTH2_PROXY_URL %q: %v\n", rawOAuthProxyURL, err)
 		}
 	}
+	if rawOAuthProxyInternalURL != "" {
+		if u, err := url.Parse(rawOAuthProxyInternalURL); err == nil {
+			oauthProxyInternal = u
+		} else {
+			fmt.Printf("Invalid HEDI_OAUTH2_PROXY_INTERNAL_URL %q: %v\n", rawOAuthProxyInternalURL, err)
+		}
+	} else {
+		oauthProxyInternal = oauthProxyTarget
+	}
 
 	mux := http.NewServeMux()
 
@@ -712,8 +723,8 @@ func main() {
 		apiProxyEnabled = true
 	}
 
-	if oauthProxyTarget != nil {
-		proxy := newOAuth2ReverseProxy(oauthProxyTarget)
+	if oauthProxyInternal != nil {
+		proxy := newOAuth2ReverseProxy(oauthProxyInternal)
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			fmt.Printf("oauth proxy error for %s: %v\n", r.URL.Path, err)
 			http.Error(w, "oauth upstream unavailable", http.StatusBadGateway)
