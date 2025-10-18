@@ -39,6 +39,28 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
    - Check `imports`, `claims`, `order_lines`, and `acks` tables in Postgres.
    - RabbitMQ queues: `ingest` (uploads) and `acks` (generated acknowledgments).
 
+## Enabling OAuth2/OIDC single sign-on
+
+The frontend now expects an external identity provider (for example Keycloak) to handle
+authentication via [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/). When the proxy is
+running on your network, route the built-in `/oauth2/*` paths to it by setting
+`HEDI_OAUTH2_PROXY_URL` before starting the `frontend_go` service:
+
+```bash
+HEDI_OAUTH2_PROXY_URL=https://oauth2-proxy.internal:4180 docker compose up frontend_go
+```
+
+The helper endpoint at `/config.js` also publishes `window.HEDI_OAUTH2_START`, so you can point the
+UI at a different login entrypoint if your deployment uses a non-standard path:
+
+```bash
+# Optional override if the proxy is mounted on a different prefix
+HEDI_OAUTH2_START=/sso/start
+```
+
+Once configured, the login buttons on the claims portal and admin console redirect to the proxy
+instead of returning a 404.
+
 ## Customer support assistant configuration
 
 The web UI now ships with the “Trish” customer advocate, complete with helpful callouts and an in-app chat assistant. The chat widget can raise trouble tickets by generating unique request IDs and preparing `mailto:`/`sms:` links.

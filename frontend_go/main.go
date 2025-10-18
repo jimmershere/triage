@@ -23,12 +23,14 @@ import (
 var (
 	publicDir = env("PUBLIC_DIR", "/app/public") // bind-mounted in the container
 
-	rawAPIBase     = strings.TrimRight(env("HEDI_API_BASE", ""), "/")
-	backendAPIBase string
-	sharedSecret   = env("HEDI_SHARED_SECRET", "change-me")
+	rawAPIBase       = strings.TrimRight(env("HEDI_API_BASE", ""), "/")
+	rawOAuthProxyURL = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_URL", ""))
+	backendAPIBase   string
+	sharedSecret     = env("HEDI_SHARED_SECRET", "change-me")
 
-	apiProxyTarget  *url.URL
-	apiProxyEnabled bool
+	apiProxyTarget   *url.URL
+	oauthProxyTarget *url.URL
+	apiProxyEnabled  bool
 
 	httpClient = &http.Client{Timeout: 10 * time.Second}
 )
@@ -274,6 +276,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	apiBase := rawAPIBase
 	ingest := env("HEDI_INGEST_URL", "")
 	jobs := env("HEDI_JOBS_URL", "")
+	oauthStart := env("HEDI_OAUTH2_START", "/oauth2/start")
 	useProxy := apiProxyEnabled
 	if ingest == "" {
 		if useProxy || apiBase == "" {
@@ -291,7 +294,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprintf(w, "window.HEDI_API_BASE = %q;\nwindow.HEDI_INGEST_URL = %q;\nwindow.HEDI_JOBS_URL = %q;\n", apiBase, ingest, jobs)
+	fmt.Fprintf(w, "window.HEDI_API_BASE = %q;\nwindow.HEDI_INGEST_URL = %q;\nwindow.HEDI_JOBS_URL = %q;\nwindow.HEDI_OAUTH2_START = %q;\n", apiBase, ingest, jobs, oauthStart)
 }
 
 func isSafeUsername(v string) bool {
@@ -580,6 +583,13 @@ func main() {
 			fmt.Printf("Invalid HEDI_API_BASE %q: %v\n", rawAPIBase, err)
 		}
 	}
+	if rawOAuthProxyURL != "" {
+		if u, err := url.Parse(rawOAuthProxyURL); err == nil {
+			oauthProxyTarget = u
+		} else {
+			fmt.Printf("Invalid HEDI_OAUTH2_PROXY_URL %q: %v\n", rawOAuthProxyURL, err)
+		}
+	}
 
 	mux := http.NewServeMux()
 
@@ -608,6 +618,17 @@ func main() {
 		mux.Handle("/jobs", handler)
 		mux.Handle("/jobs/", handler)
 		apiProxyEnabled = true
+	}
+
+	if oauthProxyTarget != nil {
+		proxy := httputil.NewSingleHostReverseProxy(oauthProxyTarget)
+		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+			fmt.Printf("oauth proxy error for %s: %v\n", r.URL.Path, err)
+			http.Error(w, "oauth upstream unavailable", http.StatusBadGateway)
+		}
+		handler := oauth2ProxyHandler(proxy)
+		mux.Handle("/oauth2", handler)
+		mux.Handle("/oauth2/", handler)
 	}
 
 	// security headers wrapper
@@ -664,6 +685,22 @@ func apiProxyHandler(proxy *httputil.ReverseProxy) http.Handler {
 		}
 		// prevent backend from seeing frontend session cookie
 		r.Header.Del("Cookie")
+		proxy.ServeHTTP(w, r)
+	})
+}
+
+func oauth2ProxyHandler(proxy *httputil.ReverseProxy) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Forwarded-Host") == "" {
+			r.Header.Set("X-Forwarded-Host", r.Host)
+		}
+		if r.Header.Get("X-Forwarded-Proto") == "" {
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+			r.Header.Set("X-Forwarded-Proto", scheme)
+		}
 		proxy.ServeHTTP(w, r)
 	})
 }
