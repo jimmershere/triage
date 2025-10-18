@@ -61,6 +61,15 @@ HEDI_OAUTH2_START=/sso/start
 Once configured, the login buttons on the claims portal and admin console redirect to the proxy
 instead of returning a 404.
 
+For the starter stack we ship a lightweight RBAC service that emulates the oauth2-proxy contract so
+you can exercise the portal out-of-the-box. The `rbac` container listens on port `4180`, presents a
+simple login form, authenticates users against the FastAPI backend, and issues signed session
+cookies that the frontend validates on subsequent requests. Docker Compose automatically wires
+`HEDI_OAUTH2_PROXY_URL` to `http://rbac:4180`, so `docker compose up --build` exposes both the
+frontend (`8080/8443`) and the RBAC login endpoint (`4180`). Sign in with the bootstrap
+administrator (`admin` / `3wm078uu`) or any user you add from the Admin → User Management screen,
+and the portal/admin pages will render with the correct RBAC headers.
+
 ## Customer support assistant configuration
 
 The web UI now ships with the “Trish” customer advocate, complete with helpful callouts and an in-app chat assistant. The chat widget can raise trouble tickets by generating unique request IDs and preparing `mailto:`/`sms:` links.

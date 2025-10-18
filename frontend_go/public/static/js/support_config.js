@@ -1,5 +1,5 @@
 window.HEDI_SUPPORT = window.HEDI_SUPPORT || {
-  email: "support@example.com",
-  phone: "+15555551212",
+  email: "jimmershere@gmail.com",
+  phone: "+14342426591",
   brand: "Team HEDI Support"
 };
