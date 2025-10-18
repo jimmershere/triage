@@ -50,6 +50,10 @@ running on your network, route the built-in `/oauth2/*` paths to it by setting
 HEDI_OAUTH2_PROXY_URL=https://oauth2-proxy.internal:4180 docker compose up frontend_go
 ```
 
+If the upstream proxy uses a self-signed certificate, enable lenient TLS verification with
+`HEDI_OAUTH2_PROXY_INSECURE_SKIP_VERIFY=true`. The flag only affects calls to the OAuth proxy; the
+API reverse proxy continues to enforce normal certificate validation.
+
 The helper endpoint at `/config.js` also publishes `window.HEDI_OAUTH2_START`, so you can point the
 UI at a different login entrypoint if your deployment uses a non-standard path:
 

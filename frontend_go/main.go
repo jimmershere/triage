@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,12 +28,14 @@ import (
 var (
 	publicDir = env("PUBLIC_DIR", "/app/public") // bind-mounted in the container
 
-	rawAPIBase       = strings.TrimRight(env("HEDI_API_BASE", ""), "/")
-	rawOAuthProxyURL = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_URL", ""))
-	sessionSecretRaw = strings.TrimSpace(env("HEDI_SESSION_SECRET", ""))
-	sessionSecret    = []byte(sessionSecretRaw)
-	backendAPIBase   string
-	sharedSecret     = env("HEDI_SHARED_SECRET", "change-me")
+	rawAPIBase               = strings.TrimRight(env("HEDI_API_BASE", ""), "/")
+	rawOAuthProxyURL         = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_URL", ""))
+	rawOAuthProxyInsecure    = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_INSECURE_SKIP_VERIFY", ""))
+	sessionSecretRaw         = strings.TrimSpace(env("HEDI_SESSION_SECRET", ""))
+	sessionSecret            = []byte(sessionSecretRaw)
+	backendAPIBase           string
+	sharedSecret             = env("HEDI_SHARED_SECRET", "change-me")
+	oauthProxyInsecureConfig bool
 
 	apiProxyTarget   *url.URL
 	oauthProxyTarget *url.URL
@@ -46,6 +50,13 @@ func init() {
 	backendAPIBase = rawAPIBase
 	if backendAPIBase == "" {
 		backendAPIBase = "http://localhost:8000"
+	}
+	if rawOAuthProxyInsecure != "" {
+		if v, err := strconv.ParseBool(rawOAuthProxyInsecure); err == nil {
+			oauthProxyInsecureConfig = v
+		} else {
+			fmt.Printf("Invalid HEDI_OAUTH2_PROXY_INSECURE_SKIP_VERIFY %q: %v\n", rawOAuthProxyInsecure, err)
+		}
 	}
 	mime.AddExtensionType(".svg", "image/svg+xml")
 	mime.AddExtensionType(".webp", "image/webp")
@@ -794,6 +805,24 @@ func newOAuth2ReverseProxy(target *url.URL) *httputil.ReverseProxy {
 	clean.RawPath = ""
 
 	proxy := httputil.NewSingleHostReverseProxy(&clean)
+	if oauthProxyInsecureConfig {
+		if base, ok := http.DefaultTransport.(*http.Transport); ok {
+			transport := base.Clone()
+			if transport.TLSClientConfig == nil {
+				transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+			} else {
+				clone := transport.TLSClientConfig.Clone()
+				clone.InsecureSkipVerify = true
+				transport.TLSClientConfig = clone
+			}
+			proxy.Transport = transport
+		} else {
+			proxy.Transport = &http.Transport{ // fallback
+				Proxy:           http.ProxyFromEnvironment,
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+		}
+	}
 	if basePath == "" {
 		return proxy
 	}
