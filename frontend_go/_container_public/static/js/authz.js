@@ -28,23 +28,13 @@
   }
 
   const PATH_PREFIX = (() => {
-    const fallback =
-      typeof window.HEDI_PATH_PREFIX === "string"
-        ? normalizePrefix(window.HEDI_PATH_PREFIX)
-        : "";
-    const path = window.location.pathname || "";
-    if (!path) {
-      return fallback;
+    if (typeof window.HEDI_PATH_PREFIX === "string") {
+      const configured = normalizePrefix(window.HEDI_PATH_PREFIX);
+      if (configured) {
+        return configured;
+      }
     }
-    const idx = path.lastIndexOf("/");
-    if (idx <= 0) {
-      return fallback;
-    }
-    const derived = normalizePrefix(path.slice(0, idx));
-    if (derived) {
-      return derived;
-    }
-    return fallback;
+    return "";
   })();
 
   window.HEDI_PATH_PREFIX = PATH_PREFIX;
