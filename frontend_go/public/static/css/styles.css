@@ -286,6 +286,13 @@ body[data-user-name] .requires-guest {
   box-shadow: 0 14px 30px rgba(249, 115, 22, 0.26);
 }
 
+.site-sidebar .nav-pill[data-tone] {
+  background: linear-gradient(135deg, #7bafd4, #5fa8d3);
+  color: #0b1742;
+  box-shadow: 0 14px 30px rgba(95, 168, 211, 0.35);
+  border: 1px solid rgba(11, 23, 66, 0.1);
+}
+
 .nav-pill[aria-current="page"] {
   filter: brightness(1.08);
   box-shadow: 0 20px 38px rgba(79, 70, 229, 0.32);
