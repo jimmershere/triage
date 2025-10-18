@@ -70,3 +70,48 @@ func TestIdentityFromExpiredSession(t *testing.T) {
 		t.Fatalf("expected empty username for expired session, got %q", id.Username)
 	}
 }
+
+func TestProfileFromRequestAllowSubmit(t *testing.T) {
+	original := sessionSecret
+	sessionSecret = []byte("test-secret")
+	defer func() { sessionSecret = original }()
+
+	cases := []struct {
+		name       string
+		groups     []string
+		wantRole   string
+		wantSubmit bool
+		wantAdmin  bool
+	}{
+		{name: "admin", groups: []string{"hedi-admin"}, wantRole: "administrator", wantSubmit: true, wantAdmin: true},
+		{name: "submitter", groups: []string{"hedi-submit"}, wantRole: "submit", wantSubmit: true, wantAdmin: false},
+		{name: "viewer", groups: []string{"hedi-view"}, wantRole: "view", wantSubmit: false, wantAdmin: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			claims := sessionClaims{
+				Username: "jane",
+				Groups:   tc.groups,
+				Expires:  time.Now().Add(time.Hour).Unix(),
+			}
+			token := signTestSession(t, claims, sessionSecret)
+			req := httptest.NewRequest(http.MethodGet, "http://example.com/portal/837.html", nil)
+			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+
+			profile := profileFromRequest(req)
+			if profile == nil {
+				t.Fatalf("expected profile for %s", tc.name)
+			}
+			if profile.Role != tc.wantRole {
+				t.Fatalf("expected role %s, got %s", tc.wantRole, profile.Role)
+			}
+			if profile.AllowSubmit != tc.wantSubmit {
+				t.Fatalf("expected AllowSubmit=%v, got %v", tc.wantSubmit, profile.AllowSubmit)
+			}
+			if profile.AllowAdmin != tc.wantAdmin {
+				t.Fatalf("expected AllowAdmin=%v, got %v", tc.wantAdmin, profile.AllowAdmin)
+			}
+		})
+	}
+}

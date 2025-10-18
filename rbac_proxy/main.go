@@ -19,6 +19,7 @@ type apiUser struct {
 	Username    string `json:"username"`
 	Role        string `json:"role"`
 	AllowPortal bool   `json:"allow_portal"`
+	AllowSubmit bool   `json:"allow_submit"`
 	AllowAdmin  bool   `json:"allow_admin"`
 }
 
@@ -103,7 +104,7 @@ func groupsForUser(user *apiUser) []string {
 		return nil
 	}
 	groups := []string{"hedi-view"}
-	if user.AllowPortal {
+	if user.AllowSubmit {
 		groups = append(groups, "hedi-submit")
 	}
 	if user.AllowAdmin {

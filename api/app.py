@@ -204,6 +204,11 @@ def role_allows_portal(role: str) -> bool:
     return normalized in ROLE_HIERARCHY
 
 
+def role_allows_submit(role: str) -> bool:
+    normalized = normalize_role(role)
+    return normalized in (ROLE_SUBMIT, ROLE_ADMINISTRATOR)
+
+
 def hash_password(password: str) -> str:
     if not password or len(password) < MIN_PASSWORD_LENGTH:
         raise ValueError("password too short")
@@ -232,12 +237,14 @@ def row_to_user(row) -> Optional[dict]:
     role = normalize_role(row.get("role"))
     allow_admin = role_allows_admin(role)
     allow_portal = role_allows_portal(role)
+    allow_submit = role_allows_submit(role)
     if role_allows_admin(role):
         # Administrator accounts should always retain full administrative and portal
         # privileges even if the stored flags drift. This guards the bootstrap admin as
         # well as any other elevated users from being locked out of required features.
         allow_portal = True
         allow_admin = True
+        allow_submit = True
     def _serialize_timestamp(value):
         if value is None:
             return None
@@ -253,6 +260,7 @@ def row_to_user(row) -> Optional[dict]:
         "username": row.get("username"),
         "role": role,
         "allow_portal": allow_portal,
+        "allow_submit": allow_submit,
         "allow_admin": allow_admin,
         "created_at": _serialize_timestamp(row.get("created_at")),
         "updated_at": _serialize_timestamp(row.get("updated_at")),
@@ -833,6 +841,7 @@ class UserOut(BaseModel):
     username: str
     role: str
     allow_portal: bool
+    allow_submit: bool
     allow_admin: bool
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

@@ -110,6 +110,7 @@ def test_fetch_user_without_groups_returns_view(monkeypatch, manager_factory):
     assert profile is not None
     assert profile["role"] == "view"
     assert profile["allow_portal"] is True
+    assert profile["allow_submit"] is False
     assert profile["allow_admin"] is False
 
 
@@ -137,6 +138,7 @@ def test_authenticate_admin_uses_admin_profile(monkeypatch, manager_factory):
     assert profile is not None
     assert profile["username"] == "admin"
     assert profile["role"] == "administrator"
+    assert profile["allow_submit"] is True
     assert profile["allow_admin"] is True
 
 
@@ -163,6 +165,7 @@ def test_admin_dn_returns_canonical_username(monkeypatch, manager_factory):
     profile = manager.authenticate("cn=admin,dc=example,dc=com", "super-secret")
     assert profile is not None
     assert profile["username"] == "admin"
+    assert profile["allow_submit"] is True
     assert profile["allow_admin"] is True
 
 
@@ -198,6 +201,7 @@ def test_fetch_admin_user_returns_admin_profile(monkeypatch, manager_factory):
     assert profile is not None
     assert profile["username"] == "admin"
     assert profile["role"] == "administrator"
+    assert profile["allow_submit"] is True
     assert profile["allow_admin"] is True
 
 
