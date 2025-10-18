@@ -621,7 +621,7 @@ func main() {
 	}
 
 	if oauthProxyTarget != nil {
-		proxy := httputil.NewSingleHostReverseProxy(oauthProxyTarget)
+		proxy := newOAuth2ReverseProxy(oauthProxyTarget)
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			fmt.Printf("oauth proxy error for %s: %v\n", r.URL.Path, err)
 			http.Error(w, "oauth upstream unavailable", http.StatusBadGateway)
@@ -703,4 +703,40 @@ func oauth2ProxyHandler(proxy *httputil.ReverseProxy) http.Handler {
 		}
 		proxy.ServeHTTP(w, r)
 	})
+}
+
+func newOAuth2ReverseProxy(target *url.URL) *httputil.ReverseProxy {
+	basePath := strings.TrimSuffix(target.Path, "/")
+
+	clean := *target
+	clean.Path = ""
+	clean.RawPath = ""
+
+	proxy := httputil.NewSingleHostReverseProxy(&clean)
+	if basePath == "" {
+		return proxy
+	}
+
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		req.URL.Path = rewriteOAuth2Path(req.URL.Path, basePath)
+		req.URL.RawPath = req.URL.Path
+	}
+	return proxy
+}
+
+func rewriteOAuth2Path(currentPath, basePath string) string {
+	if basePath == "" {
+		return currentPath
+	}
+
+	suffix := strings.TrimPrefix(currentPath, "/oauth2")
+	if suffix == "" {
+		return basePath
+	}
+	if !strings.HasPrefix(suffix, "/") {
+		suffix = "/" + suffix
+	}
+	return basePath + suffix
 }
