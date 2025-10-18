@@ -67,17 +67,17 @@ a:hover {
 .site-sidebar .brand {
   color: var(--ink);
   text-decoration: none;
-  font-size: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .site-sidebar .brand img {
-  width: 120px;
-  height: 120px;
-  box-shadow: 0 20px 34px rgba(123, 175, 212, 0.35);
-}
-
-.site-sidebar .brand span {
-  color: inherit;
+  width: min(200px, 100%);
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 24px 32px rgba(79, 70, 229, 0.25));
 }
 
 .sidebar-nav {
@@ -86,16 +86,12 @@ a:hover {
   gap: 1.5rem;
   width: 100%;
   flex: 1 1 auto;
-  overflow-y: hidden;
-  padding-right: 0.25rem;
+  overflow-y: auto;
+  padding-right: 0.5rem;
   scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: rgba(59, 130, 246, 0.55) transparent;
-}
-
-.site-sidebar:hover .sidebar-nav,
-.site-sidebar:focus-within .sidebar-nav {
-  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
 }
 
 .sidebar-nav::-webkit-scrollbar {
