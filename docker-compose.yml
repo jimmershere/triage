@@ -112,8 +112,10 @@ services:
       context: ./frontend_go
     environment:
       HEDI_API_BASE: http://api:8000
-      HEDI_SESSION_SECRET: "HediMAsonarySCRewBitSEMINar3194"
-      HEDI_SHARED_SECRET: turbohedi-shared-secret
+      HEDI_SESSION_SECRET: ${HEDI_SESSION_SECRET:-HediMAsonarySCRewBitSEMINar3194}
+      HEDI_SHARED_SECRET: ${HEDI_SHARED_SECRET:-turbohedi-shared-secret}
+      HEDI_OAUTH2_PROXY_URL: ${HEDI_OAUTH2_PROXY_URL:-http://rbac:4180}
+      HEDI_OAUTH2_START: ${HEDI_OAUTH2_START:-/oauth2/start}
       # LDAP_URL: ldap://ldap:389
       # LDAP_BASE_DN: dc=example,dc=org
       # LDAP_USER_ATTR: uid
@@ -127,6 +129,23 @@ services:
     ports:
       - "8080:8080"
       - "8443:8443"
+    restart: unless-stopped
+
+  rbac:
+    build:
+      context: ./rbac_proxy
+    container_name: turboedi-starter_rbac_1
+    env_file:
+      - ./.env
+    environment:
+      RBAC_API_BASE: http://api:8000
+      RBAC_SHARED_SECRET: ${HEDI_SHARED_SECRET:-turbohedi-shared-secret}
+      HEDI_SESSION_SECRET: ${HEDI_SESSION_SECRET:-change-me-in-prod}
+    ports:
+      - "4180:4180"
+    depends_on:
+      api:
+        condition: service_started
     restart: unless-stopped
 
   ldap:

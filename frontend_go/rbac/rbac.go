@@ -30,6 +30,25 @@ type Identity struct {
 	groups   map[string]bool
 }
 
+// ResolveIdentity provides a hook for callers to override how identities are
+// extracted from each request. By default it reads the standard oauth2-proxy
+// headers, but the frontend can replace it with a cookie-backed resolver when
+// running alongside the bundled RBAC service.
+var ResolveIdentity = IdentityFromRequest
+
+// NewIdentity constructs an Identity from the provided username and groups.
+// Group names are normalized by trimming whitespace and dropping empty values.
+func NewIdentity(username string, groups []string) Identity {
+	cleaned := strings.TrimSpace(username)
+	out := make(map[string]bool, len(groups))
+	for _, g := range groups {
+		if trimmed := strings.TrimSpace(g); trimmed != "" {
+			out[trimmed] = true
+		}
+	}
+	return Identity{Username: cleaned, groups: out}
+}
+
 func groupsFromRequest(r *http.Request) map[string]bool {
 	raw := firstHeader(r, headerGroupsPrimary, headerGroupsFallback)
 	if raw == "" {
@@ -81,7 +100,7 @@ func (id Identity) IsViewer() bool {
 
 func RequireViewer(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !IdentityFromRequest(r).IsViewer() {
+		if !ResolveIdentity(r).IsViewer() {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -91,7 +110,7 @@ func RequireViewer(next http.Handler) http.Handler {
 
 func RequireSubmitterForWrite(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := IdentityFromRequest(r)
+		id := ResolveIdentity(r)
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 			if !id.IsViewer() {
@@ -110,7 +129,7 @@ func RequireSubmitterForWrite(next http.Handler) http.Handler {
 
 func RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !IdentityFromRequest(r).IsAdmin() {
+		if !ResolveIdentity(r).IsAdmin() {
 			http.Error(w, "admin only", http.StatusForbidden)
 			return
 		}
