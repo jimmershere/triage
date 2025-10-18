@@ -226,6 +226,7 @@ class LDAPManager:
             "username": username,
             "role": self.administrator_role,
             "allow_portal": True,
+            "allow_submit": True,
             "allow_admin": True,
             "created_at": None,
             "updated_at": None,
@@ -409,10 +410,12 @@ class LDAPManager:
             highest_role = self._user_highest_role(conn, user_dn)
             allow_admin = highest_role == self.administrator_role
             allow_portal = highest_role in self.role_hierarchy
+            allow_submit = highest_role in self.role_hierarchy[1:]
             return {
                 "username": username,
                 "role": highest_role,
                 "allow_portal": allow_portal,
+                "allow_submit": allow_submit or allow_admin,
                 "allow_admin": allow_admin,
                 "created_at": None,
                 "updated_at": None,
@@ -457,6 +460,7 @@ class LDAPManager:
         normalized_role = self._normalize_role(role)
         if admin:
             normalized_role = self.administrator_role
+        allow_submit = admin or normalized_role in self.role_hierarchy[1:]
         dn = f"uid={escape_rdn(username)},{self.users_dn}"
         password_hash = None
         if password:
@@ -500,6 +504,7 @@ class LDAPManager:
             "username": username,
             "role": normalized_role,
             "allow_portal": portal or normalized_role in self.role_hierarchy,
+            "allow_submit": allow_submit,
             "allow_admin": admin or normalized_role == self.administrator_role,
             "created_at": None,
             "updated_at": None,

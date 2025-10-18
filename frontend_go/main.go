@@ -201,6 +201,7 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
 		"username":            profile.Username,
 		"role":                profile.Role,
 		"allow_portal":        profile.AllowPortal,
+		"allow_submit":        profile.AllowSubmit,
 		"allow_admin":         profile.AllowAdmin,
 		"default_destination": defaultDestination(profile),
 	})
@@ -443,6 +444,7 @@ type userProfile struct {
 	Username    string `json:"username"`
 	Role        string `json:"role"`
 	AllowPortal bool   `json:"allow_portal"`
+	AllowSubmit bool   `json:"allow_submit"`
 	AllowAdmin  bool   `json:"allow_admin"`
 }
 
@@ -454,6 +456,7 @@ func profileFromRequest(r *http.Request) *userProfile {
 			Username:    strings.TrimSpace(id.Username),
 			Role:        "administrator",
 			AllowPortal: true,
+			AllowSubmit: true,
 			AllowAdmin:  true,
 		}
 	case id.IsSubmitter():
@@ -461,6 +464,7 @@ func profileFromRequest(r *http.Request) *userProfile {
 			Username:    strings.TrimSpace(id.Username),
 			Role:        "submit",
 			AllowPortal: true,
+			AllowSubmit: true,
 			AllowAdmin:  false,
 		}
 	case id.IsViewer():
@@ -468,6 +472,7 @@ func profileFromRequest(r *http.Request) *userProfile {
 			Username:    strings.TrimSpace(id.Username),
 			Role:        "view",
 			AllowPortal: true,
+			AllowSubmit: false,
 			AllowAdmin:  false,
 		}
 	default:

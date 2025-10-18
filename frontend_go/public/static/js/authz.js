@@ -171,7 +171,7 @@
     const effectiveRole = resolveEffectiveRole(profile.role, profile.allowAdmin);
     const submitIndex = ROLE_INDEX["submit"] ?? ROLE_INDEX[ADMIN_ROLE] ?? 0;
     const effectiveIndex = ROLE_INDEX[effectiveRole] ?? 0;
-    const allowSubmit = effectiveIndex >= submitIndex;
+    const allowSubmit = (profile.allowSubmit || effectiveIndex >= submitIndex) ? true : false;
     const allowAdmin = effectiveRole === ADMIN_ROLE;
     const allowPortal = allowAdmin || allowSubmit || effectiveRole === ROLE_ORDER[0];
     profile.role = effectiveRole;
@@ -223,7 +223,11 @@
       const normalizedRole = normalizeRole(data.role || "view");
       const allowAdmin = normalizedRole === ADMIN_ROLE || Boolean(data.allow_admin);
       const effectiveRole = resolveEffectiveRole(normalizedRole, allowAdmin);
-      const allowSubmit = (ROLE_INDEX[effectiveRole] ?? 0) >= (ROLE_INDEX["submit"] ?? 1);
+      const derivedAllowSubmit = (ROLE_INDEX[effectiveRole] ?? 0) >= (ROLE_INDEX["submit"] ?? 1);
+      const allowSubmit =
+        typeof data.allow_submit === "boolean"
+          ? data.allow_submit || derivedAllowSubmit
+          : derivedAllowSubmit;
       profile = {
         username: data.username || null,
         role: effectiveRole,
