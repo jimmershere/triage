@@ -10,9 +10,20 @@ const (
 	RoleSubmit = "hedi-submit"
 	RoleView   = "hedi-view"
 
-	headerUser   = "X-Forwarded-User"
-	headerGroups = "X-Forwarded-Groups"
+	headerUserPrimary    = "X-Auth-Request-User"
+	headerUserFallback   = "X-Forwarded-User"
+	headerGroupsPrimary  = "X-Auth-Request-Groups"
+	headerGroupsFallback = "X-Forwarded-Groups"
 )
+
+func firstHeader(r *http.Request, names ...string) string {
+	for _, name := range names {
+		if v := strings.TrimSpace(r.Header.Get(name)); v != "" {
+			return v
+		}
+	}
+	return ""
+}
 
 type Identity struct {
 	Username string
@@ -20,7 +31,7 @@ type Identity struct {
 }
 
 func groupsFromRequest(r *http.Request) map[string]bool {
-	raw := r.Header.Get(headerGroups)
+	raw := firstHeader(r, headerGroupsPrimary, headerGroupsFallback)
 	if raw == "" {
 		return map[string]bool{}
 	}
@@ -37,7 +48,7 @@ func groupsFromRequest(r *http.Request) map[string]bool {
 
 func IdentityFromRequest(r *http.Request) Identity {
 	return Identity{
-		Username: strings.TrimSpace(r.Header.Get(headerUser)),
+		Username: firstHeader(r, headerUserPrimary, headerUserFallback),
 		groups:   groupsFromRequest(r),
 	}
 }
