@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -25,6 +28,8 @@ var (
 
 	rawAPIBase       = strings.TrimRight(env("HEDI_API_BASE", ""), "/")
 	rawOAuthProxyURL = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_URL", ""))
+	sessionSecretRaw = strings.TrimSpace(env("HEDI_SESSION_SECRET", ""))
+	sessionSecret    = []byte(sessionSecretRaw)
 	backendAPIBase   string
 	sharedSecret     = env("HEDI_SHARED_SECRET", "change-me")
 
@@ -35,6 +40,8 @@ var (
 	httpClient = &http.Client{Timeout: 10 * time.Second}
 )
 
+const sessionCookieName = "hedi_session"
+
 func init() {
 	backendAPIBase = rawAPIBase
 	if backendAPIBase == "" {
@@ -42,6 +49,7 @@ func init() {
 	}
 	mime.AddExtensionType(".svg", "image/svg+xml")
 	mime.AddExtensionType(".webp", "image/webp")
+	rbac.ResolveIdentity = identityFromRequest
 }
 
 // ---------- small helpers ----------
@@ -51,6 +59,79 @@ func env(k, def string) string {
 		return v
 	}
 	return def
+}
+
+type sessionClaims struct {
+	Username string   `json:"u"`
+	Groups   []string `json:"g"`
+	Expires  int64    `json:"exp"`
+}
+
+func (c sessionClaims) valid(now time.Time) bool {
+	if strings.TrimSpace(c.Username) == "" {
+		return false
+	}
+	if c.Expires > 0 && now.Unix() > c.Expires {
+		return false
+	}
+	return true
+}
+
+func decodeSessionToken(raw string) (*sessionClaims, error) {
+	if len(sessionSecret) == 0 {
+		return nil, errors.New("session secret not configured")
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, errors.New("empty session token")
+	}
+	parts := strings.Split(raw, ".")
+	if len(parts) != 2 {
+		return nil, errors.New("invalid session token")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, err
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, err
+	}
+	mac := hmac.New(sha256.New, sessionSecret)
+	if _, err := mac.Write([]byte(parts[0])); err != nil {
+		return nil, err
+	}
+	expected := mac.Sum(nil)
+	if !hmac.Equal(sig, expected) {
+		return nil, errors.New("invalid session signature")
+	}
+	var claims sessionClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, err
+	}
+	return &claims, nil
+}
+
+func identityFromRequest(r *http.Request) rbac.Identity {
+	id := rbac.IdentityFromRequest(r)
+	if id.Username != "" || len(id.Groups()) > 0 {
+		return id
+	}
+	if len(sessionSecret) == 0 {
+		return id
+	}
+	cookie, err := r.Cookie(sessionCookieName)
+	if err != nil || cookie.Value == "" {
+		return id
+	}
+	claims, err := decodeSessionToken(cookie.Value)
+	if err != nil {
+		return id
+	}
+	if !claims.valid(time.Now()) {
+		return id
+	}
+	return rbac.NewIdentity(claims.Username, claims.Groups)
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
@@ -353,7 +434,7 @@ type userProfile struct {
 }
 
 func profileFromRequest(r *http.Request) *userProfile {
-	id := rbac.IdentityFromRequest(r)
+	id := identityFromRequest(r)
 	switch {
 	case id.IsAdmin():
 		return &userProfile{
