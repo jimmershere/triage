@@ -13,6 +13,7 @@ from pathlib import Path
 SEGMENT_TERMINATOR = "~"
 ELEMENT_SEPARATOR = "*"
 SUBELEMENT_SEPARATOR = ":"
+IMPLEMENTATION_VERSION = "005010X221A1"
 
 
 @dataclass
@@ -53,7 +54,7 @@ class PaymentContext:
             + self.today.strftime("%H%M") + ELEMENT_SEPARATOR
             + self.group_control + ELEMENT_SEPARATOR
             + "X" + ELEMENT_SEPARATOR
-            + "005010X221A1" + SEGMENT_TERMINATOR
+            + IMPLEMENTATION_VERSION + SEGMENT_TERMINATOR
         )
 
 
@@ -93,7 +94,10 @@ def build_transaction(ctx: PaymentContext, claim_count: int) -> list[str]:
 
     segments.extend(
         [
-            ELEMENT_SEPARATOR.join(["N1", "PR", "PRIMARY HEALTH PLAN", "FI", "999999999"]) + SEGMENT_TERMINATOR,
+            ELEMENT_SEPARATOR.join(
+                ["N1", "PR", "PRIMARY HEALTH PLAN", "XV", "842610001"]
+            )
+            + SEGMENT_TERMINATOR,
             ELEMENT_SEPARATOR.join(["N3", "123 HEALTH ST"])
             + SEGMENT_TERMINATOR,
             ELEMENT_SEPARATOR.join(["N4", "METROPOLIS", "NY", "10101"])
@@ -107,7 +111,10 @@ def build_transaction(ctx: PaymentContext, claim_count: int) -> list[str]:
 
     segments.extend(
         [
-            ELEMENT_SEPARATOR.join(["N1", "PE", "PAYEE CLINIC", "XX", "1234567893"]) + SEGMENT_TERMINATOR,
+            ELEMENT_SEPARATOR.join(
+                ["N1", "PE", "PAYEE CLINIC", "XX", "1234567895"]
+            )
+            + SEGMENT_TERMINATOR,
             ELEMENT_SEPARATOR.join(["N3", "456 CLINIC AVE"])
             + SEGMENT_TERMINATOR,
             ELEMENT_SEPARATOR.join(["N4", "GOTHAM", "NY", "10001"])
@@ -143,7 +150,18 @@ def build_transaction(ctx: PaymentContext, claim_count: int) -> list[str]:
         segments.append(ELEMENT_SEPARATOR.join(["CAS", "PR", "1", "25.00"]) )
         segments[-1] += SEGMENT_TERMINATOR
         segments.append(
-            ELEMENT_SEPARATOR.join(["NM1", "QC", "1", "PATIENT", str(idx), "", "", "", "", "MI", patient_id])
+            ELEMENT_SEPARATOR.join([
+                "NM1",
+                "QC",
+                "1",
+                "PATIENT",
+                f"{idx:06d}",
+                "",
+                "",
+                "",
+                "MI",
+                patient_id,
+            ])
             + SEGMENT_TERMINATOR
         )
         segments.append(ELEMENT_SEPARATOR.join(["DTM", "232", ctx.today.strftime("%Y%m%d")]) + SEGMENT_TERMINATOR)
