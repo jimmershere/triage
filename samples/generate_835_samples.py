@@ -93,7 +93,14 @@ def build_transaction(ctx: PaymentContext, claim_count: int) -> list[str]:
 
     segments.extend(
         [
-            ELEMENT_SEPARATOR.join(["N1", "PR", "PRIMARY HEALTH PLAN", "FI", "999999999"]) + SEGMENT_TERMINATOR,
+            ELEMENT_SEPARATOR.join([
+                "N1",
+                "PR",
+                "PRIMARY HEALTH PLAN",
+                "XV",
+                "MCPAYERPLAN01",
+            ])
+            + SEGMENT_TERMINATOR,
             ELEMENT_SEPARATOR.join(["N3", "123 HEALTH ST"])
             + SEGMENT_TERMINATOR,
             ELEMENT_SEPARATOR.join(["N4", "METROPOLIS", "NY", "10101"])
@@ -143,7 +150,18 @@ def build_transaction(ctx: PaymentContext, claim_count: int) -> list[str]:
         segments.append(ELEMENT_SEPARATOR.join(["CAS", "PR", "1", "25.00"]) )
         segments[-1] += SEGMENT_TERMINATOR
         segments.append(
-            ELEMENT_SEPARATOR.join(["NM1", "QC", "1", "PATIENT", str(idx), "", "", "", "", "MI", patient_id])
+            ELEMENT_SEPARATOR.join([
+                "NM1",
+                "QC",
+                "1",
+                "PATIENT",
+                f"{idx:06d}",
+                "",
+                "",
+                "",
+                "MI",
+                patient_id,
+            ])
             + SEGMENT_TERMINATOR
         )
         segments.append(ELEMENT_SEPARATOR.join(["DTM", "232", ctx.today.strftime("%Y%m%d")]) + SEGMENT_TERMINATOR)
