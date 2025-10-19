@@ -6,6 +6,7 @@ import io
 import logging
 import uuid
 from dataclasses import dataclass
+from functools import wraps
 from pathlib import Path
 
 from . import AckRecord, TranslationOutcome, Translator, register
@@ -109,6 +110,52 @@ class _PyX12Support:
 
 _SUPPORT_ERROR: str | None = None
 
+
+def _ensure_pyx12_ak2_patch() -> None:
+    """Patch pyx12's 999 generator to tolerate missing ST03 values.
+
+    Older or non-standard X12 files sometimes omit the ST03 element even when
+    the functional group supplies the implementation convention reference.  In
+    those cases pyx12 raises ``EngineError('Cannot create AK2: err_st.vriic was
+    not set')`` while building the 999 acknowledgement.  We still want to return
+    an acknowledgement, so we monkey-patch the visitor to fall back to the
+    parent's VRIIC (GS08) when ST03 is not present.
+    """
+
+    try:
+        from pyx12.error_999 import error_999_visitor  # type: ignore
+    except Exception:
+        return
+
+    visit_st_pre = getattr(error_999_visitor, "visit_st_pre", None)
+    if visit_st_pre is None:
+        return
+
+    if getattr(visit_st_pre, "_hedi_patched", False):
+        return
+
+    @wraps(visit_st_pre)
+    def patched_visit_st_pre(self, err_st):  # type: ignore[override]
+        current_vriic = getattr(err_st, "vriic", None) if err_st is not None else None
+        if err_st is not None and (current_vriic is None or str(current_vriic).strip() == ""):
+            fallback = getattr(err_st.parent, "vriic", None)
+            if fallback is not None and str(fallback).strip() == "":
+                fallback = None
+            if fallback is None:
+                fallback = getattr(self, "vriic", None)
+                if fallback is not None and str(fallback).strip() == "":
+                    fallback = None
+            if fallback is None:
+                fallback = "005010X231"
+            try:
+                err_st.vriic = fallback
+            except Exception:
+                pass
+        return visit_st_pre(self, err_st)
+
+    patched_visit_st_pre._hedi_patched = True  # type: ignore[attr-defined]
+    error_999_visitor.visit_st_pre = patched_visit_st_pre
+
 def _load_support() -> _PyX12Support | None:
     global _SUPPORT_ERROR
     try:
@@ -116,6 +163,8 @@ def _load_support() -> _PyX12Support | None:
         x12file_mod = importlib.import_module("pyx12.x12file")
         map_if_mod = importlib.import_module("pyx12.map_if")
         x12n_document_mod = importlib.import_module("pyx12.x12n_document")
+
+        _ensure_pyx12_ak2_patch()
         return _PyX12Support(
             params_mod=params_mod,
             x12file_mod=x12file_mod,
