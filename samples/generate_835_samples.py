@@ -93,7 +93,14 @@ def build_transaction(ctx: PaymentContext, claim_count: int) -> list[str]:
 
     segments.extend(
         [
-            ELEMENT_SEPARATOR.join(["N1", "PR", "PRIMARY HEALTH PLAN", "PI", "999999999"]) + SEGMENT_TERMINATOR,
+            ELEMENT_SEPARATOR.join([
+                "N1",
+                "PR",
+                "PRIMARY HEALTH PLAN",
+                "XV",
+                "MCPAYERPLAN01",
+            ])
+            + SEGMENT_TERMINATOR,
             ELEMENT_SEPARATOR.join(["N3", "123 HEALTH ST"])
             + SEGMENT_TERMINATOR,
             ELEMENT_SEPARATOR.join(["N4", "METROPOLIS", "NY", "10101"])
