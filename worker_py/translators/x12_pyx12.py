@@ -14,6 +14,7 @@ from pathlib import Path
 import pkg_resources
 
 from . import AckRecord, TranslationOutcome, Translator, register
+from ._ack_helpers import generate_simple_277ca, generate_simple_999
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +48,55 @@ class _PyX12Support:
         for seg in get_seg():
             yield seg
 
+    def _synthetic_acknowledgements(
+        self,
+        *,
+        job_uuid: uuid.UUID,
+        trading_partner_id: str | None,
+        claim_count: int,
+        isa_control: str | None,
+        gs_functional_code: str | None,
+        st_code: str | None,
+    ) -> list[AckRecord]:
+        records: list[AckRecord] = []
+        try:
+            ack_999 = generate_simple_999(
+                job_uuid=job_uuid,
+                trading_partner_id=trading_partner_id,
+                total_claims=claim_count,
+                isa_control=isa_control,
+                gs_functional_code=gs_functional_code,
+                st_code=st_code,
+            )
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logger.debug("synthetic 999 generation failed: %s", exc)
+        else:
+            if ack_999:
+                records.append(AckRecord("999", ack_999))
+        if claim_count:
+            try:
+                ack_277 = generate_simple_277ca(
+                    job_uuid=job_uuid,
+                    trading_partner_id=trading_partner_id,
+                    total_claims=claim_count,
+                )
+            except Exception as exc:  # pragma: no cover - defensive fallback
+                logger.debug("synthetic 277CA generation failed: %s", exc)
+            else:
+                if ack_277:
+                    records.append(AckRecord("277CA", ack_277))
+        return records
+
     def generate_acks(
         self,
         text: str,
         *,
         job_uuid: uuid.UUID,
         trading_partner_id: str | None,
+        claim_count: int = 0,
+        isa_control: str | None = None,
+        gs_functional_code: str | None = None,
+        st_code: str | None = None,
     ) -> list[AckRecord]:
         if "005010X224A2" in text:
             fallback = self._generate_837d_ack(
@@ -108,6 +152,20 @@ class _PyX12Support:
                     return [AckRecord("999", fallback)]
             diagnostic = f"pyx12 validation failed: {exc}"
             logger.warning("pyx12 x12n_document raised while processing job %s: %s", job_uuid, exc)
+            fallback = self._synthetic_acknowledgements(
+                job_uuid=job_uuid,
+                trading_partner_id=trading_partner_id,
+                claim_count=claim_count,
+                isa_control=isa_control,
+                gs_functional_code=gs_functional_code,
+                st_code=st_code,
+            )
+            if fallback:
+                notice = (
+                    f"pyx12 validation failed ({exc}); generated synthetic acknowledgements without schema validation"
+                )
+                fallback.append(AckRecord("NOTICE", notice))
+                return fallback
             return [AckRecord("ERROR", diagnostic)]
 
         ack_text = ack_buffer.getvalue().strip()
@@ -401,12 +459,14 @@ class PyX12Translator:
     def handles(self, detected_type: str, text_sample: str) -> bool:
         return self._support is not None and detected_type.startswith("X12")
 
-    def _extract_claims(self, text: str) -> tuple[list[dict], str | None]:
+    def _extract_claims(self, text: str) -> tuple[list[dict], str | None, str | None, str | None]:
         support = self._support
         if support is None:
             raise RuntimeError("pyx12 support not loaded")
         claims: list[dict] = []
         isa_ctrl: str | None = None
+        gs_functional: str | None = None
+        st_code: str | None = None
         try:
             for seg in support.iter_segments(text):
                 tag = None
@@ -428,6 +488,10 @@ class PyX12Translator:
                     continue
                 if tag == "ISA" and len(elements) >= 14:
                     isa_ctrl = str(elements[13])
+                elif tag == "GS" and len(elements) >= 2 and not gs_functional:
+                    gs_functional = str(elements[1])
+                elif tag == "ST" and len(elements) >= 2 and not st_code:
+                    st_code = str(elements[1])
                 if tag == "CLM":
                     claim_id = str(elements[1]) if len(elements) > 1 else None
                     amount = None
@@ -443,7 +507,7 @@ class PyX12Translator:
                     })
         except Exception as exc:
             logger.warning("pyx12 parsing failed; no claims extracted: %s", exc)
-        return claims, isa_ctrl
+        return claims, isa_ctrl, gs_functional, st_code
 
     def translate(
         self,
@@ -457,11 +521,28 @@ class PyX12Translator:
         support = self._support
         if support is None:
             raise RuntimeError("pyx12 support unavailable")
-        claims, isa_ctrl = self._extract_claims(text)
-        acknowledgements = support.generate_acks(text, job_uuid=job_uuid, trading_partner_id=trading_partner_id)
+        claims, isa_ctrl, gs_functional, st_code = self._extract_claims(text)
+        acknowledgements = support.generate_acks(
+            text,
+            job_uuid=job_uuid,
+            trading_partner_id=trading_partner_id,
+            claim_count=len(claims),
+            isa_control=isa_ctrl,
+            gs_functional_code=gs_functional,
+            st_code=st_code,
+        )
+        self._last_error = None
+        for ack in acknowledgements:
+            if ack.ack_type in {"ERROR", "NOTICE"} and ack.content:
+                if ack.content.startswith("pyx12 validation failed"):
+                    self._last_error = ack.content
+                    break
+                if ack.ack_type == "ERROR":
+                    self._last_error = ack.content
+                    break
         if not acknowledgements:
             logger.info("pyx12 did not return acknowledgements; falling back to notice")
-            acknowledgements = [AckRecord("NOTICE", "pyx12 failed to produce ack")] 
+            acknowledgements = [AckRecord("NOTICE", "pyx12 failed to produce ack")]
         return TranslationOutcome(
             file_type="X12_837_or_other",
             claims=claims,
