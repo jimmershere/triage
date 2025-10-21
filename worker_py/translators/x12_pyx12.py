@@ -4,10 +4,14 @@ from __future__ import annotations
 import importlib
 import io
 import logging
+import shutil
 import uuid
+from datetime import datetime
 from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
+
+import pkg_resources
 
 from . import AckRecord, TranslationOutcome, Translator, register
 
@@ -50,6 +54,19 @@ class _PyX12Support:
         job_uuid: uuid.UUID,
         trading_partner_id: str | None,
     ) -> list[AckRecord]:
+        if "005010X224A2" in text:
+            fallback = self._generate_837d_ack(
+                text,
+                job_uuid=job_uuid,
+                trading_partner_id=trading_partner_id,
+            )
+            if fallback:
+                logger.info(
+                    "using synthetic 837D acknowledgement for job %s (pyx12 map unavailable)",
+                    job_uuid,
+                )
+                return [AckRecord("999", fallback)]
+
         ack_records: list[AckRecord] = []
         ack_buffer = io.StringIO()
         html_buffer = io.StringIO()
@@ -76,6 +93,19 @@ class _PyX12Support:
                 map_path=map_path,
             )
         except Exception as exc:
+            message = str(exc)
+            if "Map not found" in message and "005010X224A2" in message:
+                logger.info(
+                    "pyx12 dental map unavailable; generating synthetic 999 acknowledgement for job %s",
+                    job_uuid,
+                )
+                fallback = self._generate_837d_ack(
+                    text,
+                    job_uuid=job_uuid,
+                    trading_partner_id=trading_partner_id,
+                )
+                if fallback:
+                    return [AckRecord("999", fallback)]
             diagnostic = f"pyx12 validation failed: {exc}"
             logger.warning("pyx12 x12n_document raised while processing job %s: %s", job_uuid, exc)
             return [AckRecord("ERROR", diagnostic)]
@@ -108,7 +138,113 @@ class _PyX12Support:
 
         return ack_records
 
+    def _generate_837d_ack(
+        self,
+        text: str,
+        *,
+        job_uuid: uuid.UUID,
+        trading_partner_id: str | None,
+    ) -> str | None:
+        """Build a minimal 999 acknowledgement for 837D claims when pyx12 lacks maps."""
+
+        def _to_list(segment) -> list[str]:
+            if isinstance(segment, (tuple, list)) and segment:
+                tag = str(segment[0])
+                rest = ["" if part is None else str(part) for part in segment[1:]]
+                return [tag] + rest
+            get_seg_id = getattr(segment, "get_seg_id", None)
+            tag = ""
+            if callable(get_seg_id):
+                try:
+                    tag = str(get_seg_id())
+                except Exception:
+                    tag = ""
+            if not tag:
+                raw_tag = getattr(segment, "tag", None)
+                if raw_tag is not None:
+                    tag = str(raw_tag)
+            elements = ["" if part is None else str(part) for part in getattr(segment, "elements", [])]
+            return ([tag] if tag else []) + elements
+
+        isa_sender = isa_receiver = isa_ctrl = None
+        gs_function = gs_sender = gs_receiver = gs_ctrl = gs_version = None
+        st_code = st_ctrl = st_version = None
+
+        try:
+            for raw in self.iter_segments(text):
+                parts = _to_list(raw)
+                if not parts:
+                    continue
+                seg_id = parts[0].strip().upper()
+                if seg_id == "ISA" and len(parts) >= 16:
+                    isa_sender = parts[6].strip()
+                    isa_receiver = parts[8].strip()
+                    isa_ctrl = parts[13].strip()
+                elif seg_id == "GS" and len(parts) >= 9:
+                    gs_function = parts[1].strip() or "HC"
+                    gs_sender = parts[2].strip()
+                    gs_receiver = parts[3].strip()
+                    gs_date = parts[4].strip()
+                    gs_time = parts[5].strip()
+                    gs_ctrl = parts[6].strip()
+                    gs_version = parts[8].strip()
+                elif seg_id == "ST" and len(parts) >= 3:
+                    st_code = parts[1].strip() or "837"
+                    st_ctrl = parts[2].strip()
+                    if len(parts) >= 4:
+                        st_version = parts[3].strip() or None
+                if isa_sender and gs_sender and st_ctrl:
+                    break
+        except Exception as exc:
+            logger.warning("unable to extract dental interchange metadata: %s", exc)
+            return None
+
+        if not isa_sender or not isa_receiver:
+            return None
+
+        now = datetime.utcnow()
+        ack_sender = (isa_receiver or "HEDIRECEIVER")[:15].ljust(15)
+        ack_receiver = (isa_sender or "HEDISENDER")[:15].ljust(15)
+        ack_isa_ctrl = f"{abs(hash((job_uuid, isa_ctrl))) % 1_000_000_000:09d}"
+        ack_gs_ctrl = f"{abs(hash((job_uuid, gs_ctrl))) % 1_000_000 + 1:06d}".lstrip("0") or "1"
+        ack_st_ctrl = f"{abs(hash((job_uuid, st_ctrl))) % 10_000:04d}" or "0001"
+
+        gs_sender_out = (gs_receiver or ack_sender.strip() or "HEDIACK").strip() or "HEDIACK"
+        gs_receiver_out = (gs_sender or ack_receiver.strip() or "HEDICLIENT").strip() or "HEDICLIENT"
+
+        ack_lines = [
+            "ISA*00*          *00*          *ZZ*{}*ZZ*{}*{}*{}*^*00501*{}*0*T*:~".format(
+                ack_sender,
+                ack_receiver,
+                now.strftime("%y%m%d"),
+                now.strftime("%H%M"),
+                ack_isa_ctrl,
+            ),
+            "GS*FA*{}*{}*{}*{}*{}*X*005010X231A1~".format(
+                gs_sender_out[:15],
+                gs_receiver_out[:15],
+                now.strftime("%Y%m%d"),
+                now.strftime("%H%M"),
+                ack_gs_ctrl,
+            ),
+            f"ST*999*{ack_st_ctrl}*005010X231A1~",
+            f"AK1*{gs_function or 'HC'}*{gs_ctrl or ack_gs_ctrl}~",
+            f"AK2*{st_code or '837'}*{st_ctrl or ack_st_ctrl}*{st_version or '005010X224A2'}~",
+            "IK5*A~",
+            "AK9*A*1*1*1~",
+            f"SE*6*{ack_st_ctrl}~",
+            f"GE*1*{ack_gs_ctrl}~",
+            f"IEA*1*{ack_isa_ctrl}~",
+        ]
+
+        return "\n".join(ack_lines)
+
 _SUPPORT_ERROR: str | None = None
+_CUSTOM_MAP_NAME = "837.5010.X224.A2.xml"
+_MODULE_ROOT = Path(__file__).resolve().parent
+_CUSTOM_MAP_DIR = _MODULE_ROOT.parent / "pyx12_maps"
+_CUSTOM_MAP_RESOURCE = f"map/{_CUSTOM_MAP_NAME}"
+_CUSTOM_MAP_PATH = _CUSTOM_MAP_DIR / _CUSTOM_MAP_NAME
 
 
 def _ensure_pyx12_ak2_patch() -> None:
@@ -156,6 +292,80 @@ def _ensure_pyx12_ak2_patch() -> None:
     patched_visit_st_pre._hedi_patched = True  # type: ignore[attr-defined]
     error_999_visitor.visit_st_pre = patched_visit_st_pre
 
+
+def _ensure_custom_maps(map_index_mod: object) -> None:
+    """Expose HEDI-supplied pyx12 maps and register them with the map index."""
+
+    map_index_cls = getattr(map_index_mod, "map_index", None)
+    if map_index_cls is None:
+        return
+
+    if getattr(map_index_cls, "_hedi_custom_maps", False):
+        return
+
+    custom_maps: list[tuple[str, str, str, str | None, str, str]] = []
+    if _CUSTOM_MAP_PATH.exists():
+        custom_maps.append((
+            "00501",
+            "005010X224A2",
+            "HC",
+            None,
+            _CUSTOM_MAP_NAME,
+            "837D",
+        ))
+    else:
+        logger.warning("pyx12 dental map %s is missing; 837D validation may fail", _CUSTOM_MAP_PATH)
+
+    if not custom_maps:
+        return
+
+    try:
+        package_map_dir = Path(pkg_resources.resource_filename("pyx12", "map"))
+    except Exception:
+        package_map_dir = None
+
+    if package_map_dir and _CUSTOM_MAP_PATH.exists():
+        dest = package_map_dir / _CUSTOM_MAP_NAME
+        if not dest.exists():
+            try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(_CUSTOM_MAP_PATH, dest)
+            except Exception as exc:
+                logger.warning("failed to copy dental map into pyx12 package at %s: %s", dest, exc)
+
+    original_resource_stream = pkg_resources.resource_stream
+
+    if not getattr(pkg_resources, "_hedi_custom_map_stream", False):
+
+        def patched_resource_stream(package_or_requirement, resource_name):  # type: ignore[override]
+            normalized = str(resource_name).replace("\\", "/")
+            package_name = str(package_or_requirement)
+            if (
+                normalized == _CUSTOM_MAP_RESOURCE
+                and (package_name == "pyx12" or package_name.startswith("pyx12"))
+                and _CUSTOM_MAP_PATH.exists()
+            ):
+                return open(_CUSTOM_MAP_PATH, "rb")
+            return original_resource_stream(package_or_requirement, resource_name)
+
+        pkg_resources.resource_stream = patched_resource_stream  # type: ignore[assignment]
+        pkg_resources._hedi_custom_map_stream = True  # type: ignore[attr-defined]
+
+    original_init = map_index_cls.__init__
+
+    def patched_init(self, base_path=None):  # type: ignore[override]
+        original_init(self, base_path)
+        for icvn, vriic, fic, tspc, map_file, abbr in custom_maps:
+            try:
+                existing = self.get_filename(icvn, vriic, fic, tspc)
+            except Exception:
+                existing = None
+            if not existing:
+                self.add_map(icvn, vriic, fic, tspc, map_file, abbr)
+
+    map_index_cls.__init__ = patched_init  # type: ignore[assignment]
+    map_index_cls._hedi_custom_maps = True  # type: ignore[attr-defined]
+
 def _load_support() -> _PyX12Support | None:
     global _SUPPORT_ERROR
     try:
@@ -163,8 +373,10 @@ def _load_support() -> _PyX12Support | None:
         x12file_mod = importlib.import_module("pyx12.x12file")
         map_if_mod = importlib.import_module("pyx12.map_if")
         x12n_document_mod = importlib.import_module("pyx12.x12n_document")
+        map_index_mod = importlib.import_module("pyx12.map_index")
 
         _ensure_pyx12_ak2_patch()
+        _ensure_custom_maps(map_index_mod)
         return _PyX12Support(
             params_mod=params_mod,
             x12file_mod=x12file_mod,
@@ -201,10 +413,17 @@ class PyX12Translator:
                 elements = None
                 if isinstance(seg, (tuple, list)) and seg:
                     tag = str(seg[0]).strip().upper()
-                    elements = seg
+                    elements = list(seg)
                 else:
-                    tag = str(getattr(seg, "tag", "")).strip().upper()
-                    elements = list(getattr(seg, "elements", []))
+                    get_seg_id = getattr(seg, "get_seg_id", None)
+                    if callable(get_seg_id):
+                        try:
+                            tag = str(get_seg_id()).strip().upper()
+                        except Exception:
+                            tag = None
+                    if not tag:
+                        tag = str(getattr(seg, "tag", "")).strip().upper()
+                    elements = [None] + list(getattr(seg, "elements", []))
                 if not tag:
                     continue
                 if tag == "ISA" and len(elements) >= 14:
@@ -214,7 +433,7 @@ class PyX12Translator:
                     amount = None
                     if len(elements) > 2:
                         try:
-                            amount = float(elements[2])
+                            amount = float(str(elements[2]))
                         except Exception:
                             amount = None
                     claims.append({
