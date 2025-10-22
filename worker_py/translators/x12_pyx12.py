@@ -111,6 +111,121 @@ class _PyX12Support:
                     records.append(AckRecord("277CA", ack_277))
         return records
 
+    def _map_not_found_fallback(
+        self,
+        text: str,
+        *,
+        job_uuid: uuid.UUID,
+        trading_partner_id: str | None,
+        claim_count: int,
+        isa_control: str | None,
+        gs_functional_code: str | None,
+        st_code: str | None,
+        error_message: str,
+    ) -> list[AckRecord]:
+        """Produce acknowledgements when pyx12 reports a missing map."""
+
+        details: dict[str, str] = {}
+        for raw_part in error_message.split(","):
+            if "=" not in raw_part:
+                continue
+            key, value = raw_part.split("=", 1)
+            key = key.strip().lower()
+            value = value.strip()
+            if key and value:
+                details[key] = value
+
+        vriic = details.get("vriic")
+        fic = details.get("fic")
+        icvn = details.get("icvn")
+        st_clean = (st_code or "").strip()
+        gs_clean = (gs_functional_code or "").strip()
+        fic_upper = (fic or "").strip().upper()
+        vriic_upper = (vriic or "").strip().upper()
+
+        is_eligibility = False
+        if st_clean == "270" or gs_clean == "HS":
+            is_eligibility = True
+        elif fic_upper == "HS":
+            is_eligibility = True
+        elif "X279" in vriic_upper or "270" in vriic_upper:
+            is_eligibility = True
+
+        if "005010X224A2" in vriic_upper:
+            fallback_837 = self._generate_837d_ack(
+                text,
+                job_uuid=job_uuid,
+                trading_partner_id=trading_partner_id,
+            )
+            if fallback_837:
+                logger.info(
+                    "pyx12 map %s unavailable; generating synthetic 837D acknowledgement for job %s",
+                    vriic or "005010X224A2",
+                    job_uuid,
+                )
+                notice_text = (
+                    f"pyx12 map {vriic or '005010X224A2'} not found; generated synthetic 999 acknowledgement without schema validation"
+                )
+                return [AckRecord("999", fallback_837), AckRecord("NOTICE", notice_text)]
+
+        if is_eligibility:
+            context = "eligibility (270/271)"
+            logger.info(
+                "pyx12 eligibility map unavailable; generating synthetic acknowledgements for job %s",
+                job_uuid,
+            )
+        elif st_clean:
+            context = f"{st_clean} transaction"
+            logger.info(
+                "pyx12 map unavailable for %s; generating synthetic acknowledgements for job %s",
+                context,
+                job_uuid,
+            )
+        elif vriic:
+            context = vriic
+            logger.info(
+                "pyx12 map unavailable for %s; generating synthetic acknowledgements for job %s",
+                context,
+                job_uuid,
+            )
+        elif fic_upper:
+            context = f"functional code {fic_upper}"
+            logger.info(
+                "pyx12 map unavailable for %s; generating synthetic acknowledgements for job %s",
+                context,
+                job_uuid,
+            )
+        elif icvn:
+            context = f"version {icvn}"
+            logger.info(
+                "pyx12 map unavailable for %s; generating synthetic acknowledgements for job %s",
+                context,
+                job_uuid,
+            )
+        else:
+            context = "transaction"
+            logger.info(
+                "pyx12 map unavailable; generating synthetic acknowledgements for job %s",
+                job_uuid,
+            )
+
+        fallback_records = self._synthetic_acknowledgements(
+            job_uuid=job_uuid,
+            trading_partner_id=trading_partner_id,
+            claim_count=claim_count,
+            isa_control=isa_control,
+            gs_functional_code=gs_functional_code,
+            st_code=st_code,
+        )
+        trimmed_error = " ".join(error_message.split())
+        notice_text = (
+            f"pyx12 map not found for {context}; generated synthetic acknowledgements without schema validation (pyx12: {trimmed_error})"
+        )
+        if fallback_records:
+            fallback_records.append(AckRecord("NOTICE", notice_text))
+            return fallback_records
+        return [AckRecord("NOTICE", notice_text)]
+
     def generate_acks(
         self,
         text: str,
@@ -122,19 +237,6 @@ class _PyX12Support:
         gs_functional_code: str | None = None,
         st_code: str | None = None,
     ) -> list[AckRecord]:
-        if "005010X224A2" in text:
-            fallback = self._generate_837d_ack(
-                text,
-                job_uuid=job_uuid,
-                trading_partner_id=trading_partner_id,
-            )
-            if fallback:
-                logger.info(
-                    "using synthetic 837D acknowledgement for job %s (pyx12 map unavailable)",
-                    job_uuid,
-                )
-                return [AckRecord("999", fallback)]
-
         ack_records: list[AckRecord] = []
         ack_buffer = io.StringIO()
         html_buffer = io.StringIO()
@@ -152,25 +254,6 @@ class _PyX12Support:
                         map_path = candidate
                 except Exception:
                     map_path = None
-        if (st_code and st_code.strip() == "270") or (gs_functional_code and gs_functional_code.strip() == "HS"):
-            logger.info(
-                "pyx12 eligibility map support unavailable for job %s; returning synthetic acknowledgement",
-                job_uuid,
-            )
-            fallback = self._synthetic_acknowledgements(
-                job_uuid=job_uuid,
-                trading_partner_id=trading_partner_id,
-                claim_count=claim_count,
-                isa_control=isa_control,
-                gs_functional_code=gs_functional_code,
-                st_code=st_code,
-            )
-            notice = (
-                "pyx12 validation skipped for 270 eligibility transactions; generated synthetic acknowledgements without schema validation"
-            )
-            fallback.append(AckRecord("NOTICE", notice))
-            return fallback
-
         try:
             ok = self.x12n_document_mod.x12n_document(
                 param=param,
@@ -181,18 +264,19 @@ class _PyX12Support:
             )
         except Exception as exc:
             message = str(exc)
-            if "Map not found" in message and "005010X224A2" in message:
-                logger.info(
-                    "pyx12 dental map unavailable; generating synthetic 999 acknowledgement for job %s",
-                    job_uuid,
-                )
-                fallback = self._generate_837d_ack(
+            if "Map not found" in message:
+                fallback = self._map_not_found_fallback(
                     text,
                     job_uuid=job_uuid,
                     trading_partner_id=trading_partner_id,
+                    claim_count=claim_count,
+                    isa_control=isa_control,
+                    gs_functional_code=gs_functional_code,
+                    st_code=st_code,
+                    error_message=message,
                 )
                 if fallback:
-                    return [AckRecord("999", fallback)]
+                    return fallback
             diagnostic = f"pyx12 validation failed: {exc}"
             logger.warning("pyx12 x12n_document raised while processing job %s: %s", job_uuid, exc)
             fallback = self._synthetic_acknowledgements(
