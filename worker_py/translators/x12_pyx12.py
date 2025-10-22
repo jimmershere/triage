@@ -11,6 +11,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pkg_resources
 
@@ -110,6 +111,121 @@ class _PyX12Support:
                     records.append(AckRecord("277CA", ack_277))
         return records
 
+    def _map_not_found_fallback(
+        self,
+        text: str,
+        *,
+        job_uuid: uuid.UUID,
+        trading_partner_id: str | None,
+        claim_count: int,
+        isa_control: str | None,
+        gs_functional_code: str | None,
+        st_code: str | None,
+        error_message: str,
+    ) -> list[AckRecord]:
+        """Produce acknowledgements when pyx12 reports a missing map."""
+
+        details: dict[str, str] = {}
+        for raw_part in error_message.split(","):
+            if "=" not in raw_part:
+                continue
+            key, value = raw_part.split("=", 1)
+            key = key.strip().lower()
+            value = value.strip()
+            if key and value:
+                details[key] = value
+
+        vriic = details.get("vriic")
+        fic = details.get("fic")
+        icvn = details.get("icvn")
+        st_clean = (st_code or "").strip()
+        gs_clean = (gs_functional_code or "").strip()
+        fic_upper = (fic or "").strip().upper()
+        vriic_upper = (vriic or "").strip().upper()
+
+        is_eligibility = False
+        if st_clean == "270" or gs_clean == "HS":
+            is_eligibility = True
+        elif fic_upper == "HS":
+            is_eligibility = True
+        elif "X279" in vriic_upper or "270" in vriic_upper:
+            is_eligibility = True
+
+        if "005010X224A2" in vriic_upper:
+            fallback_837 = self._generate_837d_ack(
+                text,
+                job_uuid=job_uuid,
+                trading_partner_id=trading_partner_id,
+            )
+            if fallback_837:
+                logger.info(
+                    "pyx12 map %s unavailable; generating synthetic 837D acknowledgement for job %s",
+                    vriic or "005010X224A2",
+                    job_uuid,
+                )
+                notice_text = (
+                    f"pyx12 map {vriic or '005010X224A2'} not found; generated synthetic 999 acknowledgement without schema validation"
+                )
+                return [AckRecord("999", fallback_837), AckRecord("NOTICE", notice_text)]
+
+        if is_eligibility:
+            context = "eligibility (270/271)"
+            logger.info(
+                "pyx12 eligibility map unavailable; generating synthetic acknowledgements for job %s",
+                job_uuid,
+            )
+        elif st_clean:
+            context = f"{st_clean} transaction"
+            logger.info(
+                "pyx12 map unavailable for %s; generating synthetic acknowledgements for job %s",
+                context,
+                job_uuid,
+            )
+        elif vriic:
+            context = vriic
+            logger.info(
+                "pyx12 map unavailable for %s; generating synthetic acknowledgements for job %s",
+                context,
+                job_uuid,
+            )
+        elif fic_upper:
+            context = f"functional code {fic_upper}"
+            logger.info(
+                "pyx12 map unavailable for %s; generating synthetic acknowledgements for job %s",
+                context,
+                job_uuid,
+            )
+        elif icvn:
+            context = f"version {icvn}"
+            logger.info(
+                "pyx12 map unavailable for %s; generating synthetic acknowledgements for job %s",
+                context,
+                job_uuid,
+            )
+        else:
+            context = "transaction"
+            logger.info(
+                "pyx12 map unavailable; generating synthetic acknowledgements for job %s",
+                job_uuid,
+            )
+
+        fallback_records = self._synthetic_acknowledgements(
+            job_uuid=job_uuid,
+            trading_partner_id=trading_partner_id,
+            claim_count=claim_count,
+            isa_control=isa_control,
+            gs_functional_code=gs_functional_code,
+            st_code=st_code,
+        )
+        trimmed_error = " ".join(error_message.split())
+        notice_text = (
+            f"pyx12 map not found for {context}; generated synthetic acknowledgements without schema validation (pyx12: {trimmed_error})"
+        )
+        if fallback_records:
+            fallback_records.append(AckRecord("NOTICE", notice_text))
+            return fallback_records
+        return [AckRecord("NOTICE", notice_text)]
+
     def generate_acks(
         self,
         text: str,
@@ -121,19 +237,6 @@ class _PyX12Support:
         gs_functional_code: str | None = None,
         st_code: str | None = None,
     ) -> list[AckRecord]:
-        if "005010X224A2" in text:
-            fallback = self._generate_837d_ack(
-                text,
-                job_uuid=job_uuid,
-                trading_partner_id=trading_partner_id,
-            )
-            if fallback:
-                logger.info(
-                    "using synthetic 837D acknowledgement for job %s (pyx12 map unavailable)",
-                    job_uuid,
-                )
-                return [AckRecord("999", fallback)]
-
         ack_records: list[AckRecord] = []
         ack_buffer = io.StringIO()
         html_buffer = io.StringIO()
@@ -161,18 +264,19 @@ class _PyX12Support:
             )
         except Exception as exc:
             message = str(exc)
-            if "Map not found" in message and "005010X224A2" in message:
-                logger.info(
-                    "pyx12 dental map unavailable; generating synthetic 999 acknowledgement for job %s",
-                    job_uuid,
-                )
-                fallback = self._generate_837d_ack(
+            if "Map not found" in message:
+                fallback = self._map_not_found_fallback(
                     text,
                     job_uuid=job_uuid,
                     trading_partner_id=trading_partner_id,
+                    claim_count=claim_count,
+                    isa_control=isa_control,
+                    gs_functional_code=gs_functional_code,
+                    st_code=st_code,
+                    error_message=message,
                 )
                 if fallback:
-                    return [AckRecord("999", fallback)]
+                    return fallback
             diagnostic = f"pyx12 validation failed: {exc}"
             logger.warning("pyx12 x12n_document raised while processing job %s: %s", job_uuid, exc)
             fallback = self._synthetic_acknowledgements(
@@ -321,11 +425,25 @@ class _PyX12Support:
         return "\n".join(ack_lines)
 
 _SUPPORT_ERROR: str | None = None
-_CUSTOM_MAP_NAME = "837.5010.X224.A2.xml"
 _MODULE_ROOT = Path(__file__).resolve().parent
-_CUSTOM_MAP_DIR = _MODULE_ROOT.parent / "pyx12_maps"
-_CUSTOM_MAP_RESOURCE = f"map/{_CUSTOM_MAP_NAME}"
-_CUSTOM_MAP_PATH = _CUSTOM_MAP_DIR / _CUSTOM_MAP_NAME
+_CUSTOM_MAP_DIRS = (
+    _MODULE_ROOT.parent / "pyx12_maps",
+    _DEFAULT_MAP_DIR,
+)
+
+
+@dataclass(slots=True)
+class _CustomMapDefinition:
+    icvn: str
+    vriic: str
+    fic: str
+    tspc: str | None
+    filename: str
+    abbr: str | None
+    path: Path
+
+
+_CUSTOM_MAP_DEFS: list[_CustomMapDefinition] = []
 
 
 def _ensure_pyx12_ak2_patch() -> None:
@@ -374,6 +492,118 @@ def _ensure_pyx12_ak2_patch() -> None:
     error_999_visitor.visit_st_pre = patched_visit_st_pre
 
 
+def _load_custom_map_definitions() -> list[_CustomMapDefinition]:
+    """Load custom map metadata from local directories."""
+
+    definitions: list[_CustomMapDefinition] = []
+    seen: set[Path] = set()
+    fallback_maps = (
+        ("00501", "005010X224A2", "HC", None, "837.5010.X224.A2.xml", "837D"),
+    )
+
+    for directory in _CUSTOM_MAP_DIRS:
+        if not directory.exists():
+            continue
+
+        index_path = directory / "map_index.xml"
+        if index_path.exists():
+            try:
+                root = ElementTree.parse(index_path).getroot()
+            except Exception as exc:
+                logger.warning("failed to parse custom pyx12 map index %s: %s", index_path, exc)
+            else:
+                for version_elem in root.findall("version"):
+                    icvn = (version_elem.get("icvn") or "").strip()
+                    if not icvn:
+                        continue
+                    for map_elem in version_elem.findall("map"):
+                        map_file = (map_elem.text or "").strip()
+                        if not map_file:
+                            continue
+                        path = (directory / map_file).resolve()
+                        if not path.exists():
+                            logger.warning(
+                                "pyx12 custom map %s referenced in %s but missing", path, index_path
+                            )
+                            continue
+                        if path in seen:
+                            continue
+                        vriic = (map_elem.get("vriic") or "").strip()
+                        fic = (map_elem.get("fic") or "").strip()
+                        if not vriic or not fic:
+                            logger.warning(
+                                "skipping custom map %s: missing required attributes (vriic=%s fic=%s)",
+                                map_file,
+                                vriic,
+                                fic,
+                            )
+                            continue
+                        tspc = map_elem.get("tspc")
+                        if tspc is not None:
+                            tspc = tspc.strip() or None
+                        abbr = map_elem.get("abbr")
+                        if abbr is not None:
+                            abbr = abbr.strip() or None
+                        definitions.append(
+                            _CustomMapDefinition(
+                                icvn=icvn,
+                                vriic=vriic,
+                                fic=fic,
+                                tspc=tspc,
+                                filename=map_file,
+                                abbr=abbr,
+                                path=path,
+                            )
+                        )
+                        seen.add(path)
+
+        for icvn, vriic, fic, tspc, filename, abbr in fallback_maps:
+            candidate_path = (directory / filename).resolve()
+            if not candidate_path.exists() or candidate_path in seen:
+                continue
+            definitions.append(
+                _CustomMapDefinition(
+                    icvn=icvn,
+                    vriic=vriic,
+                    fic=fic,
+                    tspc=tspc,
+                    filename=filename,
+                    abbr=abbr,
+                    path=candidate_path,
+                )
+            )
+            seen.add(candidate_path)
+
+    return definitions
+
+
+def _copy_custom_maps_into_package(definitions: list[_CustomMapDefinition]) -> None:
+    try:
+        package_map_dir = Path(pkg_resources.resource_filename("pyx12", "map"))
+    except Exception:
+        package_map_dir = None
+
+    if not package_map_dir:
+        return
+
+    for definition in definitions:
+        if not definition.path.exists():
+            continue
+        dest = package_map_dir / definition.filename
+        if dest.exists():
+            continue
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(definition.path, dest)
+        except Exception as exc:
+            logger.warning(
+                "failed to copy pyx12 map %s into package at %s: %s",
+                definition.path,
+                dest,
+                exc,
+            )
+
+
 def _ensure_custom_maps(map_index_mod: object) -> None:
     """Expose HEDI-supplied pyx12 maps and register them with the map index."""
 
@@ -381,68 +611,56 @@ def _ensure_custom_maps(map_index_mod: object) -> None:
     if map_index_cls is None:
         return
 
-    if getattr(map_index_cls, "_hedi_custom_maps", False):
-        return
-
-    custom_maps: list[tuple[str, str, str, str | None, str, str]] = []
-    if _CUSTOM_MAP_PATH.exists():
-        custom_maps.append((
-            "00501",
-            "005010X224A2",
-            "HC",
-            None,
-            _CUSTOM_MAP_NAME,
-            "837D",
-        ))
-    else:
-        logger.warning("pyx12 dental map %s is missing; 837D validation may fail", _CUSTOM_MAP_PATH)
-
+    custom_maps = _load_custom_map_definitions()
     if not custom_maps:
         return
 
-    try:
-        package_map_dir = Path(pkg_resources.resource_filename("pyx12", "map"))
-    except Exception:
-        package_map_dir = None
+    global _CUSTOM_MAP_DEFS
+    _CUSTOM_MAP_DEFS = custom_maps
 
-    if package_map_dir and _CUSTOM_MAP_PATH.exists():
-        dest = package_map_dir / _CUSTOM_MAP_NAME
-        if not dest.exists():
-            try:
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(_CUSTOM_MAP_PATH, dest)
-            except Exception as exc:
-                logger.warning("failed to copy dental map into pyx12 package at %s: %s", dest, exc)
-
-    original_resource_stream = pkg_resources.resource_stream
+    _copy_custom_maps_into_package(_CUSTOM_MAP_DEFS)
 
     if not getattr(pkg_resources, "_hedi_custom_map_stream", False):
+        original_resource_stream = pkg_resources.resource_stream
 
         def patched_resource_stream(package_or_requirement, resource_name):  # type: ignore[override]
             normalized = str(resource_name).replace("\\", "/")
             package_name = str(package_or_requirement)
-            if (
-                normalized == _CUSTOM_MAP_RESOURCE
-                and (package_name == "pyx12" or package_name.startswith("pyx12"))
-                and _CUSTOM_MAP_PATH.exists()
-            ):
-                return open(_CUSTOM_MAP_PATH, "rb")
+            if package_name == "pyx12" or package_name.startswith("pyx12"):
+                for definition in _CUSTOM_MAP_DEFS:
+                    if normalized == f"map/{definition.filename}" and definition.path.exists():
+                        return open(definition.path, "rb")
             return original_resource_stream(package_or_requirement, resource_name)
 
         pkg_resources.resource_stream = patched_resource_stream  # type: ignore[assignment]
         pkg_resources._hedi_custom_map_stream = True  # type: ignore[attr-defined]
 
+    if getattr(map_index_cls, "_hedi_custom_maps", False):
+        return
+
     original_init = map_index_cls.__init__
 
     def patched_init(self, base_path=None):  # type: ignore[override]
         original_init(self, base_path)
-        for icvn, vriic, fic, tspc, map_file, abbr in custom_maps:
+        for definition in _CUSTOM_MAP_DEFS:
             try:
-                existing = self.get_filename(icvn, vriic, fic, tspc)
+                existing = self.get_filename(definition.icvn, definition.vriic, definition.fic, definition.tspc)
             except Exception:
                 existing = None
-            if not existing:
-                self.add_map(icvn, vriic, fic, tspc, map_file, abbr)
+            if existing:
+                continue
+            abbr = definition.abbr or definition.filename
+            try:
+                self.add_map(
+                    definition.icvn,
+                    definition.vriic,
+                    definition.fic,
+                    definition.tspc,
+                    definition.filename,
+                    abbr,
+                )
+            except Exception as exc:
+                logger.warning("failed to register pyx12 custom map %s: %s", definition.filename, exc)
 
     map_index_cls.__init__ = patched_init  # type: ignore[assignment]
     map_index_cls._hedi_custom_maps = True  # type: ignore[attr-defined]
