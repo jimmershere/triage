@@ -36,22 +36,23 @@ class _PyX12Support:
             raise RuntimeError("pyx12.params.params not available")
         params = params_cls()
         raw_override = os.getenv("PYX12_MAP_PATH")
-        try:
-            map_dir = Path(raw_override).expanduser() if raw_override else _DEFAULT_MAP_DIR
-        except Exception:
-            map_dir = _DEFAULT_MAP_DIR
-        if map_dir.exists():
-            setter = getattr(params, "set", None)
-            if callable(setter):
-                try:
-                    setter("map_path", str(map_dir))
-                except Exception:
-                    pass
-            else:
-                try:
-                    setattr(params, "map_path", str(map_dir))
-                except Exception:
-                    pass
+        if raw_override:
+            try:
+                map_dir = Path(raw_override).expanduser()
+            except Exception:
+                map_dir = None
+            if map_dir and map_dir.exists():
+                setter = getattr(params, "set", None)
+                if callable(setter):
+                    try:
+                        setter("map_path", str(map_dir))
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        setattr(params, "map_path", str(map_dir))
+                    except Exception:
+                        pass
         return params
 
     def iter_segments(self, text: str):
