@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Local pyx12 map index for TurboHEDI custom maps -->
+<maps>
+  <version icvn="00501">
+    <map vriic="005010X224A2" fic="HC" abbr="837D">HC-005010X224A2.xml</map>
+    <map vriic="005010X279A1" fic="HS" abbr="270_271">HS-005010X279A1.xml</map>
+  </version>
+</maps>

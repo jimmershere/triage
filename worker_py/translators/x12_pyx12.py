@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib
 import io
 import logging
+import os
 import shutil
 import uuid
 from datetime import datetime
@@ -19,6 +20,9 @@ from ._ack_helpers import generate_simple_277ca, generate_simple_999
 logger = logging.getLogger(__name__)
 
 
+_DEFAULT_MAP_DIR = Path(__file__).resolve().parents[2] / "x12_maps"
+
+
 @dataclass(slots=True)
 class _PyX12Support:
     params_mod: object
@@ -30,7 +34,25 @@ class _PyX12Support:
         params_cls = getattr(self.params_mod, "params", None)
         if params_cls is None:
             raise RuntimeError("pyx12.params.params not available")
-        return params_cls()
+        params = params_cls()
+        raw_override = os.getenv("PYX12_MAP_PATH")
+        try:
+            map_dir = Path(raw_override).expanduser() if raw_override else _DEFAULT_MAP_DIR
+        except Exception:
+            map_dir = _DEFAULT_MAP_DIR
+        if map_dir.exists():
+            setter = getattr(params, "set", None)
+            if callable(setter):
+                try:
+                    setter("map_path", str(map_dir))
+                except Exception:
+                    pass
+            else:
+                try:
+                    setattr(params, "map_path", str(map_dir))
+                except Exception:
+                    pass
+        return params
 
     def iter_segments(self, text: str):
         reader_cls = getattr(self.x12file_mod, "X12Reader", None)
