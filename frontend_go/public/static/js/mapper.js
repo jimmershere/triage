@@ -152,7 +152,21 @@
     return row;
   }
 
-  function createSegmentRow(segment) {
+  function resolveEntry(entry) {
+    if (!entry) return null;
+    if (entry.definition) {
+      return entry;
+    }
+    if (entry.id) {
+      return { definition: entry, content: entry.content || null };
+    }
+    return null;
+  }
+
+  function createSegmentRow(entry) {
+    const resolved = resolveEntry(entry);
+    if (!resolved || !resolved.definition) return null;
+    const segment = resolved.definition;
     const row = document.createElement("div");
     row.className = "grid-row";
     row.setAttribute("role", "listitem");
@@ -177,7 +191,10 @@
     const closeBracketSpan = 1;
     addCell(createGridCell(">", closeBracketSpan, "bracket"), closeBracketSpan);
 
-    const sample = SEGMENT_SAMPLE_CONTENT[segment.id] || `${segment.id}*...~`;
+    const sample =
+      (typeof resolved.content === "string" && resolved.content.trim().length
+        ? resolved.content.trim()
+        : SEGMENT_SAMPLE_CONTENT[segment.id]) || `${segment.id}*...~`;
     const closingReserve = 2 + chipSpan + 1;
     const available = Math.max(GRID_COLUMNS - consumed - closingReserve, 4);
     const sampleSpan = Math.min(sample.length, available);
@@ -201,9 +218,13 @@
       .split("~")
       .map((line) => line.trim())
       .filter(Boolean)
-      .map((line) => line.split("*")[0].trim().toUpperCase())
-      .filter(Boolean)
-      .filter((segment) => SEGMENT_DEFINITIONS.some((def) => def.id === segment));
+      .map((line) => {
+        const [segmentId = ""] = line.split("*");
+        const id = segmentId.trim().toUpperCase();
+        if (!id) return null;
+        return { id, content: `${line}~` };
+      })
+      .filter((entry) => entry && SEGMENT_DEFINITIONS.some((def) => def.id === entry.id));
   }
 
   function createMapper(options = {}) {
@@ -257,22 +278,29 @@
       canvasEl.appendChild(createBoundaryRow(true));
       canvasEl.appendChild(createRulerRow());
       state.activeSegments.forEach((segment) => {
-        canvasEl.appendChild(createSegmentRow(segment));
+        const row = createSegmentRow(segment);
+        if (row) {
+          canvasEl.appendChild(row);
+        }
       });
       canvasEl.appendChild(createBoundaryRow(false));
     }
 
     function setSegmentsByIds(ids) {
       state.activeSegments = ids
-        .map((segmentId) => findSegment(segmentId))
+        .map((segmentId) => {
+          const definition = findSegment(segmentId);
+          if (!definition) return null;
+          return { definition, content: null };
+        })
         .filter(Boolean);
       renderCanvas();
     }
 
     function appendSegmentById(segmentId) {
-      const segment = findSegment(segmentId);
-      if (!segment) return;
-      state.activeSegments.push(segment);
+      const definition = findSegment(segmentId);
+      if (!definition) return;
+      state.activeSegments.push({ definition, content: null });
       renderCanvas();
     }
 
@@ -281,7 +309,14 @@
     }
 
     function getActiveSegmentIds() {
-      return state.activeSegments.map((segment) => segment.id);
+      const seen = new Set();
+      return state.activeSegments
+        .map((entry) => entry?.definition?.id)
+        .filter((id) => {
+          if (!id || seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
     }
 
     function initDragAndDrop() {
@@ -312,8 +347,14 @@
         renderCanvas();
         return;
       }
-      const unique = Array.from(new Set(segments));
-      setSegmentsByIds(unique);
+      state.activeSegments = segments
+        .map((entry) => {
+          const definition = findSegment(entry.id);
+          if (!definition) return null;
+          return { definition, content: entry.content };
+        })
+        .filter(Boolean);
+      renderCanvas();
     }
 
     renderPalette();

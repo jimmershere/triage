@@ -3095,17 +3095,35 @@ body.hedi-login-locked {
 .mapper-column .segment-list {
   display: grid;
   gap: 0.6rem;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   padding: 0;
   margin: 0;
 }
 
 .mapper-column .segment-list li {
   list-style: none;
+  justify-self: start;
 }
 
 .mapper-column .segment-list .segment-chip {
   width: 100%;
+  max-width: 160px;
+  padding: 0.45rem 0.55rem;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.mapper-column .segment-list .segment-chip::before {
+  width: 10px;
+  height: 10px;
+}
+
+.mapper-column .segment-list .segment-chip .chip-code {
+  font-size: 0.75rem;
+}
+
+.mapper-column .segment-list .segment-chip .chip-name {
+  font-size: 0.72rem;
 }
 
 .mapper-column .segment-list .segment-chip:hover {

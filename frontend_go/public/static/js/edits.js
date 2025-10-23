@@ -237,7 +237,9 @@
     if (!file) {
       statusElement.textContent = "No file selected";
       updatedElement.textContent = "";
-      editor.value = "";
+      if (editor) {
+        editor.value = "";
+      }
       fileNameInput.value = "";
       setEditorEnabled(false);
       updateMapper("");
@@ -247,7 +249,9 @@
 
     setEditorEnabled(true);
     fileNameInput.value = file.name;
-    editor.value = file.content;
+    if (editor) {
+      editor.value = file.content;
+    }
     applyStatus(file.status);
     updatedElement.textContent = `Updated ${formatDate(file.updatedAt)}`;
     updateMapper(file.content);
@@ -396,8 +400,8 @@
   }
 
   function handleEditorInput() {
+    if (!editor || !mapper) return;
     editorDirty = true;
-    if (!mapper) return;
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       updateMapper(editor.value);
