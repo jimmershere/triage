@@ -191,9 +191,9 @@ body[data-user-name] .requires-guest {
 }
 
 .container {
-  max-width: 1120px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 32px 24px 72px;
+  padding: 32px clamp(1.25rem, 3vw, 48px) 72px;
 }
 
 .brand {
