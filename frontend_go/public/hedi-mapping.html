@@ -77,6 +77,11 @@
                     <dd id="mappingUpdated">—</dd>
                   </div>
                 </dl>
+                <div class="mapping-upload" data-requires-role="submit">
+                  <input type="file" id="mappingFileInput" accept=".edi,.x12,.txt,.xml" hidden data-requires-role="submit"/>
+                  <button type="button" class="pill-button ghost" id="browseMappingFile" data-requires-role="submit">Browse File…</button>
+                  <span id="mappingFileSelection" class="muted mapping-upload__label" aria-live="polite">No file selected</span>
+                </div>
                 <div class="mapping-actions">
                   <button type="button" class="pill-button" id="createMapping" data-requires-role="submit">Create new map</button>
                   <button type="button" class="pill-button ghost" id="updateMapping" data-requires-role="submit">Update map</button>

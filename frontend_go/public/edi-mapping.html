@@ -93,6 +93,11 @@
                   <input type="text" id="fileNameInput" placeholder="Select a file to edit" autocomplete="off" data-requires-role="submit"/>
                 </div>
                 <div class="editor-status">
+                  <div class="file-selector" data-requires-role="submit">
+                    <input type="file" id="localFileInput" accept=".edi,.x12,.txt,.xml" hidden data-requires-role="submit"/>
+                    <button type="button" class="pill-button ghost" id="browseLocalFile" data-requires-role="submit">Browse File…</button>
+                    <span id="fileSelectionLabel" class="muted file-selector__label" aria-live="polite">No file selected</span>
+                  </div>
                   <span id="fileStatus" class="status-pill" aria-live="polite">No file selected</span>
                   <small id="fileUpdated" class="muted"></small>
                 </div>

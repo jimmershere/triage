@@ -22,6 +22,9 @@
   const submitButton = document.getElementById("submitFile");
   const resubmitButton = document.getElementById("resubmitFile");
   const toast = document.getElementById("fileToast");
+  const browseFileButton = document.getElementById("browseLocalFile");
+  const localFileInput = document.getElementById("localFileInput");
+  const fileSelectionLabel = document.getElementById("fileSelectionLabel");
 
   const mapper = window.defaultHediMapper || (window.HediMapper && window.HediMapper.create({ initializeDefaults: true }));
 
@@ -148,6 +151,19 @@
     return candidate;
   }
 
+  function updateFileSelectionLabel(label) {
+    if (!fileSelectionLabel) return;
+    fileSelectionLabel.textContent = label || "No file selected";
+  }
+
+  function buildLocalIdentifier(baseName) {
+    const cleaned = (baseName || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "")
+      .slice(0, 12);
+    return `LOCAL-${cleaned || "UPLOAD"}`;
+  }
+
   function setEditorEnabled(enabled) {
     [fileNameInput, editor, saveButton, submitButton, resubmitButton].forEach((el) => {
       if (!el) return;
@@ -241,6 +257,7 @@
         editor.value = "";
       }
       fileNameInput.value = "";
+      updateFileSelectionLabel("No file selected");
       setEditorEnabled(false);
       updateMapper("");
       renderResults();
@@ -249,6 +266,7 @@
 
     setEditorEnabled(true);
     fileNameInput.value = file.name;
+    updateFileSelectionLabel(file.name || "No file selected");
     if (editor) {
       editor.value = file.content;
     }
@@ -399,6 +417,52 @@
     updateStatus(file, "resubmitted");
   }
 
+  function importLocalFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = typeof reader.result === "string" ? reader.result : "";
+      const baseName = file.name.replace(/\.[^.]+$/, "");
+      const slugBase = slugify(baseName);
+      const id = ensureUniqueId(`upload-${slugBase}`);
+      const now = new Date().toISOString();
+      const record = {
+        id,
+        name: file.name,
+        identifier: buildLocalIdentifier(slugBase || baseName),
+        tradingPartner: "Local upload",
+        status: "draft",
+        version: 1,
+        updatedAt: now,
+        notes: "",
+        content,
+        source: "local",
+      };
+      files.set(record.id, record);
+      renderResults();
+      selectFile(record.id);
+      showToast(`${file.name} loaded for editing.`, "success");
+    };
+    reader.onerror = () => {
+      showToast("Unable to read the selected file.", "error");
+    };
+    reader.readAsText(file);
+  }
+
+  function handleLocalFileInputChange(event) {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    importLocalFile(file);
+    if (localFileInput) {
+      localFileInput.value = "";
+    }
+  }
+
+  function handleBrowseButtonClick() {
+    if (!localFileInput) return;
+    localFileInput.click();
+  }
+
   function handleEditorInput() {
     if (!editor || !mapper) return;
     editorDirty = true;
@@ -422,6 +486,7 @@
   }
 
   function initialize() {
+    updateFileSelectionLabel("No file selected");
     renderResults();
     setEditorEnabled(false);
     initializePaletteClicks();
@@ -434,6 +499,8 @@
     submitButton?.addEventListener("click", handleSubmit);
     resubmitButton?.addEventListener("click", handleResubmit);
     editor?.addEventListener("input", handleEditorInput);
+    browseFileButton?.addEventListener("click", handleBrowseButtonClick);
+    localFileInput?.addEventListener("change", handleLocalFileInputChange);
   }
 
   if (document.readyState === "loading") {

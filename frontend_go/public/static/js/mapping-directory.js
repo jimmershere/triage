@@ -14,6 +14,9 @@
   const createButton = document.getElementById("createMapping");
   const updateButton = document.getElementById("updateMapping");
   const deleteButton = document.getElementById("deleteMapping");
+  const browseFileButton = document.getElementById("browseMappingFile");
+  const mappingFileInput = document.getElementById("mappingFileInput");
+  const mappingFileLabel = document.getElementById("mappingFileSelection");
 
   const mapper = window.defaultHediMapper || (window.HediMapper && window.HediMapper.create({ initializeDefaults: true }));
   const definitionMap = new Map((window.HediMapper?.definitions || []).map((def) => [def.id, def]));
@@ -84,6 +87,36 @@
     return candidate;
   }
 
+  function slugify(value) {
+    return (value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "map";
+  }
+
+  function buildLocalIdentifier(baseName) {
+    const cleaned = (baseName || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "")
+      .slice(0, 12);
+    return `LOCAL-${cleaned || "UPLOAD"}`;
+  }
+
+  function inferTransaction(content) {
+    if (typeof content !== "string" || !content.trim()) return "Custom";
+    const match = content.match(/ST\*([A-Z0-9]+)[*~]/i);
+    if (match && match[1]) {
+      return match[1].toUpperCase();
+    }
+    return "Custom";
+  }
+
+  function updateMappingFileLabel(label) {
+    if (!mappingFileLabel) return;
+    mappingFileLabel.textContent = label || "No file selected";
+  }
+
   function createChip(segmentId) {
     const definition = definitionMap.get(segmentId);
     const span = document.createElement("span");
@@ -127,6 +160,7 @@
   }
 
   function renderDetail(record) {
+    updateMappingFileLabel(record?.name || "No file selected");
     if (!record) {
       titleElement.textContent = "Select a map file";
       summaryElement.textContent = "Choose a file identifier to view details and load its XML representation.";
@@ -246,6 +280,52 @@
     showToast(`${record.name} marked for retirement.`, "info");
   }
 
+  function importMappingFromFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = typeof reader.result === "string" ? reader.result : "";
+      if (mapper && typeof mapper.updateFromContent === "function") {
+        mapper.updateFromContent(content);
+      }
+      const segments = mapper && typeof mapper.getActiveSegmentIds === "function" ? mapper.getActiveSegmentIds() : [];
+      const baseName = file.name.replace(/\.[^.]+$/, "");
+      const slugBase = slugify(baseName);
+      const id = ensureUniqueId(`upload-${slugBase}`);
+      const record = {
+        id,
+        name: file.name,
+        transaction: inferTransaction(content),
+        summary: "Loaded from local upload.",
+        identifier: buildLocalIdentifier(slugBase || baseName),
+        updatedAt: new Date().toISOString(),
+        segments,
+        source: "local",
+      };
+      mapRecords.set(record.id, record);
+      selectMap(record.id);
+      showToast(`${file.name} loaded into the canvas.`, "success");
+    };
+    reader.onerror = () => {
+      showToast("Unable to read the selected file.", "error");
+    };
+    reader.readAsText(file);
+  }
+
+  function handleMappingFileInput(event) {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    importMappingFromFile(file);
+    if (mappingFileInput) {
+      mappingFileInput.value = "";
+    }
+  }
+
+  function handleBrowseFileButton() {
+    if (!mappingFileInput) return;
+    mappingFileInput.click();
+  }
+
   function initialize() {
     renderList();
     renderDetail(null);
@@ -253,6 +333,8 @@
     createButton?.addEventListener("click", handleCreate);
     updateButton?.addEventListener("click", handleUpdate);
     deleteButton?.addEventListener("click", handleDelete);
+    browseFileButton?.addEventListener("click", handleBrowseFileButton);
+    mappingFileInput?.addEventListener("change", handleMappingFileInput);
   }
 
   if (document.readyState === "loading") {

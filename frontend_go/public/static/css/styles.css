@@ -2991,6 +2991,26 @@ body.hedi-login-locked {
   min-width: 180px;
 }
 
+.file-selector,
+.mapping-upload {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.file-selector {
+  justify-content: flex-end;
+}
+
+.file-selector__label,
+.mapping-upload__label {
+  font-size: 0.8rem;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
