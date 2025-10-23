@@ -197,9 +197,9 @@ body[data-user-name] .requires-guest {
 }
 
 .container {
-  max-width: 1120px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 32px 24px 72px;
+  padding: 32px clamp(1.25rem, 3vw, 48px) 72px;
 }
 
 .brand {
@@ -2820,14 +2820,8 @@ body.hedi-login-locked {
 .edits-layout {
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: minmax(260px, 320px) 1fr;
+  grid-template-columns: 1fr;
   align-items: start;
-}
-
-@media (max-width: 1024px) {
-  .edits-layout {
-    grid-template-columns: 1fr;
-  }
 }
 
 .edits-sidebar {
@@ -3080,8 +3074,8 @@ body.hedi-login-locked {
 
 .mapper-columns {
   display: grid;
-  gap: 1.25rem;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .mapper-column {
@@ -3100,7 +3094,10 @@ body.hedi-login-locked {
 
 .mapper-column .segment-list {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  padding: 0;
+  margin: 0;
 }
 
 .mapper-column .segment-list li {
@@ -3139,14 +3136,8 @@ body.hedi-login-locked {
 .mapping-layout {
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: minmax(280px, 340px) 1fr;
+  grid-template-columns: 1fr;
   align-items: start;
-}
-
-@media (max-width: 1080px) {
-  .mapping-layout {
-    grid-template-columns: 1fr;
-  }
 }
 
 .mapping-sidebar {
@@ -3238,9 +3229,16 @@ body.hedi-login-locked {
 
 .mapping-identifiers {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  padding: 0;
+  margin: 0;
 }
 
 .mapping-identifiers li {
   list-style: none;
+}
+
+.mapping-identifiers button {
+  width: 100%;
 }
