@@ -95,103 +95,92 @@
     return chip;
   }
 
-  function createGridCell(value, span, className) {
-    const cell = document.createElement("span");
-    cell.className = "grid-cell";
-    if (className) {
-      cell.classList.add(className);
+  let segmentCounter = 0;
+
+  function getDefaultFieldsForSegment(segmentId) {
+    const sample = SEGMENT_SAMPLE_CONTENT[segmentId];
+    if (!sample) {
+      return [""];
     }
-
-    const resolvedSpan = Math.max(
-      1,
-      Math.min(span || (typeof value === "string" ? value.length : 1), GRID_COLUMNS),
-    );
-    cell.style.gridColumn = `span ${resolvedSpan}`;
-
-    if (value instanceof Node) {
-      cell.appendChild(value);
-    } else if (typeof value === "string") {
-      cell.textContent = value.replace(/ /g, "\u00a0");
-    } else {
-      cell.textContent = String(value);
-    }
-
-    return cell;
+    const trimmed = sample.replace(/~\s*$/, "");
+    const parts = trimmed.split("*");
+    parts.shift();
+    return parts.length ? parts : [""];
   }
 
-  function createGridChip(segment, span) {
-    const chip = createSegmentChip(segment);
+  function parseLineToFields(line) {
+    if (typeof line !== "string") return null;
+    const cleaned = line.trim();
+    if (!cleaned) return null;
+    const withoutTerminator = cleaned.replace(/~\s*$/, "");
+    const parts = withoutTerminator.split("*");
+    if (!parts.length) return null;
+    const id = (parts.shift() || "").trim().toUpperCase();
+    if (!id) return null;
+    return {
+      id,
+      fields: parts.map((part) => part.trim()),
+    };
+  }
+
+  function createSegmentState(definition, fields) {
+    const data = Array.isArray(fields) && fields.length ? fields.slice() : getDefaultFieldsForSegment(definition.id);
+    return {
+      key: `${definition.id}-${Date.now()}-${segmentCounter++}`,
+      id: definition.id,
+      definition,
+      fields: data,
+    };
+  }
+
+  function createBoundaryLabel(open = true) {
+    const label = document.createElement("div");
+    label.className = "segment-boundary";
+    label.textContent = open ? "<transactionSet>" : "</transactionSet>";
+    return label;
+  }
+
+  function createSegmentRow(segment, onFieldChange) {
+    const row = document.createElement("div");
+    row.className = "segment-row";
+    row.dataset.segmentId = segment.id;
+    row.dataset.segmentKey = segment.key;
+
+    const header = document.createElement("div");
+    header.className = "segment-row__header";
+    const chip = createSegmentChip(segment.definition);
     chip.classList.add("grid-chip");
-    chip.style.gridColumn = `span ${Math.max(1, Math.min(span, GRID_COLUMNS))}`;
-    chip.setAttribute("aria-label", `${segment.id} segment chip`);
-    return chip;
-  }
+    chip.setAttribute("aria-label", `${segment.id} segment identifier`);
+    header.appendChild(chip);
+    row.appendChild(header);
 
-  function createBoundaryRow(open = true) {
-    const row = document.createElement("div");
-    row.className = "grid-row structural-row";
-    row.setAttribute("role", "listitem");
-    row.style.setProperty("--grid-columns", GRID_COLUMNS);
+    const fieldsWrapper = document.createElement("div");
+    fieldsWrapper.className = "segment-row__fields";
+    const fields = segment.fields.length ? segment.fields : [""];
+    fields.forEach((value, index) => {
+      const field = document.createElement("label");
+      field.className = "segment-field";
+      field.dataset.segmentId = segment.id;
+      field.dataset.fieldIndex = String(index);
 
-    const label = open ? "<transactionSet type=\"837P\">" : "</transactionSet>";
-    const span = Math.min(label.length, GRID_COLUMNS);
-    row.appendChild(createGridCell(label, span, "content"));
+      const text = document.createElement("span");
+      text.className = "segment-field__code";
+      text.textContent = `${segment.id}${String(index + 1).padStart(2, "0")}`;
 
-    return row;
-  }
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "segment-field__input";
+      input.value = value || "";
+      input.placeholder = "…";
+      input.addEventListener("input", (event) => {
+        onFieldChange(segment, index, event.target.value);
+      });
 
-  function createRulerRow() {
-    const row = document.createElement("div");
-    row.className = "grid-row ruler";
-    row.style.setProperty("--grid-columns", GRID_COLUMNS);
-    for (let i = 0; i < GRID_COLUMNS; i += 5) {
-      const label = String(i + 1).padStart(2, " ");
-      const span = Math.min(5, GRID_COLUMNS - i);
-      row.appendChild(createGridCell(label, span));
-    }
-    return row;
-  }
+      field.append(text, input);
+      fieldsWrapper.appendChild(field);
+    });
 
-  function createSegmentRow(segment) {
-    const row = document.createElement("div");
-    row.className = "grid-row";
-    row.setAttribute("role", "listitem");
-    row.style.setProperty("--grid-columns", GRID_COLUMNS);
-
-    let consumed = 0;
-
-    function addCell(element, span) {
-      consumed += span;
-      row.appendChild(element);
-    }
-
-    const indentSpan = 2;
-    addCell(createGridCell("  ", indentSpan, "indent"), indentSpan);
-
-    const openBracketSpan = 1;
-    addCell(createGridCell("<", openBracketSpan, "bracket"), openBracketSpan);
-
-    const chipSpan = Math.max(segment.id.length + 2, 6);
-    addCell(createGridChip(segment, chipSpan), chipSpan);
-
-    const closeBracketSpan = 1;
-    addCell(createGridCell(">", closeBracketSpan, "bracket"), closeBracketSpan);
-
-    const sample = SEGMENT_SAMPLE_CONTENT[segment.id] || `${segment.id}*...~`;
-    const closingReserve = 2 + chipSpan + 1;
-    const available = Math.max(GRID_COLUMNS - consumed - closingReserve, 4);
-    const sampleSpan = Math.min(sample.length, available);
-    const sampleCell = createGridCell(sample, sampleSpan, "content");
-    sampleCell.title = sample;
-    addCell(sampleCell, sampleSpan);
-
-    const closingStartSpan = 2;
-    addCell(createGridCell("</", closingStartSpan, "bracket"), closingStartSpan);
-
-    addCell(createGridChip(segment, chipSpan), chipSpan);
-
-    addCell(createGridCell(">", closeBracketSpan, "bracket"), closeBracketSpan);
-
+    row.appendChild(fieldsWrapper);
     return row;
   }
 
@@ -225,6 +214,32 @@
       return SEGMENT_DEFINITIONS.find((segment) => segment.id === segmentId);
     }
 
+    function emitChange(detail = {}) {
+      const event = new CustomEvent("mapper:change", {
+        detail: {
+          segments: getSegmentData(),
+          ...detail,
+        },
+      });
+      canvasEl.dispatchEvent(event);
+      if (typeof options.onChange === "function") {
+        options.onChange(getSegmentData());
+      }
+    }
+
+    function getSegmentData() {
+      return state.activeSegments.map((segment) => ({
+        id: segment.id,
+        fields: segment.fields.slice(),
+      }));
+    }
+
+    function handleFieldChange(segment, index, value) {
+      if (!segment) return;
+      segment.fields[index] = value;
+      emitChange({ segmentId: segment.id, fieldIndex: index, value });
+    }
+
     function renderPalette() {
       if (state.paletteInitialised) {
         paletteEl.querySelectorAll("li").forEach((item) => item.remove());
@@ -246,7 +261,7 @@
     }
 
     function renderCanvas() {
-      Array.from(canvasEl.querySelectorAll(".grid-row")).forEach((row) => row.remove());
+      canvasEl.replaceChildren();
 
       if (!state.activeSegments.length) {
         emptyStateEl.hidden = false;
@@ -254,26 +269,31 @@
       }
 
       emptyStateEl.hidden = true;
-      canvasEl.appendChild(createBoundaryRow(true));
-      canvasEl.appendChild(createRulerRow());
+      canvasEl.appendChild(createBoundaryLabel(true));
       state.activeSegments.forEach((segment) => {
-        canvasEl.appendChild(createSegmentRow(segment));
+        canvasEl.appendChild(createSegmentRow(segment, handleFieldChange));
       });
-      canvasEl.appendChild(createBoundaryRow(false));
+      canvasEl.appendChild(createBoundaryLabel(false));
     }
 
     function setSegmentsByIds(ids) {
       state.activeSegments = ids
-        .map((segmentId) => findSegment(segmentId))
+        .map((segmentId) => {
+          const definition = findSegment(segmentId);
+          if (!definition) return null;
+          return createSegmentState(definition);
+        })
         .filter(Boolean);
       renderCanvas();
+      emitChange({ reason: "set-segments" });
     }
 
     function appendSegmentById(segmentId) {
-      const segment = findSegment(segmentId);
-      if (!segment) return;
-      state.activeSegments.push(segment);
+      const definition = findSegment(segmentId);
+      if (!definition) return;
+      state.activeSegments.push(createSegmentState(definition));
       renderCanvas();
+      emitChange({ reason: "append", segmentId });
     }
 
     function resetToDefault() {
@@ -306,14 +326,31 @@
     }
 
     function updateFromContent(rawContent) {
-      const segments = parseSegmentsFromContent(rawContent);
-      if (!segments.length) {
+      if (typeof rawContent !== "string") {
         state.activeSegments = [];
         renderCanvas();
+        emitChange({ reason: "reset" });
         return;
       }
-      const unique = Array.from(new Set(segments));
-      setSegmentsByIds(unique);
+
+      const tokens = rawContent
+        .split(/~/)
+        .map((token) => token.trim())
+        .filter(Boolean);
+
+      const parsed = tokens
+        .map((token) => parseLineToFields(`${token}~`))
+        .filter(Boolean)
+        .map(({ id, fields }) => {
+          const definition = findSegment(id);
+          if (!definition) return null;
+          return createSegmentState(definition, fields);
+        })
+        .filter(Boolean);
+
+      state.activeSegments = parsed;
+      renderCanvas();
+      emitChange({ reason: "content-update" });
     }
 
     renderPalette();
@@ -332,6 +369,24 @@
       resetToDefault,
       getActiveSegmentIds,
       updateFromContent,
+      getSegmentData,
+      exportContent() {
+        return state.activeSegments
+          .map((segment) => {
+            const sanitized = segment.fields.map((field) => (field ?? "").trim());
+            const joined = sanitized.join("*");
+            return joined ? `${segment.id}*${joined}~` : `${segment.id}~`;
+          })
+          .join("\n");
+      },
+      setInteractivity(enabled) {
+        const disable = enabled === false;
+        canvasEl.classList.toggle("mapper-disabled", disable);
+        paletteEl.classList.toggle("mapper-disabled", disable);
+        canvasEl.querySelectorAll("input.segment-field__input").forEach((input) => {
+          input.disabled = disable;
+        });
+      },
       elements: { palette: paletteEl, canvas: canvasEl, empty: emptyStateEl },
     };
   }
