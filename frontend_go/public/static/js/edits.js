@@ -17,13 +17,13 @@
   const fileNameInput = document.getElementById("fileNameInput");
   const statusElement = document.getElementById("fileStatus");
   const updatedElement = document.getElementById("fileUpdated");
+  const editor = document.getElementById("fileEditor");
   const saveButton = document.getElementById("saveFile");
   const submitButton = document.getElementById("submitFile");
   const resubmitButton = document.getElementById("resubmitFile");
   const toast = document.getElementById("fileToast");
 
   const mapper = window.defaultHediMapper || (window.HediMapper && window.HediMapper.create({ initializeDefaults: true }));
-  const mapperCanvas = mapper?.elements?.canvas || null;
 
   const STATUS_METADATA = {
     error: { label: "Needs correction", tone: "error" },
@@ -116,6 +116,7 @@
   const files = new Map(sampleFiles.map((file) => [file.id, { ...file }]));
   let currentFileId = null;
   let editorDirty = false;
+  let debounceTimer = null;
 
   function formatDate(value) {
     if (!value) return "";
@@ -148,13 +149,10 @@
   }
 
   function setEditorEnabled(enabled) {
-    [fileNameInput, saveButton, submitButton, resubmitButton].forEach((el) => {
+    [fileNameInput, editor, saveButton, submitButton, resubmitButton].forEach((el) => {
       if (!el) return;
       el.disabled = !enabled;
     });
-    if (mapper && typeof mapper.setInteractivity === "function") {
-      mapper.setInteractivity(enabled);
-    }
   }
 
   function resetStatusClasses() {
@@ -227,6 +225,11 @@
     resultsList.appendChild(fragment);
   }
 
+  function updateMapper(content) {
+    if (!mapper || typeof mapper.updateFromContent !== "function") return;
+    mapper.updateFromContent(content);
+  }
+
   function loadFileIntoEditor(file) {
     currentFileId = file?.id || null;
     editorDirty = false;
@@ -234,22 +237,20 @@
     if (!file) {
       statusElement.textContent = "No file selected";
       updatedElement.textContent = "";
+      editor.value = "";
       fileNameInput.value = "";
       setEditorEnabled(false);
-      if (mapper && typeof mapper.updateFromContent === "function") {
-        mapper.updateFromContent("");
-      }
+      updateMapper("");
       renderResults();
       return;
     }
 
     setEditorEnabled(true);
     fileNameInput.value = file.name;
+    editor.value = file.content;
     applyStatus(file.status);
     updatedElement.textContent = `Updated ${formatDate(file.updatedAt)}`;
-    if (mapper && typeof mapper.updateFromContent === "function") {
-      mapper.updateFromContent(file.content);
-    }
+    updateMapper(file.content);
     renderResults();
   }
 
@@ -338,8 +339,6 @@
 
     const displayName = desiredName.includes("v") ? desiredName : `${desiredName} v${nextVersion}`;
 
-    const content = typeof mapper?.exportContent === "function" ? mapper.exportContent() : current.content;
-
     const saved = {
       ...current,
       id: uniqueId,
@@ -347,7 +346,7 @@
       version: nextVersion,
       status: "draft",
       updatedAt: now,
-      content,
+      content: editor?.value || current.content,
       originId: current.id,
     };
 
@@ -359,8 +358,7 @@
 
   function updateStatus(file, statusKey) {
     const now = new Date().toISOString();
-    const content = typeof mapper?.exportContent === "function" ? mapper.exportContent() : file.content;
-    const updated = { ...file, status: statusKey, updatedAt: now, content };
+    const updated = { ...file, status: statusKey, updatedAt: now };
     files.set(updated.id, updated);
     loadFileIntoEditor(updated);
     showToast(
@@ -397,6 +395,15 @@
     updateStatus(file, "resubmitted");
   }
 
+  function handleEditorInput() {
+    editorDirty = true;
+    if (!mapper) return;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      updateMapper(editor.value);
+    }, 250);
+  }
+
   function initializePaletteClicks() {
     if (!mapper) return;
     const palette = mapper?.elements?.palette;
@@ -413,21 +420,7 @@
   function initialize() {
     renderResults();
     setEditorEnabled(false);
-    if (mapper && typeof mapper.updateFromContent === "function") {
-      mapper.updateFromContent("");
-    }
     initializePaletteClicks();
-
-    if (mapperCanvas) {
-      mapperCanvas.addEventListener("mapper:change", (event) => {
-        const reason = event?.detail?.reason;
-        if (reason === "content-update" || reason === "reset" || reason === "set-segments") {
-          editorDirty = false;
-          return;
-        }
-        editorDirty = true;
-      });
-    }
 
     searchInput?.addEventListener("input", renderResults);
     newFileButton?.addEventListener("click", () => toggleCreateForm(true));
@@ -436,6 +429,7 @@
     saveButton?.addEventListener("click", handleSave);
     submitButton?.addEventListener("click", handleSubmit);
     resubmitButton?.addEventListener("click", handleResubmit);
+    editor?.addEventListener("input", handleEditorInput);
   }
 
   if (document.readyState === "loading") {
