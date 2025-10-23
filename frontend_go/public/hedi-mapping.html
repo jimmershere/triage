@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
+  <title>HEDI — Mapping Canvas</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+</head>
+<body data-requires-auth="portal">
+  <div class="app-shell">
+    <aside class="site-sidebar">
+      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Claims Portal</span>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/271.html">271 Responses</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/276.html">276 Status</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Workspace tools</span>
+          <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/edi-mapping.html">HEDI Edits</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html" aria-current="page">HEDI Mapping</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Resources</span>
+          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+        </div>
+        <div class="nav-group admin-only">
+          <span class="nav-group-label">Administration</span>
+          <a class="nav-pill admin-link" data-tone="admin" href="/admin.html">Admin</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/hedi-mapping.html" data-login-trigger data-login-next="/hedi-mapping.html">Login</a>
+        <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
+      </div>
+    </aside>
+    <div class="app-main">
+      <main class="container mapping-container">
+        <section class="card">
+          <div class="badge badge-loud">Mapping workspace</div>
+          <h1>HEDI Mapping Studio</h1>
+          <p class="muted">Review canonical map identifiers, preview XML-style layouts, and orchestrate updates that publish to the worker API once approved.</p>
+
+          <div class="mapping-layout" data-requires-role="submit">
+            <aside class="mapping-sidebar">
+              <div class="field-group">
+                <label class="field-label" for="mappingSearch">Search map files</label>
+                <input type="search" id="mappingSearch" placeholder="Search by identifier or transaction set" autocomplete="off" data-requires-role="submit"/>
+              </div>
+
+              <div class="mapping-list" id="mappingList" role="list"></div>
+
+              <div class="card mapping-detail" id="mappingDetail">
+                <h2 id="mappingTitle">Select a map file</h2>
+                <p id="mappingSummary" class="muted">Choose a file identifier to view details and load its XML representation.</p>
+                <dl class="mapping-meta">
+                  <div>
+                    <dt>Identifier</dt>
+                    <dd id="mappingIdentifier">—</dd>
+                  </div>
+                  <div>
+                    <dt>Transaction</dt>
+                    <dd id="mappingTransaction">—</dd>
+                  </div>
+                  <div>
+                    <dt>Last updated</dt>
+                    <dd id="mappingUpdated">—</dd>
+                  </div>
+                </dl>
+                <div class="mapping-actions">
+                  <button type="button" class="pill-button" id="createMapping" data-requires-role="submit">Create new map</button>
+                  <button type="button" class="pill-button ghost" id="updateMapping" data-requires-role="submit">Update map</button>
+                  <button type="button" class="pill-button ghost" id="deleteMapping" data-requires-role="submit">Delete map</button>
+                </div>
+                <div id="mappingToast" class="toast" role="status" aria-live="assertive" hidden></div>
+              </div>
+            </aside>
+
+            <section class="mapping-canvas">
+              <div class="card mapper-card">
+                <div class="mapper-heading">
+                  <h2>XML mapping canvas</h2>
+                  <p class="muted">Identifiers selected on the left populate this preview. Use drag-and-drop or click the palette to refine the transaction order.</p>
+                </div>
+                <div class="mapper-columns">
+                  <div class="card mapper-column">
+                    <h3>File identifiers</h3>
+                    <p class="muted">Click an identifier to load its map template. Use the actions on the left to create, update, or retire a definition.</p>
+                    <ul id="mappingIdentifiers" class="mapping-identifiers"></ul>
+                    <ul id="segments" class="segment-list" hidden></ul>
+                  </div>
+                  <div class="card mapper-column">
+                    <h3>Canvas preview</h3>
+                    <div id="canvas" class="canvas-grid" aria-live="polite">
+                      <p id="canvasEmpty" class="canvas-empty">Select a map file to load its layout or drag segments into place.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/support_config.js"></script>
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script src="/static/js/chatbot.js"></script>
+  <script src="/static/js/mapper.js"></script>
+  <script src="/static/js/mapping-directory.js"></script>
+</body>
+</html>
