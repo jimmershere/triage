@@ -52,40 +52,6 @@
           <p class="muted">Search, repair, and resubmit X12 payloads that were halted by syntax or formatting issues. Users with submit access can trace segment-level changes in the visual canvas while updating the raw transaction file.</p>
 
           <div class="edits-layout">
-            <aside class="edits-sidebar" data-requires-role="submit">
-              <div class="field-group">
-                <label class="field-label" for="fileSearch">Search X12 files</label>
-                <input type="search" id="fileSearch" placeholder="Search by file name, identifier, or trading partner" autocomplete="off" data-requires-role="submit"/>
-              </div>
-
-              <div class="file-results" id="fileResults" role="list" aria-live="polite"></div>
-
-              <button type="button" class="pill-button" id="newFileButton" data-requires-role="submit">Add new file</button>
-
-              <form id="newFileForm" class="card inline-form" hidden>
-                <fieldset>
-                  <legend>Create new correction file</legend>
-                  <label class="field-label" for="newFileName">File name</label>
-                  <input type="text" id="newFileName" name="newFileName" placeholder="e.g. 837P-FollowUp" required data-requires-role="submit"/>
-
-                  <label class="field-label" for="newFileTemplate">Template</label>
-                  <select id="newFileTemplate" name="newFileTemplate" data-requires-role="submit">
-                    <option value="837p">837 Professional</option>
-                    <option value="837i">837 Institutional</option>
-                    <option value="837d">837 Dental</option>
-                    <option value="835">835 Remittance</option>
-                  </select>
-
-                  <label class="field-label" for="newFileNotes">Notes</label>
-                  <textarea id="newFileNotes" name="newFileNotes" rows="3" placeholder="Describe the correction goal" data-requires-role="submit"></textarea>
-                </fieldset>
-                <div class="inline-actions">
-                  <button type="submit" class="pill-button" id="createFile" data-requires-role="submit">Create file</button>
-                  <button type="button" class="pill-button ghost" id="cancelCreate" data-requires-role="submit">Cancel</button>
-                </div>
-              </form>
-            </aside>
-
             <section class="edits-editor" aria-live="polite">
               <header class="editor-header" data-requires-role="submit">
                 <div class="editor-title-group">
@@ -98,24 +64,45 @@
                 </div>
               </header>
 
-              <div class="editor-body" data-requires-role="submit">
-                <label class="field-label" for="fileEditor">X12 content</label>
-                <textarea id="fileEditor" rows="12" placeholder="Select a file to load its X12 payload" spellcheck="false" data-requires-role="submit"></textarea>
-                <p class="muted helper-text">The edit canvas reflects segment changes in real time for quick validation.</p>
-
-                <div class="editor-actions">
-                  <button type="button" class="pill-button" id="saveFile" data-requires-role="submit">Save with new version</button>
-                  <button type="button" class="pill-button ghost" id="submitFile" data-requires-role="submit">Submit to Worker API</button>
-                  <button type="button" class="pill-button ghost" id="resubmitFile" data-requires-role="submit">Resubmit last claim</button>
+              <div class="edits-sidebar" data-requires-role="submit">
+                <div class="field-group">
+                  <label class="field-label" for="fileSearch">Search X12 files</label>
+                  <input type="search" id="fileSearch" placeholder="Search by file name, identifier, or trading partner" autocomplete="off" data-requires-role="submit"/>
                 </div>
-                <div id="fileToast" class="toast" role="status" aria-live="assertive" hidden></div>
+
+                <div class="file-results" id="fileResults" role="list" aria-live="polite"></div>
+
+                <button type="button" class="pill-button" id="newFileButton" data-requires-role="submit">Add new file</button>
+
+                <form id="newFileForm" class="card inline-form" hidden>
+                  <fieldset>
+                    <legend>Create new correction file</legend>
+                    <label class="field-label" for="newFileName">File name</label>
+                    <input type="text" id="newFileName" name="newFileName" placeholder="e.g. 837P-FollowUp" required data-requires-role="submit"/>
+
+                    <label class="field-label" for="newFileTemplate">Template</label>
+                    <select id="newFileTemplate" name="newFileTemplate" data-requires-role="submit">
+                      <option value="837p">837 Professional</option>
+                      <option value="837i">837 Institutional</option>
+                      <option value="837d">837 Dental</option>
+                      <option value="835">835 Remittance</option>
+                    </select>
+
+                    <label class="field-label" for="newFileNotes">Notes</label>
+                    <textarea id="newFileNotes" name="newFileNotes" rows="3" placeholder="Describe the correction goal" data-requires-role="submit"></textarea>
+                  </fieldset>
+                  <div class="inline-actions">
+                    <button type="submit" class="pill-button" id="createFile" data-requires-role="submit">Create file</button>
+                    <button type="button" class="pill-button ghost" id="cancelCreate" data-requires-role="submit">Cancel</button>
+                  </div>
+                </form>
               </div>
 
               <div class="mapper-pane" data-requires-role="submit">
                 <div class="card mapper-card">
                   <div class="mapper-heading">
                     <h2>Mapping canvas</h2>
-                    <p class="muted">Drop segments from the palette to visualise the XML-style representation of your transaction.</p>
+                    <p class="muted">Use the palette to load segments and edit their field values directly within the XML-style canvas.</p>
                   </div>
                   <div class="mapper-columns">
                     <div class="card mapper-column">
@@ -124,14 +111,21 @@
                       <ul id="segments" class="segment-list"></ul>
                     </div>
                     <div class="card mapper-column">
-                      <h3>Canvas preview</h3>
+                      <h3>Canvas editor</h3>
                       <div id="canvas" class="canvas-grid" aria-live="polite">
-                        <p id="canvasEmpty" class="canvas-empty">Drop segments here to build your flow…</p>
+                        <p id="canvasEmpty" class="canvas-empty">Select a file to load its layout or drop segments to begin editing.</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+
+              <div class="editor-actions" data-requires-role="submit">
+                <button type="button" class="pill-button" id="saveFile" data-requires-role="submit">Save with new version</button>
+                <button type="button" class="pill-button ghost" id="submitFile" data-requires-role="submit">Submit to Worker API</button>
+                <button type="button" class="pill-button ghost" id="resubmitFile" data-requires-role="submit">Resubmit last claim</button>
+              </div>
+              <div id="fileToast" class="toast" role="status" aria-live="assertive" hidden></div>
             </section>
           </div>
         </section>
