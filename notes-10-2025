@@ -58,7 +58,7 @@ frontend_go/
     login.html
     portal.html
     admin.html
-    edi-mapping.html
+    hedi-edit.html
     claim-entry.html
     static/css/styles.css
     static/js/mapper.js
