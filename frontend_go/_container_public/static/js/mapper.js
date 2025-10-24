@@ -68,6 +68,130 @@
     "IEA",
   ];
 
+  function sanitiseTransactionType(value) {
+    const cleaned = String(value || "")
+      .trim()
+      .replace(/[^0-9A-Za-z.+-]/g, "")
+      .slice(0, 16);
+    return cleaned || "X12";
+  }
+
+  function extractSegmentElements(content) {
+    if (typeof content !== "string") {
+      return [];
+    }
+    return content.replace(/~\s*$/, "").split("*");
+  }
+
+  function determineTransactionSetLabel(entries, rawContent) {
+    const list = Array.isArray(entries) ? entries : [];
+    const findEntry = (segmentId) =>
+      list.find((entry) => (entry?.id || entry?.definition?.id) === segmentId) || null;
+
+    const stParts = extractSegmentElements(findEntry("ST")?.content);
+    const gsParts = extractSegmentElements(findEntry("GS")?.content);
+
+    const transactionId = (stParts?.[1] || "").toUpperCase();
+    const implementation = (stParts?.[3] || gsParts?.[8] || "").toUpperCase();
+
+    if (transactionId === "837") {
+      if (implementation.includes("X222")) return "837P";
+      if (implementation.includes("X223")) return "837I";
+      if (implementation.includes("X224")) return "837D";
+      return "837";
+    }
+
+    if (transactionId) {
+      return transactionId;
+    }
+
+    const functionalId = (gsParts?.[1] || "").toUpperCase();
+    if (functionalId) {
+      return functionalId;
+    }
+
+    if (typeof rawContent === "string" && rawContent.includes("<")) {
+      const match = rawContent.match(/<transactionSet[^>]*type=\"([^\"]+)\"/i);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+
+    return "X12";
+  }
+
+  function buildIssueMessages(entry) {
+    if (!entry || !entry.issues) {
+      return [];
+    }
+    const messages = [];
+    const identifier = entry.originalIdentifier || entry.definition?.id || entry.id || "segment";
+
+    if (entry.issues.invalidIdentifier) {
+      messages.push(
+        `The segment ID "${identifier}" must contain 2–4 uppercase letters or digits as required by the X12 standard.`,
+      );
+    }
+    if (entry.issues.unknownSegment) {
+      messages.push(
+        `"${identifier}" is not a recognised segment for this transaction set in HEDI's palette, so the mapper cannot validate it.`,
+      );
+    }
+    if (entry.issues.invalidCharacters) {
+      messages.push(
+        "This row includes characters outside the permitted X12 basic character set (uppercase letters, digits, spaces, and standard punctuation).",
+      );
+    }
+    if (entry.issues.missingTerminator) {
+      messages.push('The required "~" segment terminator is missing at the end of the line.');
+    }
+
+    return messages;
+  }
+
+  function createIssueDialog(entry, messages) {
+    const dialog = document.createElement("div");
+    dialog.className = "issue-thought-dialog";
+    dialog.hidden = true;
+
+    const illustration = document.createElement("img");
+    illustration.src = "/img/trish-laptop.svg";
+    illustration.width = 56;
+    illustration.height = 56;
+    illustration.alt = "Trish reviewing X12 guidance";
+    illustration.className = "issue-thought-illustration";
+
+    const copy = document.createElement("div");
+    copy.className = "issue-thought-messages";
+
+    const heading = document.createElement("h4");
+    heading.className = "issue-thought-heading";
+    heading.textContent = `${entry.definition?.id || entry.id || "Segment"} segment issue`;
+
+    const list = document.createElement("ul");
+    list.className = "issue-thought-list";
+
+    if (messages.length) {
+      messages.forEach((message) => {
+        const item = document.createElement("li");
+        item.textContent = message;
+        list.appendChild(item);
+      });
+    } else {
+      const item = document.createElement("li");
+      item.textContent = "This segment needs review because it falls outside expected X12 patterns.";
+      list.appendChild(item);
+    }
+
+    copy.appendChild(heading);
+    copy.appendChild(list);
+
+    dialog.appendChild(illustration);
+    dialog.appendChild(copy);
+
+    return dialog;
+  }
+
   function resolveElement(reference) {
     if (!reference) return null;
     if (reference instanceof Element) return reference;
@@ -228,13 +352,17 @@
     return ranges;
   }
 
-  function createBoundaryRow(open = true) {
+  function createBoundaryRow(open = true, transactionType = "X12") {
     const row = document.createElement("div");
     row.className = "grid-row structural-row";
     row.setAttribute("role", "listitem");
     row.style.setProperty("--grid-columns", GRID_COLUMNS);
 
-    const label = open ? "<transactionSet type=\"837P\">" : "</transactionSet>";
+    const safeType = sanitiseTransactionType(transactionType);
+    if (open) {
+      row.dataset.transactionType = safeType;
+    }
+    const label = open ? `<transactionSet type="${safeType}">` : "</transactionSet>";
     const span = Math.min(label.length, GRID_COLUMNS);
     row.appendChild(createGridCell(label, span, "content"));
 
@@ -276,6 +404,45 @@
     if (resolved?.issues?.hasIssue) {
       row.classList.add("has-issues");
       row.dataset.hasIssue = "true";
+
+      const thoughtBubble = document.createElement("button");
+      thoughtBubble.type = "button";
+      thoughtBubble.className = "issue-thought-bubble";
+      thoughtBubble.setAttribute("aria-label", `Explain ${segment.id} segment issues`);
+      thoughtBubble.setAttribute("aria-expanded", "false");
+      thoughtBubble.title = `Show guidance for ${segment.id}`;
+
+      const icon = document.createElement("span");
+      icon.className = "issue-thought-bubble__icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = "💭";
+      thoughtBubble.appendChild(icon);
+
+      const messages = buildIssueMessages(resolved);
+      const dialog = createIssueDialog(resolved, messages);
+      thoughtBubble.issueDialogElement = dialog;
+
+      thoughtBubble.addEventListener("click", () => {
+        const container = row.parentElement || document;
+        container.querySelectorAll(".issue-thought-bubble.is-open").forEach((openBubble) => {
+          if (openBubble === thoughtBubble) return;
+          openBubble.classList.remove("is-open");
+          openBubble.setAttribute("aria-expanded", "false");
+          if (openBubble.issueDialogElement) {
+            openBubble.issueDialogElement.hidden = true;
+          }
+        });
+
+        const isOpen = thoughtBubble.classList.toggle("is-open");
+        thoughtBubble.setAttribute("aria-expanded", String(isOpen));
+        dialog.hidden = !isOpen;
+        if (!isOpen && typeof thoughtBubble.blur === "function") {
+          thoughtBubble.blur();
+        }
+      });
+
+      row.appendChild(thoughtBubble);
+      row.appendChild(dialog);
     } else {
       row.dataset.hasIssue = "false";
     }
@@ -406,6 +573,7 @@
       issueRows: [],
       issueIndex: -1,
       lastFocusedIssue: null,
+      transactionSetLabel: "X12",
     };
 
     canvasEl.dataset.hasIssues = "false";
@@ -508,7 +676,7 @@
       }
 
       emptyStateEl.hidden = true;
-      canvasEl.appendChild(createBoundaryRow(true));
+      canvasEl.appendChild(createBoundaryRow(true, state.transactionSetLabel));
       canvasEl.appendChild(createRulerRow());
       state.activeSegments.forEach((segment) => {
         const row = createSegmentRow(segment);
@@ -516,7 +684,7 @@
           canvasEl.appendChild(row);
         }
       });
-      canvasEl.appendChild(createBoundaryRow(false));
+      canvasEl.appendChild(createBoundaryRow(false, state.transactionSetLabel));
       updateIssueTracking();
     }
 
@@ -525,16 +693,18 @@
         .map((segmentId) => {
           const definition = findSegment(segmentId);
           if (!definition) return null;
-          return { definition, content: null };
+          return { id: definition.id, originalIdentifier: definition.id, definition, content: null };
         })
         .filter(Boolean);
+      state.transactionSetLabel = determineTransactionSetLabel(state.activeSegments);
       renderCanvas();
     }
 
     function appendSegmentById(segmentId) {
       const definition = findSegment(segmentId);
       if (!definition) return;
-      state.activeSegments.push({ definition, content: null });
+      state.activeSegments.push({ id: definition.id, originalIdentifier: definition.id, definition, content: null });
+      state.transactionSetLabel = determineTransactionSetLabel(state.activeSegments);
       renderCanvas();
     }
 
@@ -578,18 +748,22 @@
       const segments = parseSegmentsFromContent(rawContent);
       if (!segments.length) {
         state.activeSegments = [];
+        state.transactionSetLabel = "X12";
         renderCanvas();
         return;
       }
       state.activeSegments = segments.map((entry) => {
         const definition = findSegment(entry.id) || entry.definition;
         return {
+          id: entry.id,
+          originalIdentifier: entry.originalIdentifier,
           definition,
           content: entry.content,
           highlights: entry.highlights,
           issues: entry.issues,
         };
       });
+      state.transactionSetLabel = determineTransactionSetLabel(state.activeSegments, rawContent);
       renderCanvas();
     }
 

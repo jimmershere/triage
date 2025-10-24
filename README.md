@@ -93,6 +93,16 @@ The web UI now ships with the “Trish” customer advocate, complete with helpf
 - The same configuration is reused across every page, so a single change covers the Claims Portal, Processed Files, HEDI Mapping, Claim Entry, and the login/admin surfaces.
 - Messages that include words like “error” or “trouble” automatically produce a ticket reference in the chat transcript so agents can track the conversation against your downstream systems. Trish now follows up to capture the severity (1–4) before logging each ticket.
 
+## Canvas validation helpers
+
+HEDI’s visual mapper now ships with richer instrumentation so analysts can immediately understand why rows are highlighted:
+
+- The XML-style wrapper row (`<transactionSet type="…">`) inspects the first `ST`/`GS` segments in the uploaded payload and updates itself to match the detected transaction variant (for example `837D` vs `837P`). This keeps the preview aligned with the real file type even when users mix dental, professional, or institutional claim templates.
+- Any row that violates the lightweight X12 rules (invalid identifiers, unrecognised segment IDs, disallowed characters, or missing `~` terminators) gains a light-blue thought bubble. Clicking the bubble toggles a friendly panel featuring `trish-laptop.svg` and bullet points that spell out the exact violation so analysts can reconcile the raw X12 text with the highlights.
+- Only one bubble is open at a time and re-clicking it closes the guidance, making it easy to step through each exception without losing your place in the canvas.
+
+These helpers live in [`frontend_go/public/static/js/mapper.js`](frontend_go/public/static/js/mapper.js) (and the mirrored `_container_public` copy) with the styles in [`frontend_go/public/static/css/styles.css`](frontend_go/public/static/css/styles.css).
+
 ## Admin dashboard, tickets, and role wiring
 
 - The admin portal renders active tickets raised by the chat assistant. Entries are stored in-browser under the `hediSupportTickets` key and surface the ID, submission timestamp, summary, and severity ranking.

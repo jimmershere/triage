@@ -1550,6 +1550,135 @@ footer {
   z-index: -1;
 }
 
+.canvas-grid .issue-thought-bubble {
+  position: absolute;
+  left: -52px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  box-shadow: 0 12px 26px rgba(15, 39, 64, 0.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  z-index: 6;
+}
+
+.canvas-grid .issue-thought-bubble::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  bottom: 9px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #bfdbfe;
+  box-shadow: 8px -2px 0 0 #bfdbfe;
+  opacity: 0.95;
+}
+
+.canvas-grid .issue-thought-bubble:hover,
+.canvas-grid .issue-thought-bubble.is-open {
+  transform: translateY(-50%) scale(1.05);
+  box-shadow: 0 16px 32px rgba(15, 39, 64, 0.24);
+}
+
+.canvas-grid .issue-thought-bubble.is-open {
+  background: linear-gradient(135deg, #93c5fd 0%, #bfdbfe 100%);
+}
+
+.canvas-grid .issue-thought-bubble__icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.6));
+}
+
+.canvas-grid .issue-thought-dialog {
+  position: absolute;
+  left: -360px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 300px;
+  max-width: 85vw;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: #ffffff;
+  box-shadow: 0 20px 48px rgba(15, 39, 64, 0.28);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  z-index: 5;
+}
+
+.canvas-grid .issue-thought-dialog[hidden] {
+  display: none !important;
+}
+
+.canvas-grid .issue-thought-illustration {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+}
+
+.canvas-grid .issue-thought-messages {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.canvas-grid .issue-thought-heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.canvas-grid .issue-thought-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: 0.85rem;
+  color: rgba(15, 39, 64, 0.85);
+}
+
+.canvas-grid .issue-thought-list li + li {
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 1024px) {
+  .canvas-grid .issue-thought-dialog {
+    left: auto;
+    right: 0;
+    transform: translateY(-50%);
+  }
+}
+
+@media (max-width: 768px) {
+  .canvas-grid .grid-row.has-issues {
+    padding-top: 2.75rem;
+  }
+
+  .canvas-grid .issue-thought-bubble {
+    left: 12px;
+    top: 0;
+    transform: translateY(-40%);
+  }
+
+  .canvas-grid .issue-thought-dialog {
+    position: relative;
+    left: 0;
+    right: auto;
+    top: 0;
+    transform: none;
+    margin-top: 0.5rem;
+    width: 100%;
+  }
+}
+
 .canvas-grid .grid-row.issue-focus::before {
   background: rgba(254, 202, 202, 0.75);
   border-color: rgba(220, 38, 38, 0.55);
