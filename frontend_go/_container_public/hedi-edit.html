@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- Container variant of the HEDI Edits workspace -->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -26,7 +27,7 @@
           <span class="nav-group-label">Workspace tools</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
           <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/edi-mapping.html" aria-current="page">HEDI Edits</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html" aria-current="page">HEDI Edits</a>
           <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
         </div>
         <div class="nav-group">
@@ -40,7 +41,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/edi-mapping.html" data-login-trigger data-login-next="/edi-mapping.html">Login</a>
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/hedi-edit.html" data-login-trigger data-login-next="/hedi-edit.html">Login</a>
         <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
       </div>
     </aside>
@@ -125,7 +126,7 @@
                       <ul id="segments" class="segment-list"></ul>
                     </div>
                     <div class="card mapper-column">
-                      <h3>Canvas preview</h3>
+                      <h3>HEDI Canvas preview</h3>
                       <div id="canvas" class="canvas-grid" aria-live="polite">
                         <p id="canvasEmpty" class="canvas-empty">Drop segments here to build your flow…</p>
                       </div>

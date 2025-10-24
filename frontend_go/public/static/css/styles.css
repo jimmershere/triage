@@ -1525,6 +1525,13 @@ footer {
   transform: none;
 }
 
+.canvas-grid .canvas-highlight {
+  background: rgba(254, 202, 202, 0.85);
+  color: #7f1d1d;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
 .claim-entry-card {
   padding: 2rem;
 }

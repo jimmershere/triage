@@ -127,6 +127,107 @@
     return chip;
   }
 
+  function createTextNodePreservingSpaces(text) {
+    return document.createTextNode((text || "").replace(/ /g, "\u00a0"));
+  }
+
+  function buildHighlightedContent(content, highlights) {
+    if (typeof content !== "string" || !Array.isArray(highlights) || !highlights.length) {
+      return content;
+    }
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    const sorted = highlights
+      .map((range) => ({
+        start: Math.max(0, Number(range.start) || 0),
+        end: Math.max(0, Number(range.end) || 0),
+      }))
+      .filter((range) => range.end > range.start)
+      .sort((a, b) => a.start - b.start);
+
+    sorted.forEach(({ start, end }) => {
+      const safeStart = Math.max(cursor, Math.min(start, content.length));
+      const safeEnd = Math.max(safeStart, Math.min(end, content.length));
+      if (safeStart > cursor) {
+        fragment.appendChild(createTextNodePreservingSpaces(content.slice(cursor, safeStart)));
+      }
+      const mark = document.createElement("mark");
+      mark.className = "canvas-highlight";
+      mark.appendChild(createTextNodePreservingSpaces(content.slice(safeStart, safeEnd)));
+      fragment.appendChild(mark);
+      cursor = safeEnd;
+    });
+
+    if (cursor < content.length) {
+      fragment.appendChild(createTextNodePreservingSpaces(content.slice(cursor)));
+    }
+    return fragment;
+  }
+
+  function mergeRanges(ranges, upperBound) {
+    if (!Array.isArray(ranges) || !ranges.length) {
+      return [];
+    }
+    const sorted = ranges
+      .map(({ start, end }) => ({
+        start: Math.max(0, Number(start) || 0),
+        end: Math.max(0, Number(end) || 0),
+      }))
+      .filter((range) => range.end > range.start)
+      .sort((a, b) => a.start - b.start);
+
+    const merged = [];
+    sorted.forEach((range) => {
+      const capped = {
+        start: range.start,
+        end: typeof upperBound === "number" ? Math.min(range.end, upperBound) : range.end,
+      };
+      if (!merged.length) {
+        merged.push(capped);
+        return;
+      }
+      const previous = merged[merged.length - 1];
+      if (capped.start <= previous.end) {
+        previous.end = Math.max(previous.end, capped.end);
+      } else {
+        merged.push(capped);
+      }
+    });
+    return merged.filter((range) => range.end > range.start);
+  }
+
+  function isAllowedX12Character(char) {
+    if (!char) return true;
+    const code = char.charCodeAt(0);
+    if (code === 10 || code === 13) return true;
+    if (code < 32 || code > 126) return false;
+    if (code >= 97 && code <= 122) return false;
+    return true;
+  }
+
+  function findInvalidCharacterRanges(value) {
+    if (typeof value !== "string" || !value) {
+      return [];
+    }
+    const ranges = [];
+    let rangeStart = null;
+    for (let index = 0; index < value.length; index += 1) {
+      const char = value[index];
+      if (!isAllowedX12Character(char)) {
+        if (rangeStart === null) {
+          rangeStart = index;
+        }
+      } else if (rangeStart !== null) {
+        ranges.push({ start: rangeStart, end: index });
+        rangeStart = null;
+      }
+    }
+    if (rangeStart !== null) {
+      ranges.push({ start: rangeStart, end: value.length });
+    }
+    return ranges;
+  }
+
   function createBoundaryRow(open = true) {
     const row = document.createElement("div");
     row.className = "grid-row structural-row";
@@ -191,14 +292,14 @@
     const closeBracketSpan = 1;
     addCell(createGridCell(">", closeBracketSpan, "bracket"), closeBracketSpan);
 
+    const hasCustomContent = typeof resolved.content === "string" && resolved.content.trim().length;
     const sample =
-      (typeof resolved.content === "string" && resolved.content.trim().length
-        ? resolved.content.trim()
-        : SEGMENT_SAMPLE_CONTENT[segment.id]) || `${segment.id}*...~`;
+      (hasCustomContent ? resolved.content.trim() : SEGMENT_SAMPLE_CONTENT[segment.id]) || `${segment.id}*...~`;
     const closingReserve = 2 + chipSpan + 1;
     const available = Math.max(GRID_COLUMNS - consumed - closingReserve, 4);
     const sampleSpan = Math.min(sample.length, available);
-    const sampleCell = createGridCell(sample, sampleSpan, "content");
+    const highlighted = hasCustomContent ? buildHighlightedContent(sample, resolved.highlights) : sample;
+    const sampleCell = createGridCell(highlighted, sampleSpan, "content");
     sampleCell.title = sample;
     addCell(sampleCell, sampleSpan);
 
@@ -214,17 +315,72 @@
 
   function parseSegmentsFromContent(raw) {
     if (typeof raw !== "string") return [];
-    return raw
-      .split("~")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [segmentId = ""] = line.split("*");
-        const id = segmentId.trim().toUpperCase();
-        if (!id) return null;
-        return { id, content: `${line}~` };
+
+    const normalised = raw.replace(/\r\n/g, "\n");
+    const segments = normalised.split("~");
+    const endsWithTerminator = /~\s*$/.test(normalised);
+
+    return segments
+      .map((segment, index) => {
+        const trimmed = segment.trim();
+        if (!trimmed) return null;
+
+        const hasTerminator = index < segments.length - 1 || endsWithTerminator;
+        const fullContent = `${trimmed}${hasTerminator ? "~" : ""}`;
+        const [rawIdentifier = ""] = trimmed.split("*");
+        const identifier = rawIdentifier.trim();
+        const canonicalId = identifier.toUpperCase();
+        const definition = SEGMENT_DEFINITIONS.find((seg) => seg.id === canonicalId) || null;
+
+        const highlightRanges = [];
+        const issues = {
+          hasIssue: false,
+          unknownSegment: false,
+          invalidIdentifier: false,
+          invalidCharacters: false,
+          missingTerminator: false,
+        };
+
+        const identifierValid = /^[A-Z0-9]{2,4}$/.test(canonicalId);
+        if (!identifierValid || canonicalId !== identifier) {
+          highlightRanges.push({ start: 0, end: identifier.length || fullContent.length });
+          issues.invalidIdentifier = true;
+        }
+        if (!definition) {
+          highlightRanges.push({ start: 0, end: identifier.length || fullContent.length });
+          issues.unknownSegment = true;
+        }
+
+        const invalidCharacters = findInvalidCharacterRanges(fullContent);
+        if (invalidCharacters.length) {
+          highlightRanges.push(...invalidCharacters);
+          issues.invalidCharacters = true;
+        }
+
+        if (!hasTerminator) {
+          highlightRanges.push({ start: 0, end: fullContent.length });
+          issues.missingTerminator = true;
+        }
+
+        const highlights = mergeRanges(highlightRanges, fullContent.length);
+        issues.hasIssue = highlights.length > 0;
+
+        const baseDefinition = definition || {
+          id: identifier || canonicalId || "???",
+          name: "Unrecognized segment",
+          color: "#dc2626",
+        };
+
+        return {
+          id: canonicalId || identifier || "",
+          originalIdentifier: identifier,
+          definition: baseDefinition,
+          content: fullContent,
+          highlights,
+          issues,
+        };
       })
-      .filter((entry) => entry && SEGMENT_DEFINITIONS.some((def) => def.id === entry.id));
+      .filter(Boolean);
   }
 
   function createMapper(options = {}) {
@@ -347,13 +503,15 @@
         renderCanvas();
         return;
       }
-      state.activeSegments = segments
-        .map((entry) => {
-          const definition = findSegment(entry.id);
-          if (!definition) return null;
-          return { definition, content: entry.content };
-        })
-        .filter(Boolean);
+      state.activeSegments = segments.map((entry) => {
+        const definition = findSegment(entry.id) || entry.definition;
+        return {
+          definition,
+          content: entry.content,
+          highlights: entry.highlights,
+          issues: entry.issues,
+        };
+      });
       renderCanvas();
     }
 

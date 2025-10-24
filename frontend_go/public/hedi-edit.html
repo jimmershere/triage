@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
+  <title>HEDI — HEDI Edits Workspace</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+</head>
+<body data-requires-auth="portal">
+  <div class="app-shell">
+    <aside class="site-sidebar">
+      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Claims Portal</span>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/271.html">271 Responses</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/276.html">276 Status</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Workspace tools</span>
+          <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html" aria-current="page">HEDI Edits</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Resources</span>
+          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+        </div>
+        <div class="nav-group admin-only">
+          <span class="nav-group-label">Administration</span>
+          <a class="nav-pill admin-link" data-tone="admin" href="/admin.html">Admin</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/hedi-edit.html" data-login-trigger data-login-next="/hedi-edit.html">Login</a>
+        <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
+      </div>
+    </aside>
+    <div class="app-main">
+      <main class="container edits-container">
+        <section class="card">
+          <div class="badge badge-loud">Submitter workspace</div>
+          <h1>HEDI Edits Studio</h1>
+          <p class="muted">Search, repair, and resubmit X12 payloads that were halted by syntax or formatting issues. Users with submit access can trace segment-level changes in the visual canvas while updating the raw transaction file.</p>
+
+          <div class="edits-layout">
+            <aside class="edits-sidebar" data-requires-role="submit">
+              <div class="field-group">
+                <label class="field-label" for="fileSearch">Search X12 files</label>
+                <input type="search" id="fileSearch" placeholder="Search by file name, identifier, or trading partner" autocomplete="off" data-requires-role="submit"/>
+              </div>
+
+              <div class="file-results" id="fileResults" role="list" aria-live="polite"></div>
+
+              <button type="button" class="pill-button" id="newFileButton" data-requires-role="submit">Add new file</button>
+
+              <form id="newFileForm" class="card inline-form" hidden>
+                <fieldset>
+                  <legend>Create new correction file</legend>
+                  <label class="field-label" for="newFileName">File name</label>
+                  <input type="text" id="newFileName" name="newFileName" placeholder="e.g. 837P-FollowUp" required data-requires-role="submit"/>
+
+                  <label class="field-label" for="newFileTemplate">Template</label>
+                  <select id="newFileTemplate" name="newFileTemplate" data-requires-role="submit">
+                    <option value="837p">837 Professional</option>
+                    <option value="837i">837 Institutional</option>
+                    <option value="837d">837 Dental</option>
+                    <option value="835">835 Remittance</option>
+                  </select>
+
+                  <label class="field-label" for="newFileNotes">Notes</label>
+                  <textarea id="newFileNotes" name="newFileNotes" rows="3" placeholder="Describe the correction goal" data-requires-role="submit"></textarea>
+                </fieldset>
+                <div class="inline-actions">
+                  <button type="submit" class="pill-button" id="createFile" data-requires-role="submit">Create file</button>
+                  <button type="button" class="pill-button ghost" id="cancelCreate" data-requires-role="submit">Cancel</button>
+                </div>
+              </form>
+            </aside>
+
+            <section class="edits-editor" aria-live="polite">
+              <header class="editor-header" data-requires-role="submit">
+                <div class="editor-title-group">
+                  <label class="field-label" for="fileNameInput">File name</label>
+                  <input type="text" id="fileNameInput" placeholder="Select a file to edit" autocomplete="off" data-requires-role="submit"/>
+                </div>
+                <div class="editor-status">
+                  <div class="file-selector" data-requires-role="submit">
+                    <input type="file" id="localFileInput" accept=".edi,.x12,.txt,.xml" hidden data-requires-role="submit"/>
+                    <button type="button" class="pill-button ghost" id="browseLocalFile" data-requires-role="submit">Browse File…</button>
+                    <span id="fileSelectionLabel" class="muted file-selector__label" aria-live="polite">No file selected</span>
+                  </div>
+                  <span id="fileStatus" class="status-pill" aria-live="polite">No file selected</span>
+                  <small id="fileUpdated" class="muted"></small>
+                </div>
+              </header>
+
+              <div class="editor-body" data-requires-role="submit">
+                <div class="editor-actions">
+                  <button type="button" class="pill-button" id="saveFile" data-requires-role="submit">Save with new version</button>
+                  <button type="button" class="pill-button ghost" id="submitFile" data-requires-role="submit">Submit to Worker API</button>
+                  <button type="button" class="pill-button ghost" id="resubmitFile" data-requires-role="submit">Resubmit last claim</button>
+                </div>
+                <div id="fileToast" class="toast" role="status" aria-live="assertive" hidden></div>
+              </div>
+
+              <div class="mapper-pane" data-requires-role="submit">
+                <div class="card mapper-card">
+                  <div class="mapper-heading">
+                    <h2>Mapping canvas</h2>
+                    <p class="muted">Files open directly into the XML-style preview — use the palette to append additional segments for reference.</p>
+                  </div>
+                  <div class="mapper-columns">
+                    <div class="card mapper-column">
+                      <h3>Segment palette</h3>
+                      <p class="muted">Drag segment identifiers into the canvas or click to append.</p>
+                      <ul id="segments" class="segment-list"></ul>
+                    </div>
+                    <div class="card mapper-column">
+                      <h3>HEDI Canvas preview</h3>
+                      <div id="canvas" class="canvas-grid" aria-live="polite">
+                        <p id="canvasEmpty" class="canvas-empty">Drop segments here to build your flow…</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/support_config.js"></script>
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script src="/static/js/chatbot.js"></script>
+  <script src="/static/js/mapper.js"></script>
+  <script src="/static/js/edits.js"></script>
+</body>
+</html>

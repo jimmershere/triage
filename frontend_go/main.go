@@ -589,8 +589,8 @@ func classifyPath(p string) accessLevel {
 		"/processed.html":   true,
 		"/claim-entry":      true,
 		"/claim-entry.html": true,
-		"/edi-mapping":      true,
-		"/edi-mapping.html": true,
+		"/hedi-edit":      true,
+		"/hedi-edit.html": true,
 		"/about":            true,
 		"/about.html":       true,
 		"/edi-news":         true,
@@ -599,7 +599,7 @@ func classifyPath(p string) accessLevel {
 	if portalExact[p] {
 		return accessPortal
 	}
-	portalPrefixes := []string{"/portal/", "/processed/", "/claim-entry/", "/edi-mapping/"}
+	portalPrefixes := []string{"/portal/", "/processed/", "/claim-entry/", "/hedi-edit/"}
 	for _, pref := range portalPrefixes {
 		if strings.HasPrefix(p+"/", pref) {
 			return accessPortal
