@@ -125,9 +125,18 @@
                       <ul id="segments" class="segment-list"></ul>
                     </div>
                     <div class="card mapper-column">
-                      <h3>HEDI Canvas preview</h3>
+                      <div class="canvas-toolbar" role="group" aria-label="Canvas tools">
+                        <h3>HEDI Canvas preview</h3>
+                        <button type="button" class="pill-button ghost" id="nextCanvasIssue" data-requires-role="submit">
+                          Next highlighted row <span class="shortcut-hint">(Alt+Shift+E)</span>
+                        </button>
+                      </div>
                       <div id="canvas" class="canvas-grid" aria-live="polite">
                         <p id="canvasEmpty" class="canvas-empty">Drop segments here to build your flow…</p>
+                      </div>
+                      <div class="canvas-action-bar" data-requires-role="submit">
+                        <button type="button" class="pill-button" id="canvasSaveFile" data-requires-role="submit">Save edited file</button>
+                        <button type="button" class="pill-button ghost" id="canvasSubmitFile" data-requires-role="submit">Submit to API</button>
                       </div>
                     </div>
                   </div>

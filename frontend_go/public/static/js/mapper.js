@@ -272,6 +272,13 @@
     row.className = "grid-row";
     row.setAttribute("role", "listitem");
     row.style.setProperty("--grid-columns", GRID_COLUMNS);
+    row.dataset.segmentId = segment.id;
+    if (resolved?.issues?.hasIssue) {
+      row.classList.add("has-issues");
+      row.dataset.hasIssue = "true";
+    } else {
+      row.dataset.hasIssue = "false";
+    }
 
     let consumed = 0;
 
@@ -396,7 +403,73 @@
     const state = {
       activeSegments: [],
       paletteInitialised: false,
+      issueRows: [],
+      issueIndex: -1,
+      lastFocusedIssue: null,
     };
+
+    canvasEl.dataset.hasIssues = "false";
+
+    function clearIssueFocus() {
+      if (!state.lastFocusedIssue) return;
+      state.lastFocusedIssue.classList.remove("issue-focus");
+      if (state.lastFocusedIssue.dataset && state.lastFocusedIssue.dataset.autoTabIndex === "true") {
+        state.lastFocusedIssue.removeAttribute("tabindex");
+        delete state.lastFocusedIssue.dataset.autoTabIndex;
+      }
+      state.lastFocusedIssue = null;
+    }
+
+    function applyIssueFocus(row) {
+      if (!row) return null;
+      clearIssueFocus();
+      row.classList.add("issue-focus");
+      if (!row.hasAttribute("tabindex")) {
+        row.setAttribute("tabindex", "-1");
+        row.dataset.autoTabIndex = "true";
+      }
+      if (typeof row.focus === "function") {
+        row.focus({ preventScroll: true });
+      }
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      state.lastFocusedIssue = row;
+      return row;
+    }
+
+    function updateIssueTracking() {
+      state.issueRows = Array.from(canvasEl.querySelectorAll(".grid-row.has-issues"));
+      if (!state.issueRows.length) {
+        state.issueIndex = -1;
+        canvasEl.dataset.hasIssues = "false";
+        clearIssueFocus();
+        return;
+      }
+      canvasEl.dataset.hasIssues = "true";
+      if (state.issueIndex >= state.issueRows.length) {
+        state.issueIndex = -1;
+      }
+      if (state.lastFocusedIssue && !state.issueRows.includes(state.lastFocusedIssue)) {
+        clearIssueFocus();
+      }
+    }
+
+    function focusIssue(direction = 1) {
+      if (!state.issueRows.length) {
+        clearIssueFocus();
+        canvasEl.dataset.hasIssues = "false";
+        return null;
+      }
+      const step = direction === -1 ? -1 : 1;
+      const nextIndex =
+        state.issueIndex === -1
+          ? step === -1
+            ? state.issueRows.length - 1
+            : 0
+          : (state.issueIndex + step + state.issueRows.length) % state.issueRows.length;
+      state.issueIndex = nextIndex;
+      const row = state.issueRows[state.issueIndex];
+      return applyIssueFocus(row);
+    }
 
     function findSegment(segmentId) {
       return SEGMENT_DEFINITIONS.find((segment) => segment.id === segmentId);
@@ -427,6 +500,10 @@
 
       if (!state.activeSegments.length) {
         emptyStateEl.hidden = false;
+        state.issueRows = [];
+        state.issueIndex = -1;
+        canvasEl.dataset.hasIssues = "false";
+        clearIssueFocus();
         return;
       }
 
@@ -440,6 +517,7 @@
         }
       });
       canvasEl.appendChild(createBoundaryRow(false));
+      updateIssueTracking();
     }
 
     function setSegmentsByIds(ids) {
@@ -531,6 +609,9 @@
       resetToDefault,
       getActiveSegmentIds,
       updateFromContent,
+      focusNextIssue: () => !!focusIssue(1),
+      focusPreviousIssue: () => !!focusIssue(-1),
+      hasIssues: () => state.issueRows.length > 0,
       elements: { palette: paletteEl, canvas: canvasEl, empty: emptyStateEl },
     };
   }

@@ -1504,6 +1504,58 @@ footer {
   position: relative;
 }
 
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.canvas-toolbar h3 {
+  margin: 0;
+}
+
+.shortcut-hint {
+  font-size: 0.75rem;
+  color: rgba(15, 39, 64, 0.6);
+  margin-left: 0.35rem;
+}
+
+.canvas-action-bar {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.canvas-action-bar .pill-button {
+  flex: 0 0 auto;
+}
+
+.canvas-grid .grid-row.has-issues {
+  position: relative;
+}
+
+.canvas-grid .grid-row.has-issues::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 12px;
+  background: rgba(254, 226, 226, 0.45);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  pointer-events: none;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  z-index: -1;
+}
+
+.canvas-grid .grid-row.issue-focus::before {
+  background: rgba(254, 202, 202, 0.75);
+  border-color: rgba(220, 38, 38, 0.55);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
+}
+
 .canvas-grid.dragover {
   background: rgba(47, 109, 246, 0.1);
   border-color: rgba(47, 109, 246, 0.5);

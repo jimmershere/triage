@@ -17,6 +17,9 @@
   const browseFileButton = document.getElementById("browseMappingFile");
   const mappingFileInput = document.getElementById("mappingFileInput");
   const mappingFileLabel = document.getElementById("mappingFileSelection");
+  const nextIssueButton = document.getElementById("nextCanvasIssue");
+  const canvasSaveButton = document.getElementById("canvasSaveMapping");
+  const canvasSubmitButton = document.getElementById("canvasSubmitMapping");
 
   const mapper = window.defaultHediMapper || (window.HediMapper && window.HediMapper.create({ initializeDefaults: true }));
   const definitionMap = new Map((window.HediMapper?.definitions || []).map((def) => [def.id, def]));
@@ -117,6 +120,30 @@
     mappingFileLabel.textContent = label || "No file selected";
   }
 
+  function refreshIssueNavigation() {
+    if (!nextIssueButton) return;
+    const hasIssues = Boolean(mapper && typeof mapper.hasIssues === "function" && mapper.hasIssues());
+    nextIssueButton.disabled = !hasIssues;
+  }
+
+  function focusNextCanvasIssue() {
+    if (!mapper || typeof mapper.focusNextIssue !== "function") {
+      return false;
+    }
+    return Boolean(mapper.focusNextIssue());
+  }
+
+  function initializeIssueObserver() {
+    const canvas = mapper?.elements?.canvas;
+    if (!canvas || typeof MutationObserver === "undefined") {
+      return;
+    }
+    const observer = new MutationObserver(() => {
+      refreshIssueNavigation();
+    });
+    observer.observe(canvas, { attributes: true, attributeFilter: ["data-has-issues"] });
+  }
+
   function createChip(segmentId) {
     const definition = definitionMap.get(segmentId);
     const span = document.createElement("span");
@@ -151,12 +178,21 @@
   }
 
   function updateMapper(record) {
-    if (!mapper || typeof mapper.setSegmentsByIds !== "function") return;
-    if (!record) {
-      mapper.resetToDefault();
+    if (!mapper) {
+      refreshIssueNavigation();
       return;
     }
-    mapper.setSegmentsByIds(record.segments);
+    if (!record) {
+      if (typeof mapper.resetToDefault === "function") {
+        mapper.resetToDefault();
+      }
+      refreshIssueNavigation();
+      return;
+    }
+    if (typeof mapper.setSegmentsByIds === "function") {
+      mapper.setSegmentsByIds(record.segments);
+    }
+    refreshIssueNavigation();
   }
 
   function renderDetail(record) {
@@ -267,6 +303,25 @@
     showToast(`${updatedRecord.name} queued for publication.`, "success");
   }
 
+  function handleSubmitToApi() {
+    if (!currentMapId || !mapRecords.has(currentMapId)) {
+      showToast("Select a map before submitting.", "error");
+      return;
+    }
+    const record = mapRecords.get(currentMapId);
+    const now = new Date().toISOString();
+    const updatedRecord = {
+      ...record,
+      updatedAt: now,
+      status: "submitted",
+      summary: `${record.summary} (submitted ${formatDate(now)})`,
+      segments: mapper ? mapper.getActiveSegmentIds() : record.segments,
+    };
+    mapRecords.set(updatedRecord.id, updatedRecord);
+    selectMap(updatedRecord.id);
+    showToast(`${updatedRecord.name} submitted to the worker API.`, "success");
+  }
+
   function handleDelete() {
     if (!currentMapId || !mapRecords.has(currentMapId)) {
       showToast("Select a map to delete.", "error");
@@ -287,6 +342,7 @@
       const content = typeof reader.result === "string" ? reader.result : "";
       if (mapper && typeof mapper.updateFromContent === "function") {
         mapper.updateFromContent(content);
+        refreshIssueNavigation();
       }
       const segments = mapper && typeof mapper.getActiveSegmentIds === "function" ? mapper.getActiveSegmentIds() : [];
       const baseName = file.name.replace(/\.[^.]+$/, "");
@@ -332,9 +388,34 @@
     searchInput?.addEventListener("input", renderList);
     createButton?.addEventListener("click", handleCreate);
     updateButton?.addEventListener("click", handleUpdate);
+    canvasSaveButton?.addEventListener("click", handleUpdate);
+    canvasSubmitButton?.addEventListener("click", handleSubmitToApi);
+    nextIssueButton?.addEventListener("click", () => {
+      if (!focusNextCanvasIssue()) {
+        showToast("No highlighted issues to review.", "info");
+      }
+    });
     deleteButton?.addEventListener("click", handleDelete);
     browseFileButton?.addEventListener("click", handleBrowseFileButton);
     mappingFileInput?.addEventListener("change", handleMappingFileInput);
+
+    document.addEventListener("keydown", (event) => {
+      if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+      if ((event.key || "").toLowerCase() !== "e") {
+        return;
+      }
+      const navigated = focusNextCanvasIssue();
+      if (navigated) {
+        event.preventDefault();
+      } else if (!nextIssueButton?.disabled) {
+        showToast("No highlighted issues to review.", "info");
+      }
+    });
+
+    initializeIssueObserver();
+    refreshIssueNavigation();
   }
 
   if (document.readyState === "loading") {
