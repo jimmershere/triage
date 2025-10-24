@@ -21,6 +21,9 @@
   const saveButton = document.getElementById("saveFile");
   const submitButton = document.getElementById("submitFile");
   const resubmitButton = document.getElementById("resubmitFile");
+  const canvasSaveButton = document.getElementById("canvasSaveFile");
+  const canvasSubmitButton = document.getElementById("canvasSubmitFile");
+  const nextIssueButton = document.getElementById("nextCanvasIssue");
   const toast = document.getElementById("fileToast");
   const browseFileButton = document.getElementById("browseLocalFile");
   const localFileInput = document.getElementById("localFileInput");
@@ -156,6 +159,30 @@
     fileSelectionLabel.textContent = label || "No file selected";
   }
 
+  function refreshIssueNavigation() {
+    if (!nextIssueButton) return;
+    const hasIssues = Boolean(mapper && typeof mapper.hasIssues === "function" && mapper.hasIssues());
+    nextIssueButton.disabled = !hasIssues;
+  }
+
+  function focusNextCanvasIssue() {
+    if (!mapper || typeof mapper.focusNextIssue !== "function") {
+      return false;
+    }
+    return Boolean(mapper.focusNextIssue());
+  }
+
+  function initializeIssueObserver() {
+    const canvas = mapper?.elements?.canvas;
+    if (!canvas || typeof MutationObserver === "undefined") {
+      return;
+    }
+    const observer = new MutationObserver(() => {
+      refreshIssueNavigation();
+    });
+    observer.observe(canvas, { attributes: true, attributeFilter: ["data-has-issues"] });
+  }
+
   function buildLocalIdentifier(baseName) {
     const cleaned = (baseName || "")
       .toUpperCase()
@@ -165,7 +192,7 @@
   }
 
   function setEditorEnabled(enabled) {
-    [fileNameInput, editor, saveButton, submitButton, resubmitButton].forEach((el) => {
+    [fileNameInput, editor, saveButton, submitButton, resubmitButton, canvasSaveButton, canvasSubmitButton].forEach((el) => {
       if (!el) return;
       el.disabled = !enabled;
     });
@@ -242,8 +269,12 @@
   }
 
   function updateMapper(content) {
-    if (!mapper || typeof mapper.updateFromContent !== "function") return;
+    if (!mapper || typeof mapper.updateFromContent !== "function") {
+      refreshIssueNavigation();
+      return;
+    }
     mapper.updateFromContent(content);
+    refreshIssueNavigation();
   }
 
   function loadFileIntoEditor(file) {
@@ -498,9 +529,34 @@
     saveButton?.addEventListener("click", handleSave);
     submitButton?.addEventListener("click", handleSubmit);
     resubmitButton?.addEventListener("click", handleResubmit);
+    canvasSaveButton?.addEventListener("click", handleSave);
+    canvasSubmitButton?.addEventListener("click", handleSubmit);
+    nextIssueButton?.addEventListener("click", () => {
+      if (!focusNextCanvasIssue()) {
+        showToast("No highlighted issues to review.", "info");
+      }
+    });
     editor?.addEventListener("input", handleEditorInput);
     browseFileButton?.addEventListener("click", handleBrowseButtonClick);
     localFileInput?.addEventListener("change", handleLocalFileInputChange);
+
+    document.addEventListener("keydown", (event) => {
+      if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+      if ((event.key || "").toLowerCase() !== "e") {
+        return;
+      }
+      const navigated = focusNextCanvasIssue();
+      if (navigated) {
+        event.preventDefault();
+      } else if (!nextIssueButton?.disabled) {
+        showToast("No highlighted issues to review.", "info");
+      }
+    });
+
+    initializeIssueObserver();
+    refreshIssueNavigation();
   }
 
   if (document.readyState === "loading") {
