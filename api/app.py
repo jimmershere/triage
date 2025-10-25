@@ -31,7 +31,9 @@ logger = logging.getLogger("api")
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 RMQ_QUEUE = os.getenv("RMQ_QUEUE", "edi_files")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://edi:edi@postgres:5432/edi")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://edi:edi@postgres:5432/edi?sslmode=require"
+)
 ALLOWED_ORIGINS_RAW = os.getenv("HEDI_CORS_ORIGINS", "*")
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
 SHARED_SECRET = os.getenv("HEDI_SHARED_SECRET", "change-me")
