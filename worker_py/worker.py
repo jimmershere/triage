@@ -66,7 +66,9 @@ logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message
 logger = logging.getLogger("worker")
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://edi:edi@postgres:5432/edi")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://edi:edi@postgres:5432/edi?sslmode=require"
+)
 ARCHIVE_DIR = os.getenv("ARCHIVE_DIR", "/archive")
 
 def get_rmq_channel():
