@@ -1,5 +1,5 @@
 # ---- build stage ----
-FROM golang:1.22-alpine AS build
+FROM docker.io/library/golang:1.22-alpine AS build
 WORKDIR /app
 ENV GOTOOLCHAIN=local
 COPY go.mod ./
