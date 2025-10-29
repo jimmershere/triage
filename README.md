@@ -16,7 +16,7 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
 ## Quick Start
 
 1. **Prereqs**: Docker & Docker Compose installed.
-2. Copy `.env.example` to `.env` and adjust if needed:
+   2. Copy `.env.example` to `.env` and adjust if needed:
    ```bash
    cp .env.example .env
    - `RABBITMQ_URL` should match the credentials you configure for RabbitMQ (defaults map to the compose file).
@@ -30,7 +30,7 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
    - Postgres: `localhost:5432` (db: `edi`, user: `edi`, pass: `edi`)
    - RabbitMQ mgmt UI: http://localhost:15672 (guest/guest)
    - API: http://localhost:8000/docs
-4. **Ingest a file** (replace path as needed):
+   4. **Ingest a file** (replace path as needed):
    ```bash
    curl -X POST "http://localhost:8000/ingest"      -F "file=@samples/x12_837_small.txt"
    # curl -X POST "http://localhost:8000/ingest"      -F "file=@samples/x12_837_large_valid.x12"  # ~500 KB multi-claim sample
@@ -38,6 +38,28 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
 5. **See results**:
    - Check `imports`, `claims`, `order_lines`, and `acks` tables in Postgres.
    - RabbitMQ queues: `ingest` (uploads) and `acks` (generated acknowledgments).
+
+### Running with Podman
+
+Rootless Podman on Ubuntu 24.04+ defaults to the systemd/journald control plane.
+When you log in through a non-interactive session (for example SSH without
+`loginctl enable-linger`), builds fail with errors like:
+
+```
+sd-bus call: Interactive authentication required.: Permission denied
+```
+
+The bundled [`.env`](.env) now forces the lightweight `cgroupfs` and file-based
+event logger backends so `podman-compose build` works without tweaking host
+configuration. After copying `.env.example` to `.env`, run:
+
+```bash
+podman-compose build
+podman-compose up
+```
+
+These environment variables are ignored by Docker but automatically picked up by
+Podman, keeping the stack compatible across both container runtimes.
 
 ## Enabling OAuth2/OIDC single sign-on
 
