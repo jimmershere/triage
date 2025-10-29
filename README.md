@@ -49,17 +49,30 @@ When you log in through a non-interactive session (for example SSH without
 sd-bus call: Interactive authentication required.: Permission denied
 ```
 
-The bundled [`.env`](.env) now forces the lightweight `cgroupfs` and file-based
-event logger backends so `podman-compose build` works without tweaking host
-configuration. After copying `.env.example` to `.env`, run:
+The repository ships with a wrapper that opts Podman into the lightweight
+`cgroupfs` and file-based event logger backends, and forces Buildah into
+`chroot` isolation so that build steps run without systemd. It keeps builds
+working even when the host does not expose a user systemd session (the most
+common reason for the `sd-bus call` error above) and avoids the repeated
+warnings about falling back to `--cgroup-manager=cgroupfs`.
 
 ```bash
-podman-compose build
-podman-compose up
+tools/podman_compose.sh build
+tools/podman_compose.sh up
 ```
 
-These environment variables are ignored by Docker but automatically picked up by
-Podman, keeping the stack compatible across both container runtimes.
+If you prefer to keep using `podman-compose` directly, export the same runtime
+settings in your shell:
+
+```bash
+export CONTAINERS_CONF=$(pwd)/tools/podman_containers.conf
+export BUILDAH_ISOLATION=chroot
+podman-compose --podman-args "--cgroup-manager=cgroupfs --events-backend=file" build
+podman-compose --podman-args "--cgroup-manager=cgroupfs --events-backend=file" up
+```
+
+Docker ignores these environment variables/flags, so the stack remains
+compatible across both container runtimes.
 
 ## Enabling OAuth2/OIDC single sign-on
 
