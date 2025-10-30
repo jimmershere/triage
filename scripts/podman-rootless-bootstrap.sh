@@ -4,13 +4,12 @@ set -euo pipefail
 cat <<'MSG'
 TurboHedi rootless Podman bootstrap
 
-Run the following commands with sudo to install required dependencies and enable a persistent user systemd runtime (linger) so rootless Podman can avoid "no systemd user session" errors:
+Install the rootless prerequisites that Podman expects (run with sudo):
 
   sudo apt-get update
   sudo apt-get install -y uidmap dbus-user-session slirp4netns fuse-overlayfs containernetworking-plugins
-  sudo loginctl enable-linger $(id -u)
 
-The enable-linger command ensures your user has a dedicated systemd runtime even when not logged in, preventing sd-bus authentication prompts during Podman operations.
+These packages provide the user-namespace helpers, networking shims, and overlay storage driver that keep Podman working without a systemd user session or journald.
 MSG
 
 CONFIG_DIR="${HOME}/.config/containers"
@@ -62,7 +61,7 @@ done
 cat <<'MSG'
 
 Next steps:
-  1. Log out and back in (or run: systemctl --user daemon-reload) after enabling linger.
+  1. Start a fresh shell so the exported variables take effect.
   2. Run: make doctor
   3. Run: make build
 

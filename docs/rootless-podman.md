@@ -6,21 +6,17 @@ TurboHedi targets rootless Podman for local development and CI. Ubuntu 24.04 no 
 - `Falling back to --cgroup-manager=cgroupfs`
 - `sd-bus call: Interactive authentication required.: Permission denied`
 
-Without a persistent systemd runtime, rootless Podman attempts to talk to system services (polkit) that require interactive authorization, so builds fail before containers are even created.
+Without a persistent systemd runtime, rootless Podman attempts to talk to system services (polkit) that require interactive authorization, so builds fail before containers are even created. The fix is to keep Podman on the `cgroupfs` manager and file-based event logger so it never needs to contact systemd or journald.
 
 ## Required packages
 
-Install the rootless dependencies that Podman expects:
+Install the rootless dependencies that Podman expects (these are the only commands that need sudo):
 
 - `uidmap` – enables unprivileged user namespaces
 - `dbus-user-session` – provides the user session bus used by Podman helpers
 - `slirp4netns` – user-mode networking for rootless containers
 - `fuse-overlayfs` – layered storage driver that works without kernel overlay permissions
 - `containernetworking-plugins` – CNI plugins needed for networking
-
-## Enable linger (persistent user systemd)
-
-A rootless Podman runtime needs a per-user systemd instance for sd-bus interactions. `loginctl enable-linger <uid>` creates that environment even on headless servers, preventing `sd-bus call: Interactive authentication required` errors.
 
 ## Configuration applied by `make bootstrap`
 
@@ -48,21 +44,19 @@ export BUILDAH_FORMAT=docker
 
 ```bash
 make bootstrap
-# follow the printed sudo instructions and enable linger
-# log out/in (or reboot) so the new user systemd runtime starts
+# run the printed apt-get commands (no systemd tweaks required)
 make doctor
 make build
 make up
+make down
 ```
+
+`make build` / `make up` invoke `tools/podman_compose.sh`, which automatically
+applies the non-systemd Podman flags. You can still call the wrapper directly if
+you prefer a slimmer workflow script.
 
 `make doctor` validates the runtime (cgroupfs, crun, fuse-overlayfs) and runs quick container build/run smoke tests.
 
-## Temporary fallback (use sparingly)
+## Need to recover a broken Podman cache?
 
-If you must build before logging out/in after enabling linger, run:
-
-```bash
-sudo -E CONTAINERS_CGROUP_MANAGER=cgroupfs podman-compose build
-```
-
-This bypasses the rootless runtime, but the permanent fix is to enable linger and start a fresh login session so `make doctor` passes cleanly.
+If you previously ran Podman with the systemd cgroup manager, cached images and containers may still reference the old backend. Run `podman system prune -af` to clear them before retrying `make doctor`.
