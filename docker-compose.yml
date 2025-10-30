@@ -40,7 +40,7 @@ services:
       - ./db/init-scripts/01-copy-ssl.sh:/docker-entrypoint-initdb.d/01-copy-ssl.sh:ro
       - ./db/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ./db/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-      - ./db/certs:/etc/postgresql/certs:ro
+      - ./deploy/httpd/certs:/etc/postgresql/certs:ro
     command:
       - postgres
       - "-c"
@@ -57,7 +57,18 @@ services:
   rabbitmq-permissions:
     image: docker.io/library/alpine:3.20
     container_name: turboedi-starter_rabbitmq_permissions_1
-    command: ["/bin/sh", "-c", "chown -R 999:999 /var/lib/rabbitmq && chmod 600 /var/lib/rabbitmq/.erlang.cookie 2>/dev/null || true"]
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-turbohedi-cookie}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -euo pipefail
+        if [ -n "${RABBITMQ_ERLANG_COOKIE:-}" ]; then
+          printf '%s' "${RABBITMQ_ERLANG_COOKIE}" > /var/lib/rabbitmq/.erlang.cookie
+        fi
+        chown -R 999:999 /var/lib/rabbitmq
+        chmod 400 /var/lib/rabbitmq/.erlang.cookie 2>/dev/null || true
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: "no"
@@ -73,6 +84,7 @@ services:
       RABBITMQ_DEFAULT_USER: ediapp
       RABBITMQ_DEFAULT_PASS: 3wm078uu
       RABBITMQ_DEFAULT_VHOST: /
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-turbohedi-cookie}
     healthcheck:
       test: ["CMD-SHELL", "rabbitmq-diagnostics ping"]
       interval: 5s
@@ -156,11 +168,11 @@ services:
       # LDAP_USER_ATTR: uid
       # LDAP_BIND_DN: cn=readonly,dc=example,dc=org
       # LDAP_BIND_PASS: secret
-      CERT_FILE: /app/turbohedi0.1/deploy/httpd/certs/server.crt
-      KEY_FILE: /app/turbohedi0.1/deploy/httpd/certs/server.key
+      CERT_FILE: /app/turbohedi-0.5/deploy/httpd/certs/server.crt
+      KEY_FILE: /app/turbohedi-0.5/deploy/httpd/certs/server.key
     volumes:
       - ./frontend_go/public:/app/public:Z
-      - ./deploy/httpd/certs:/app/turbohedi0.1/deploy/httpd/certs:Z,ro
+      - ./deploy/httpd/certs:/app/turbohedi-0.5/deploy/httpd/certs:Z,ro
     ports:
       - "8080:8080"
       - "8443:8443"
