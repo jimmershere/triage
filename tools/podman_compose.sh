@@ -5,7 +5,14 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 
-export CONTAINERS_CONF="${CONTAINERS_CONF:-${PROJECT_ROOT}/tools/podman_containers.conf}"
+if [[ -z "${CONTAINERS_CONF:-}" ]]; then
+  USER_CONTAINERS_CONF="${HOME}/.config/containers/containers.conf"
+  if [[ -f "${USER_CONTAINERS_CONF}" ]]; then
+    export CONTAINERS_CONF="${USER_CONTAINERS_CONF}"
+  else
+    export CONTAINERS_CONF="${PROJECT_ROOT}/tools/podman_containers.conf"
+  fi
+fi
 export BUILDAH_ISOLATION="${BUILDAH_ISOLATION:-chroot}"
 export PODMAN_SYSTEMD_UNIT="${PODMAN_SYSTEMD_UNIT:-0}"
 

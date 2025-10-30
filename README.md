@@ -56,9 +56,16 @@ working even when the host does not expose a user systemd session (the most
 common reason for the `sd-bus call` error above) and avoids the repeated
 warnings about falling back to `--cgroup-manager=cgroupfs`.
 
+The default Makefile routes `make build` / `make up` through the wrapper so you
+get the correct flags automatically. Prefer the Make targets when working with
+Podman:
+
 ```bash
-tools/podman_compose.sh build
-tools/podman_compose.sh up
+make bootstrap   # installs configs under ~/.config/containers
+make doctor      # verifies crun + cgroupfs + fuse-overlayfs
+make build
+make up
+make down
 ```
 
 If you prefer to keep using `podman-compose` directly, export the same runtime
