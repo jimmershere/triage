@@ -33,7 +33,45 @@ INFO_JSON=$(podman info --format '{{json .}}')
 section "Podman configuration"
 OCIRUNTIME=$(python3 - <<'PY' "$INFO_JSON"
 import json, sys
-print(json.loads(sys.argv[1]).get("Host", {}).get("OCIRuntime", {}).get("Name", ""))
+
+def _strip(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+info = json.loads(sys.argv[1])
+host = info.get("Host") or {}
+
+runtime = ""
+candidate = host.get("OCIRuntime")
+if isinstance(candidate, str):
+    runtime = candidate.strip()
+elif isinstance(candidate, dict):
+    runtime = _strip(candidate.get("Name")) or _strip(candidate.get("name"))
+    if not runtime:
+        runtime_path = candidate.get("Path") or candidate.get("path")
+        if isinstance(runtime_path, str) and runtime_path.strip():
+            runtime = runtime_path.strip().rsplit("/", 1)[-1]
+if not runtime:
+    default = host.get("OCIRuntimeDefault")
+    if isinstance(default, str):
+        runtime = default.strip()
+if not runtime:
+    runtimes = host.get("OCIRuntimes")
+    if isinstance(runtimes, dict):
+        default_runtime = host.get("OCIRuntime")
+        if isinstance(default_runtime, str) and default_runtime.strip():
+            runtime = default_runtime.strip()
+        if not runtime:
+            default_runtime = host.get("OCIRuntimeDefault")
+            if isinstance(default_runtime, str) and default_runtime.strip():
+                runtime = default_runtime.strip()
+        if not runtime:
+            # fall back to the first configured runtime name
+            for name in runtimes:
+                if isinstance(name, str) and name.strip():
+                    runtime = name.strip()
+                    break
+
+print(runtime)
 PY
 )
 if [[ "${OCIRUNTIME}" == "crun" ]]; then
@@ -44,7 +82,18 @@ fi
 
 CGROUP_MANAGER=$(python3 - <<'PY' "$INFO_JSON"
 import json, sys
-print(json.loads(sys.argv[1]).get("Host", {}).get("CgroupManager", ""))
+
+info = json.loads(sys.argv[1])
+host = info.get("Host") or {}
+
+value = ""
+for key in ("CgroupManager", "cgroupManager", "Cgroupmanager"):
+    candidate = host.get(key)
+    if isinstance(candidate, str) and candidate.strip():
+        value = candidate.strip()
+        break
+
+print(value)
 PY
 )
 if [[ "${CGROUP_MANAGER}" == "cgroupfs" ]]; then
@@ -55,7 +104,18 @@ fi
 
 GRAPH_DRIVER=$(python3 - <<'PY' "$INFO_JSON"
 import json, sys
-print(json.loads(sys.argv[1]).get("Store", {}).get("GraphDriverName", ""))
+
+info = json.loads(sys.argv[1])
+store = info.get("Store") or {}
+
+value = ""
+for key in ("GraphDriverName", "GraphDriver", "graphDriverName"):
+    candidate = store.get(key)
+    if isinstance(candidate, str) and candidate.strip():
+        value = candidate.strip()
+        break
+
+print(value)
 PY
 )
 if [[ "${GRAPH_DRIVER}" == "overlay" ]]; then
