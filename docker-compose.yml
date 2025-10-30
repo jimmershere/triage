@@ -12,9 +12,21 @@ networks:
     name: turboedi-starter_default
 
 services:
+  postgres-permissions:
+    image: docker.io/library/alpine:3.20
+    container_name: turboedi-starter_postgres_permissions_1
+    command: ["/bin/sh", "/scripts/fix-permissions.sh"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/scripts/fix-permissions.sh:/scripts/fix-permissions.sh:ro
+    restart: "no"
+
   postgres:
     image: docker.io/library/postgres:16
     container_name: turboedi-starter_postgres_1
+    depends_on:
+      postgres-permissions:
+        condition: service_completed_successfully
     environment:
       POSTGRES_USER: edi
       POSTGRES_PASSWORD: edi
