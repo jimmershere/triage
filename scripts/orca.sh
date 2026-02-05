@@ -7,7 +7,7 @@ STATE_DIR="${STATE_DIR:-$(dirname "$0")/state}"
 
 mkdir -p "$LOG_DIR" "$STATE_DIR"
 
-LOG_FILE="$LOG_DIR/orchestrator-$(date +"%Y%m%d").log"
+LOG_FILE="$LOG_DIR/orca-$(date +"%Y%m%d").log"
 
 timestamp() {
   date +"%Y-%m-%d %H:%M:%S"
@@ -117,10 +117,47 @@ for section in "${SECTIONS[@]}"; do
     continue
   fi
 
+  declare -A GROUPED_SERVERS=()
+  for server in $servers; do
+    env_char="${server:4:1}"
+    case "${env_char,,}" in
+      s)
+        GROUPED_SERVERS[sys]+=" $server"
+        ;;
+      q)
+        GROUPED_SERVERS[qa]+=" $server"
+        ;;
+      p)
+        GROUPED_SERVERS[production]+=" $server"
+        ;;
+      *)
+        log "ERROR" "Unknown environment for server '$server' in [$section] (expected s/q/p at position 5)"
+        ;;
+    esac
+  done
+
   for file in "${files[@]}"; do
     rel_path="${file#$source_dir/}"
     rel_dir="$(dirname "$rel_path")"
-    for server in $servers; do
+    file_name="$(basename "$file")"
+    file_env_char="${file_name:0:1}"
+    case "${file_env_char,,}" in
+      s) file_env="sys" ;;
+      q) file_env="qa" ;;
+      p) file_env="production" ;;
+      *)
+        log "ERROR" "Unknown environment for file '$file_name' in [$section] (expected s/q/p prefix)"
+        continue
+        ;;
+    esac
+
+    servers_for_env="${GROUPED_SERVERS[$file_env]:-}"
+    if [[ -z "$servers_for_env" ]]; then
+      log "INFO" "No servers for $file_env in [$section]; skipping $rel_path"
+      continue
+    fi
+
+    for server in $servers_for_env; do
       remote_dir="${target_dir%/}/$rel_dir"
       run_cmd "Ensure remote dir ($server)" ssh "$server" "mkdir -p \"$remote_dir\""
 
