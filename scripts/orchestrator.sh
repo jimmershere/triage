@@ -97,6 +97,8 @@ for section in "${SECTIONS[@]}"; do
     continue
   fi
 
+  source_dir="${source_dir%/}"
+
   if [[ ! -d "$source_dir" ]]; then
     log "ERROR" "Source directory not found: $source_dir"
     continue
