@@ -193,7 +193,7 @@ list_tasks() {
   local records
   records="$(mktemp)"
   parse_records >"$records"
-  awk -v filter="$filter" '
+  awk -F'\t' -v filter="$filter" '
     BEGIN { current=""; idx=0; has_filter=(filter != "") }
     {
       group=$1; priority=$2; desc=$3; date=$4
