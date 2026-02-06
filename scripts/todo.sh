@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_NAME="$(basename "$0")"
 TODAY="$(date +%F)"
+DEFAULT_GROUP="misc"
 
 TODO_DIR_DEFAULT="${TODO_DIR:-$HOME/.todo}"
 TODO_FILE_DEFAULT="${TODO_FILE:-$TODO_DIR_DEFAULT/todo.txt}"
@@ -30,6 +31,9 @@ log() {
 ensure_files() {
   mkdir -p "$TODO_DIR"
   touch "$TODO_FILE" "$DONE_FILE" "$LOG_FILE"
+  if [[ ! -s "$TODO_FILE" ]]; then
+    printf '[%s]\n' "$DEFAULT_GROUP" >"$TODO_FILE"
+  fi
 }
 
 usage() {
@@ -40,12 +44,15 @@ Usage:
   $SCRIPT_NAME [options] <command> [args]
 
 Commands:
-  add "task text"        Add a task (prepends creation date).
+  add [options] "task text"
+                          Add a task (uses creation date).
   list [filter]           List tasks, optionally filtered.
   listdone [filter]       List completed tasks.
   done <number>           Complete a task by its list number.
   pri <number> <A-Z>      Set priority for a task.
   depri <number>          Remove priority for a task.
+  update|-u <number> [options]
+                          Update task group/priority/description.
   alert                   Email overdue or due-today tasks (requires --email).
   help                    Show this help.
 
@@ -57,8 +64,17 @@ Options:
   -e, --email ADDRESS     Email address for alerts.
   -h, --help              Show this help.
 
+Add options:
+  -g GROUP                Group name (default: $DEFAULT_GROUP).
+  -p PRIORITY             Priority letter A-Z.
+
+Update options:
+  -g GROUP                New group name.
+  -p PRIORITY             New priority letter A-Z.
+  -d DESCRIPTION          New task description.
+
 Notes:
-  * todo.txt format: https://github.com/todotxt/todo.txt
+  * Format: [group] headers with items as "(A) description YYYY-MM-DD".
   * Use due:YYYY-MM-DD in tasks for alerting.
 USAGE
 }
@@ -84,7 +100,121 @@ send_email() {
   fi
 }
 
+normalize_group_name() {
+  local name="$1"
+  name="$(printf '%s' "$name" | sed -E 's/^\[//; s/\]$//; s/^[[:space:]]+|[[:space:]]+$//g')"
+  if [[ -z "$name" ]]; then
+    name="$DEFAULT_GROUP"
+  fi
+  printf '%s' "$name"
+}
+
+parse_records() {
+  awk -v default_group="$DEFAULT_GROUP" '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    BEGIN { group = default_group; order = 0 }
+    /^[[:space:]]*$/ { next }
+    /^\[.*\]$/ {
+      group = $0
+      sub(/^\[/, "", group)
+      sub(/\]$/, "", group)
+      group = trim(group)
+      if (group == "") group = default_group
+      next
+    }
+    {
+      line = $0
+      priority = ""
+      date = ""
+      if (match(line, /[0-9]{4}-[0-9]{2}-[0-9]{2}$/, arr)) {
+        date = arr[0]
+        line = substr(line, 1, RSTART - 1)
+        line = trim(line)
+      }
+      if (match(line, /^\(([A-Z])\)[[:space:]]+/, arr)) {
+        priority = arr[1]
+        line = substr(line, RLENGTH + 1)
+        line = trim(line)
+      } else if (match(line, /^([A-Z])[[:space:]]+/, arr)) {
+        priority = arr[1]
+        line = substr(line, RLENGTH + 1)
+        line = trim(line)
+      }
+      order++
+      priority_empty = (priority == "" ? 1 : 0)
+      printf "%s\t%s\t%s\t%s\t%d\t%d\n", group, priority, line, date, order, priority_empty
+    }
+  ' "$TODO_FILE"
+}
+
+write_records() {
+  local records_file="$1"
+  local sorted
+  sorted="$(mktemp)"
+  LC_ALL=C sort -t$'\t' -k1,1 -k6,6n -k2,2 -k5,5n "$records_file" >"$sorted"
+  awk -v default_group="$DEFAULT_GROUP" '
+    BEGIN { current = "" }
+    {
+      group = $1
+      priority = $2
+      desc = $3
+      date = $4
+      if (group == "") group = default_group
+      if (group != current) {
+        if (current != "") print ""
+        print "[" group "]"
+        current = group
+      }
+      line = ""
+      if (priority != "") line = "(" priority ") " desc
+      else line = desc
+      if (date != "") line = line " " date
+      print line
+    }
+    END {
+      if (current == "") {
+        print "[" default_group "]"
+      }
+    }
+  ' "$sorted" >"$TODO_FILE"
+  rm -f "$sorted"
+}
+
+normalize_todo_file() {
+  local records
+  records="$(mktemp)"
+  parse_records >"$records"
+  write_records "$records"
+  rm -f "$records"
+}
+
 list_tasks() {
+  local filter="${1:-}"
+  local records
+  records="$(mktemp)"
+  parse_records >"$records"
+  awk -v filter="$filter" '
+    BEGIN { current=""; idx=0; has_filter=(filter != "") }
+    {
+      group=$1; priority=$2; desc=$3; date=$4
+      entry = desc
+      if (priority != "") entry="(" priority ") " entry
+      if (date != "") entry=entry " " date
+      matches = (!has_filter || index(tolower(group), tolower(filter)) || index(tolower(entry), tolower(filter)))
+      if (!matches) next
+      if (group != current) {
+        if (current != "") print ""
+        print "[" group "]"
+        current=group
+      }
+      idx++
+      printf "%d) %s\n", idx, entry
+    }
+  ' "$records"
+  rm -f "$records"
+}
+
+list_done_tasks() {
   local file="$1"
   shift
   local filter="${*:-}"
@@ -97,12 +227,55 @@ list_tasks() {
 }
 
 add_task() {
-  local task="$1"
+  local group="$DEFAULT_GROUP"
+  local priority=""
+  local task_parts=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -g)
+        group="$2"
+        shift 2
+        ;;
+      -p)
+        priority="$2"
+        shift 2
+        ;;
+      --)
+        shift
+        task_parts+=("$@")
+        break
+        ;;
+      *)
+        task_parts+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  local task="${task_parts[*]}"
   if [[ -z "$task" ]]; then
     echo "Task text required." >&2
     return 1
   fi
-  printf '%s %s\n' "$TODAY" "$task" >>"$TODO_FILE"
+  if [[ -n "$priority" && ! "$priority" =~ ^[A-Z]$ ]]; then
+    echo "Priority must be A-Z." >&2
+    return 1
+  fi
+  group="$(normalize_group_name "$group")"
+
+  local records
+  records="$(mktemp)"
+  parse_records >"$records"
+  local next_order
+  next_order="$(awk 'END { print NR + 1 }' "$records")"
+  local priority_empty=1
+  if [[ -n "$priority" ]]; then
+    priority_empty=0
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$group" "$priority" "$task" "$TODAY" "$next_order" "$priority_empty" >>"$records"
+  write_records "$records"
+  rm -f "$records"
   log "INFO" "Added task: $task"
 }
 
@@ -112,17 +285,31 @@ complete_task() {
     echo "Task number must be numeric." >&2
     return 1
   fi
-
-  local task
-  task="$(sed -n "${number}p" "$TODO_FILE" || true)"
-  if [[ -z "$task" ]]; then
+  local records
+  records="$(mktemp)"
+  parse_records >"$records"
+  local total
+  total="$(wc -l <"$records" | tr -d ' ')"
+  if [[ "$number" -lt 1 || "$number" -gt "$total" ]]; then
     echo "No task found at number $number." >&2
+    rm -f "$records"
     return 1
   fi
-
-  printf 'x %s %s\n' "$TODAY" "$task" >>"$DONE_FILE"
-  sed -i "${number}d" "$TODO_FILE"
-  log "INFO" "Completed task #$number: $task"
+  local entry
+  entry="$(awk -v idx="$number" 'NR==idx { print }' "$records")"
+  local group priority desc date
+  IFS=$'\t' read -r group priority desc date _ _ <<<"$entry"
+  local done_line="[$group]"
+  if [[ -n "$priority" ]]; then
+    done_line+=" ($priority) $desc $date"
+  else
+    done_line+=" $desc $date"
+  fi
+  printf 'x %s %s\n' "$TODAY" "$done_line" >>"$DONE_FILE"
+  awk -v idx="$number" 'NR!=idx' "$records" >"${records}.new"
+  write_records "${records}.new"
+  rm -f "$records" "${records}.new"
+  log "INFO" "Completed task #$number: $desc"
 }
 
 set_priority() {
@@ -132,29 +319,98 @@ set_priority() {
     echo "Priority must be A-Z." >&2
     return 1
   fi
-  local task
-  task="$(sed -n "${number}p" "$TODO_FILE" || true)"
-  if [[ -z "$task" ]]; then
-    echo "No task found at number $number." >&2
-    return 1
-  fi
-
-  task="$(sed -E 's/^\([A-Z]\) //' <<<"$task")"
-  sed -i "${number}s/.*/(${priority}) ${task}/" "$TODO_FILE"
-  log "INFO" "Set priority $priority for task #$number"
+  update_task "$number" -p "$priority"
 }
 
 remove_priority() {
   local number="$1"
-  local task
-  task="$(sed -n "${number}p" "$TODO_FILE" || true)"
-  if [[ -z "$task" ]]; then
-    echo "No task found at number $number." >&2
+  update_task "$number" -p "" || return 1
+  log "INFO" "Removed priority for task #$number"
+}
+
+update_task() {
+  local number="$1"
+  shift
+  if ! [[ "$number" =~ ^[0-9]+$ ]]; then
+    echo "Task number must be numeric." >&2
     return 1
   fi
-  task="$(sed -E 's/^\([A-Z]\) //' <<<"$task")"
-  sed -i "${number}s/.*/${task}/" "$TODO_FILE"
-  log "INFO" "Removed priority for task #$number"
+
+  local new_group=""
+  local new_priority=""
+  local new_desc=""
+  local group_set=false
+  local priority_set=false
+  local desc_set=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -g)
+        new_group="$2"
+        group_set=true
+        shift 2
+        ;;
+      -p)
+        new_priority="$2"
+        priority_set=true
+        shift 2
+        ;;
+      -d)
+        new_desc="$2"
+        desc_set=true
+        shift 2
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        echo "Unknown update option: $1" >&2
+        return 1
+        ;;
+    esac
+  done
+
+  if [[ "$priority_set" == true && -n "$new_priority" && ! "$new_priority" =~ ^[A-Z]$ ]]; then
+    echo "Priority must be A-Z." >&2
+    return 1
+  fi
+  if [[ "$group_set" == true ]]; then
+    new_group="$(normalize_group_name "$new_group")"
+  fi
+
+  local records
+  records="$(mktemp)"
+  parse_records >"$records"
+  local total
+  total="$(wc -l <"$records" | tr -d ' ')"
+  if [[ "$number" -lt 1 || "$number" -gt "$total" ]]; then
+    echo "No task found at number $number." >&2
+    rm -f "$records"
+    return 1
+  fi
+
+  awk -v idx="$number" \
+    -v new_group="$new_group" \
+    -v new_priority="$new_priority" \
+    -v new_desc="$new_desc" \
+    -v group_set="$group_set" \
+    -v priority_set="$priority_set" \
+    -v desc_set="$desc_set" \
+    'BEGIN { OFS="\t" }
+    {
+      if (NR == idx) {
+        if (group_set == "true") $1 = new_group
+        if (priority_set == "true") $2 = new_priority
+        if (desc_set == "true") $3 = new_desc
+        $6 = ($2 == "" ? 1 : 0)
+      }
+      print
+    }' "$records" >"${records}.new"
+
+  write_records "${records}.new"
+  rm -f "$records" "${records}.new"
+  log "INFO" "Updated task #$number"
 }
 
 alert_tasks() {
@@ -217,6 +473,12 @@ main() {
         usage
         exit 0
         ;;
+      -u)
+        args+=("-u")
+        shift
+        args+=("$@")
+        break
+        ;;
       --)
         shift
         break
@@ -229,6 +491,8 @@ main() {
       *)
         args+=("$1")
         shift
+        args+=("$@")
+        break
         ;;
     esac
   done
@@ -255,13 +519,16 @@ main() {
   local command="${args[0]}"
   case "$command" in
     add)
-      add_task "${args[*]:1}"
+      add_task "${args[@]:1}"
+      ;;
+    update|-u)
+      update_task "${args[@]:1}"
       ;;
     list)
-      list_tasks "$TODO_FILE" "${args[*]:1}"
+      list_tasks "${args[*]:1}"
       ;;
     listdone)
-      list_tasks "$DONE_FILE" "${args[*]:1}"
+      list_done_tasks "$DONE_FILE" "${args[*]:1}"
       ;;
     done)
       complete_task "${args[1]:-}"
