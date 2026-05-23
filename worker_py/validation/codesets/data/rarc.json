@@ -1,0 +1,25 @@
+{
+  "name": "rarc",
+  "description": "Remittance Advice Remark Codes (RARC) used in 835 LQ/STC segments. Curated common subset.",
+  "source": "X12 / Washington Publishing Company Remittance Advice Remark Codes (public)",
+  "complete": false,
+  "codes": {
+    "M15": "Separately billed services/tests have been bundled as they are considered components of the same procedure.",
+    "M51": "Missing/incomplete/invalid procedure code(s).",
+    "M76": "Missing/incomplete/invalid diagnosis or condition.",
+    "M77": "Missing/incomplete/invalid/inappropriate place of service.",
+    "M79": "Missing/incomplete/invalid charge.",
+    "M80": "Not covered when performed during the same session/date as a previously processed service.",
+    "M86": "Service denied because payment already made for same/similar procedure within set time frame.",
+    "MA01": "Alert: If you do not agree with what we approved for these services, you may appeal.",
+    "MA15": "Alert: Your claim has been separated to expedite handling.",
+    "MA130": "Your claim contains incomplete and/or invalid information; no appeal rights afforded.",
+    "N1": "Alert: You may appeal this decision in writing within the established time limit.",
+    "N130": "Consult plan benefit documents/guidelines for information about restrictions for this service.",
+    "N210": "Alert: You may appeal this decision.",
+    "N290": "Missing/incomplete/invalid rendering provider primary identifier.",
+    "N370": "Billing exceeds the rental months covered/approved by the payer.",
+    "N522": "Duplicate of a claim processed, or to be processed, as a crossover claim.",
+    "N657": "This should be billed with the appropriate code for these services."
+  }
+}

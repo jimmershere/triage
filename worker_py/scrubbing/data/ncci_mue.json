@@ -1,0 +1,29 @@
+{
+  "source": "CMS Medically Unlikely Edits (MUE) — representative subset",
+  "complete": false,
+  "note": "Maximum units of service allowed for a single HCPCS/CPT code on a single date of service for a single beneficiary.",
+  "limits": {
+    "99211": 1,
+    "99212": 1,
+    "99213": 1,
+    "99214": 1,
+    "99215": 1,
+    "99202": 1,
+    "99203": 1,
+    "99204": 1,
+    "99205": 1,
+    "27447": 1,
+    "27130": 1,
+    "29881": 1,
+    "20610": 2,
+    "11042": 1,
+    "80053": 1,
+    "80048": 1,
+    "85025": 1,
+    "93000": 1,
+    "36415": 2,
+    "J1885": 8,
+    "G0438": 1,
+    "G0439": 1
+  }
+}

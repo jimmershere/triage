@@ -10,7 +10,7 @@
 <body>
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
@@ -51,13 +51,7 @@
     <p>HEDI now uses Keycloak and oauth2-proxy for authentication. Continue to your organization&rsquo;s login screen to access the claims portal.</p>
     <a id="hediSsoLink" class="pill-button" data-tone="portal" href="/oauth2/start">Continue to secure login</a>
     <p style="margin-top:.8rem;color:var(--muted);font-size:.92rem;">We&rsquo;ll redirect you automatically if the button doesn&rsquo;t load fast enough.</p>
-    <div class="trish-callout">
-      <img src="/img/trish-clipboard.svg" alt="Trish sharing login tips">
-      <div class="bubble">
-        <strong>Need access?</strong>
-        Ask an administrator to add you to the correct Keycloak group: hedi-view for browsing, hedi-submit for uploads, or hedi-admin for full control.
-      </div>
-    </div>
+    <p style="margin-top:1rem;color:var(--muted);font-size:.92rem;">Access is role-based. Ask an administrator to add you to the correct Keycloak group: <code>hedi-view</code>, <code>hedi-submit</code>, or <code>hedi-admin</code>.</p>
   </div>
   <script>
     (function () {

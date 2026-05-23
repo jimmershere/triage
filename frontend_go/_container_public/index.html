@@ -3,14 +3,15 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/svg+xml" href="/img/hedi-logo.svg"/>
-  <title>HEDI — Fast, Friendly X12</title>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
+  <title>TurboHEDI — Claims Operations Command Center</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
+  <script src="/config.js"></script>
 </head>
 <body>
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="TurboHEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="TurboHEDI logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
@@ -25,14 +26,14 @@
         <div class="nav-group portal-only">
           <span class="nav-group-label">Workspace tools</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
-          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
+          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Import Detail</a>
           <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">HEDI Edits</a>
           <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Resources</span>
-          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
-          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
         </div>
         <div class="nav-group admin-only">
           <span class="nav-group-label">Administration</span>
@@ -45,123 +46,156 @@
       </div>
     </aside>
     <div class="app-main">
-      <main class="container">
-  <section class="hero">
-    <div class="card">
-      <h1>Welcome to HEDI</h1>
-      <p>Enterprise-ready X12 ingestion, validation, and edits — with clarity, speed, and some sass. Supercharged by PostgreSQL, RabbitMQ, Go, and Python’s top-tier EDI libraries.</p>
-      <div style="display:flex;gap:.6rem;margin-top:.6rem;">
-        <a class="cta" href="/oauth2/start?rd=/portal.html" data-login-trigger data-login-next="/portal.html">Open Claims Portal</a>
-        <a href="/oauth2/start?rd=/admin.html" data-login-trigger data-login-next="/admin.html">Admin Tools</a>
-      </div>
-      <div class="trish-callout" style="margin-top:1.2rem;">
-        <img src="/img/trish-badge.svg" alt="Trish welcoming users">
-        <div class="bubble">
-          <strong>Trish here:</strong>
-          Hop into the portal whenever you’re ready—I’ll walk you through uploads, mapping, and trouble tickets inside the app.
-        </div>
-      </div>
-    </div>
-    <div class="card" style="display:flex;gap:16px;align-items:center;justify-content:center;">
-      <img class="small-mascot" src="/img/hedi-mascot.png" alt="HEDI mascot">
-      <div>
-        <strong>Built for Speed & Trust</strong>
-        <div class="kv"><div>Database</div><div>PostgreSQL 16</div></div>
-        <div class="kv"><div>Queue</div><div>RabbitMQ</div></div>
-        <div class="kv"><div>Frontend</div><div>Go</div></div>
-        <div class="kv"><div>Engine</div><div>Python EDI Modules</div></div>
-      </div>
-    </div>
-  </section>
+      <main class="container ops-dashboard">
+        <section class="card ops-hero">
+          <div>
+            <span class="badge">Claims Operations</span>
+            <h1>Exception handling, validation, and acknowledgement visibility in one operator-grade workspace.</h1>
+            <p>TurboHEDI gives teams a single place to trace inbound files, inspect validation evidence, review CMS-aligned claim projections, and preserve the audit trail around every import.</p>
+          </div>
+          <div class="ops-hero-actions">
+            <a class="cta" href="/oauth2/start?rd=/portal.html" data-login-trigger data-login-next="/portal.html">Open claims portal</a>
+            <a class="nav-pill" data-tone="processed" href="/processed.html">Review imports</a>
+          </div>
+        </section>
 
-  <section style="margin-top:24px;" class="grid highlight-grid">
-    <div class="card highlight-card" data-tone="stack">
-      <h3>What makes HEDI different</h3>
-      <table>
-        <thead><tr><th>Feature</th><th>Why It Matters</th></tr></thead>
-        <tbody id="highlight-rows">
-          <tr><td>Speed</td><td>Queue-first architecture keeps claims flowing at peak times.</td></tr>
-          <tr><td>Accuracy</td><td>Advanced edits: CCI, NCD/LCD, CPT-DX linkage, eligibility.</td></tr>
-          <tr><td>Visibility</td><td>Live file status, 999 responses, and searchable history.</td></tr>
-        </tbody>
-      </table>
-    </div>
+        <section class="ops-metrics" id="opsMetrics">
+          <article class="card metric-card"><span class="metric-label">Imports today</span><strong id="metricImports">—</strong></article>
+          <article class="card metric-card"><span class="metric-label">Queued / processing</span><strong id="metricProcessing">—</strong></article>
+          <article class="card metric-card"><span class="metric-label">Validation failures (24h)</span><strong id="metricFailures">—</strong></article>
+          <article class="card metric-card"><span class="metric-label">Avg processing time</span><strong id="metricAvg">—</strong></article>
+        </section>
 
-    <div class="card highlight-card" data-tone="automation">
-      <h3>Drag & Drop Power</h3>
-      <p>Upload and process hundreds of X12 files at once. Track results live.</p>
-      <span class="badge">837 / 835 / 999</span>
-    </div>
+        <section class="ops-grid">
+          <article class="card">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Recent imports</span>
+                <h2>Latest file activity</h2>
+              </div>
+            </div>
+            <div class="table-wrapper">
+              <table class="processed-table compact-table">
+                <thead>
+                  <tr><th>Job</th><th>File</th><th>Status</th><th>Validation</th><th>Claims</th><th>Processed</th></tr>
+                </thead>
+                <tbody id="recentImportsBody">
+                  <tr><td colspan="6" class="muted">Loading recent activity…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
 
-    <div class="card highlight-card" data-tone="trust">
-      <h3>Secure by Design</h3>
-      <p>HTTPS/TLS, role-aware access, and optional LDAP/AD for enterprise identity management.</p>
-      <p class="badge">RBAC Ready</p>
-    </div>
-  </section>
+          <article class="card">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Partner exceptions</span>
+                <h2>Where operators should look next</h2>
+              </div>
+            </div>
+            <div id="partnerExceptions" class="partner-exception-list">
+              <p class="muted">Loading partner exception signals…</p>
+            </div>
+          </article>
+        </section>
 
-  <section class="news-marquee news-marquee--vibrant card">
-    <header class="news-header">
-      <h2>Fresh signals from the EDI universe</h2>
-      <p class="muted">Scroll sideways to catch industry headlines, stack stats, and a wink from HEDI.</p>
-    </header>
-    <div class="news-track" role="list">
-      <article class="news-card" role="listitem" data-tone="wedi">
-        <h4>WEDI briefing</h4>
-        <p>This week’s WEDI bulletin highlights interoperability pilots and payer-provider collaboration wins.</p>
-        <a href="https://www.wedi.org/news" target="_blank" rel="noreferrer">Read WEDI coverage →</a>
-      </article>
-      <article class="news-card" role="listitem" data-tone="x12">
-        <h4>X12 updates</h4>
-        <p>Fresh errata from X12.org keeps the 005010 guides sharp for your 837 and 835 testing cycles.</p>
-        <a href="https://x12.org/products" target="_blank" rel="noreferrer">See the latest →</a>
-      </article>
-      <article class="news-card" role="listitem" data-tone="mint">
-        <h4>Linux Mint reliability</h4>
-        <p>Mint 22 releases long-term support notes boasting 99.97% desktop uptime—perfect for intake teams.</p>
-        <span class="tag">Stable &amp; smooth</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="rabbit">
-        <h4>RabbitMQ pulse</h4>
-        <p>Benchmark labs confirm 1M msg/min throughput on clustered RabbitMQ with quorum queues.</p>
-        <span class="tag">Messaging wins</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="postgres">
-        <h4>PostgreSQL 16</h4>
-        <p>Row-filtered logical replication keeps analytics synced while operational claims stay blazing fast.</p>
-        <span class="tag">Data flow</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="stack">
-        <h4>Go &amp; Python harmony</h4>
-        <p>Go’s HTTP/3 preview and Python 3.12’s faster interpreter keep uploads responsive and edits accurate.</p>
-        <span class="tag">Bilingual stack</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="toolkit">
-        <h4>Translator toolkit</h4>
-        <p>PyX12 and EDIFACT packages ship together so your workers can pivot between ANSI and international flows.</p>
-        <span class="tag">Map ready</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="hedi">
-        <h4>HEDI humor</h4>
-        <p>“If smiles were ACKs, I’d be a 999.” — HEDI, after clearing the queue.</p>
-        <span class="tag" data-tone="hedi">Fun fact</span>
-      </article>
-    </div>
-    <p class="tiny muted">Swap in live RSS or JSON feeds by extending <code>static/js/chatbot.js</code> with your data sources.</p>
-  </section>
-</main>
+        <section class="ops-grid ops-grid--two-up">
+          <article class="card">
+            <span class="eyebrow">Platform backbone</span>
+            <h2>Evidence-first processing pipeline</h2>
+            <ul class="hero-points">
+              <li><strong>Ingest:</strong> Go and FastAPI accept uploads, assign durable job IDs, and preserve the source payload.</li>
+              <li><strong>Validate:</strong> 837 professional claims can run through the CMS/X222 harness before downstream handling.</li>
+              <li><strong>Translate:</strong> Worker lanes persist claim rows, CMS projection artifacts, and acknowledgements.</li>
+              <li><strong>Audit:</strong> Validation status, rule hits, and processing events stay queryable for replay and review.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <span class="eyebrow">Buyer-ready demo path</span>
+            <h2>Show the product through real operational states</h2>
+            <ul class="hero-points">
+              <li>Search imports by operator and trading partner.</li>
+              <li>Open one job to inspect raw X12, parsed claims, projection data, acknowledgements, and audit events.</li>
+              <li>Use validation failures and partner exceptions to anchor the demo around real remediation workflows.</li>
+            </ul>
+          </article>
+        </section>
+      </main>
     </div>
   </div>
 
-<footer>© 2025 HEDI — Happy EDI. Fast. Friendly. Fierce.</footer>
+  <footer>© 2026 TurboHEDI — Claims operations infrastructure.</footer>
 
-<script src="/static/js/support_config.js"></script>
-<script src="/static/js/auth_config.js"></script>
-<script src="/static/js/authz.js"></script>
-<script src="/static/js/login-modal.js"></script>
-<script src="/static/js/chatbot.js"></script>
-<script>
-  // Optional: rotating content rows in future updates
-</script>
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script>
+    const API_BASE = window.HEDI_API_BASE || "";
+    const OPS_URL = API_BASE ? `${API_BASE}/ops/summary` : "/ops/summary";
+
+    function formatDuration(seconds) {
+      if (seconds === null || seconds === undefined || Number.isNaN(Number(seconds))) return "—";
+      const value = Number(seconds);
+      if (value < 60) return `${value.toFixed(1)}s`;
+      return `${(value / 60).toFixed(1)}m`;
+    }
+
+    function renderStatus(value) {
+      const status = value || "unknown";
+      return `<span class="status status-${status}">${status}</span>`;
+    }
+
+    function renderValidation(value) {
+      const status = value || "pending";
+      return `<span class="status status-${status}">${status}</span>`;
+    }
+
+    async function loadOpsSummary() {
+      try {
+        const res = await fetch(OPS_URL);
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        document.getElementById("metricImports").textContent = data.imports_today ?? 0;
+        document.getElementById("metricProcessing").textContent = data.processing_now ?? 0;
+        document.getElementById("metricFailures").textContent = data.validation_failures_24h ?? 0;
+        document.getElementById("metricAvg").textContent = formatDuration(data.avg_processing_seconds_24h);
+
+        const recentBody = document.getElementById("recentImportsBody");
+        if (Array.isArray(data.recent_imports) && data.recent_imports.length) {
+          recentBody.innerHTML = data.recent_imports.map((job) => `
+            <tr>
+              <td><code>${job.job_id}</code></td>
+              <td>${job.filename}</td>
+              <td>${renderStatus(job.status)}</td>
+              <td>${renderValidation(job.validation_status)}</td>
+              <td>${job.claims_count ?? "—"}</td>
+              <td>${job.processed_at ? new Date(job.processed_at).toLocaleString() : "—"}</td>
+            </tr>`).join("");
+        } else {
+          recentBody.innerHTML = '<tr><td colspan="6" class="muted">No imports yet.</td></tr>';
+        }
+
+        const partnerBox = document.getElementById("partnerExceptions");
+        if (Array.isArray(data.partner_exceptions) && data.partner_exceptions.length) {
+          partnerBox.innerHTML = data.partner_exceptions.map((item) => `
+            <div class="partner-exception-item">
+              <div>
+                <strong>${item.trading_partner_id}</strong>
+                <div class="muted">Invalid imports: ${item.invalid_imports}</div>
+              </div>
+              <span class="status ${item.pending_imports ? 'status-processing' : 'status-valid'}">Pending ${item.pending_imports}</span>
+            </div>`).join("");
+        } else {
+          partnerBox.innerHTML = '<p class="muted">No active partner exceptions right now.</p>';
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById("recentImportsBody").innerHTML = '<tr><td colspan="6" class="error">Unable to load operations summary.</td></tr>';
+        document.getElementById("partnerExceptions").innerHTML = '<p class="error">Unable to load partner exception summary.</p>';
+      }
+    }
+
+    loadOpsSummary();
+  </script>
 </body>
 </html>

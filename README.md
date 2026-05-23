@@ -11,7 +11,45 @@ A fast, pragmatic starter kit for building an **EDI ingestion and parsing pipeli
 - **/samples**: Example X12 837 and EDIFACT ORDERS files
 - **/bench**: Quick local benchmark harness
 
-> ⚠️ This is a starter kit for rapid iteration, not a full validator. Swap in **bots** (install separately) / **PyX12** / production mappers as you grow.
+> ⚠️ This was originally a starter kit. The v0.3 line adds production-grade engines (validation, scrubbing, FHIR, supervised swarms) on top — see below.
+
+## TurboHEDI v0.3 engines
+
+These are pure-Python packages under `worker_py/` plus a thin HTTP surface in `api/turbo_routes.py` (mounted automatically at `/turbo`). Every engine is exercised by `bash scripts/run-tests.sh` (200+ tests, unittest, no network required).
+
+- **`worker_py/validation/`** — WEDI **SNIP 1-7** validation engine covering
+  837P/I/D, 835, 270/271, 276/277 and 278. Loop-aware parser, bundled code-set
+  validators (POS, claim frequency, filing indicator, gender, CARC/RARC,
+  claim-status; NPI Luhn; ICD-10/HCPCS/CPT format), and conformant TA1, 999
+  and 277CA acknowledgment generators.
+- **`worker_py/scrubbing/`** — CMS payment-edit engine: NCCI PTP unbundling,
+  NCCI MUE units, NCD/LCD coverage, modifier validation, ICD-10 sequencing,
+  age/gender demographics, duplicate detection, eligibility-on-DOS.
+- **`worker_py/fhir/`** — native FHIR R4 with CARIN Blue Button and Da Vinci PAS
+  profile references. Bidirectional X12 <-> FHIR mappers: 837 <-> Claim,
+  835 -> ExplanationOfBenefit, 270/271 <-> CoverageEligibilityRequest/Response.
+- **`worker_py/swarms/`** — supervised-swarm framework (parallel agents +
+  supervisor verdict with confidence and audit trail) plus three workload-
+  specific swarms: claim scrubbing, denial resolution / appeal generation, and
+  FHIR-mapping audit. LLM transport is pluggable (Ollama by default, mocks for
+  tests).
+- **`worker_py/turbo_pipeline.py`** — one-call orchestrator that runs
+  validate → scrub → (FHIR map) → (TA1/999/277CA) and returns a combined
+  report.
+
+### HTTP API surface (`/turbo/*`)
+
+| Method & path | Purpose |
+|---|---|
+| `GET  /turbo/capability` | CapabilityStatement listing supported transactions, SNIP levels and IGs. |
+| `POST /turbo/validate` | Run SNIP 1-7 validation over an X12 payload. |
+| `POST /turbo/pipeline` | validate -> scrub -> (FHIR) -> (acks) in one call. |
+| `POST /turbo/fhir/from-x12` | Convert an X12 837/835 into a FHIR Bundle. |
+| `POST /turbo/fhir/Claim/$submit` | Accept a FHIR Claim, convert to 837 and validate. |
+
+See [`docs/PATENT_EVIDENCE.md`](docs/PATENT_EVIDENCE.md) for the mapping
+between the code and the patent strategy, and
+[`docs/ROADMAP.md`](docs/ROADMAP.md) for the phased completion plan.
 
 ## Quick Start
 
@@ -211,6 +249,32 @@ The command prints whether `pyx12-x12` is available, why it might be disabled, a
 sample payload. Use `--json` for machine-readable diagnostics or `--log-level INFO` to surface import failures. Once
 `pyx12` imports successfully you will see `Selected translator: pyx12-x12` and the worker logs will swap from
 `simple-x12` to `pyx12-x12` when handling X12 claims.
+
+### X12 → CMS authenticity harness
+
+A focused verification harness now lives at:
+
+```bash
+worker_py/tools_x12_cms_harness.py
+```
+
+It uses the licensed X222 research bundle under `/app/giles/docs/turbohedi/x222-005010/` to:
+- parse 837 professional claim payloads
+- verify high-value implementation-guide rules and control numbers
+- project each `CLM` into CMS-friendly JSON for downstream mapping work
+
+Run it with:
+
+```bash
+python3 worker_py/tools_x12_cms_harness.py samples/x12_837_large_valid.x12 --pretty
+python3 -m unittest worker_py/test_x12_cms_harness.py
+```
+
+Current verified result on the bundled large sample:
+- transaction: `837`
+- implementation version: `005010X222A1`
+- claims projected: `3200`
+- validation errors: `0`
 
 ## Security Notes
 

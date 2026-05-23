@@ -4,17 +4,23 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>HEDI — Claim Entry</title>
+  <title>Triage — Claim Entry</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
 <body data-requires-auth="portal">
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+        </div>
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
-          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
@@ -23,16 +29,19 @@
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
         </div>
         <div class="nav-group portal-only">
-          <span class="nav-group-label">Workspace tools</span>
+          <span class="nav-group-label">Workspace</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html" aria-current="page">Claim Entry</a>
-          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">HEDI Edits</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Resources</span>
-          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
-          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
         </div>
         <div class="nav-group admin-only">
           <span class="nav-group-label">Administration</span>
@@ -126,7 +135,7 @@
             </select>
           </label>
           <label>NM103 — Submitter Name
-            <input type="text" placeholder="HEDI SUBMITTER" required>
+            <input type="text" placeholder="TRIAGE SUBMITTER" required>
           </label>
           <label>NM108 — Identification Qualifier
             <select required>
@@ -151,7 +160,7 @@
             </select>
           </label>
           <label>PER02 — Contact Name
-            <input type="text" placeholder="Trish Helper" required>
+            <input type="text" placeholder="Operations User" required>
           </label>
           <label>PER03 — Qualifier
             <select required>
@@ -229,7 +238,7 @@
             </select>
           </label>
           <label>NM103 — Provider Name
-            <input type="text" placeholder="HEDI CLINIC" required>
+            <input type="text" placeholder="TRIAGE CLINIC" required>
           </label>
           <label>NM108 — Identification Qualifier
             <select required>
@@ -616,10 +625,10 @@
     </p>
 
     <div class="trish-callout">
-      <img src="/img/trish-peace.svg" alt="Trish giving claim entry guidance">
+      <img src="/img/trish-peace.svg" alt="Claim entry guidance">
       <div class="bubble">
         <strong>Shortcut:</strong>
-        Drop in a prior claim ID to auto-fill the subscriber, patient, and service line. I’ll keep the edits humming while you review the XML layout.
+        Drop in a prior claim ID to auto-fill the subscriber, patient, and service line while you review the XML layout.
       </div>
     </div>
   </div>

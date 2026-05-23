@@ -4,17 +4,204 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>HEDI — Fast, Friendly X12</title>
+  <title>Triage — Exception Command Center</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
+  <link rel="stylesheet" href="/static/css/studio.css"/>
+  <script src="/config.js"></script>
+  <style>
+    /* ── Alerts Panel ─────────────────────────────────────────────── */
+    .alert-panel {
+      margin-bottom: 1.5rem;
+    }
+    .alert-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+      padding: 0.75rem 1rem;
+      background: var(--card-bg, #1e2333);
+      border: 1px solid var(--border, #2e3347);
+      border-radius: 0.5rem 0.5rem 0 0;
+      transition: background 0.15s;
+    }
+    .alert-panel-header:hover { background: var(--card-bg-hover, #252b3b); }
+    .alert-panel-header[aria-expanded="false"] { border-radius: 0.5rem; }
+    .alert-panel-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--text-muted, #9ca3af);
+      flex: 1;
+    }
+    .alert-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.5rem;
+      height: 1.5rem;
+      padding: 0 0.4rem;
+      border-radius: 999px;
+      background: #ef4444;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .alert-badge.alert-badge--zero { display: none; }
+    .alert-chevron {
+      font-size: 0.75rem;
+      color: var(--text-muted, #9ca3af);
+      transition: transform 0.2s;
+    }
+    .alert-panel-header[aria-expanded="false"] .alert-chevron { transform: rotate(-90deg); }
+    .alert-panel-body {
+      border: 1px solid var(--border, #2e3347);
+      border-top: none;
+      border-radius: 0 0 0.5rem 0.5rem;
+      overflow: hidden;
+    }
+    .alert-panel-body[hidden] { display: none; }
+    .alert-list { display: flex; flex-direction: column; gap: 0; }
+    .alert-item {
+      display: grid;
+      grid-template-columns: 2rem 1fr auto;
+      align-items: start;
+      gap: 0.5rem 0.75rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border, #2e3347);
+      background: var(--card-bg, #1e2333);
+    }
+    .alert-item:last-child { border-bottom: none; }
+    .alert-item--critical { background: rgba(239,68,68,0.07); }
+    .alert-item--warning  { background: rgba(234,179,8,0.07); }
+    .alert-item--info     { background: rgba(59,130,246,0.07); }
+    @keyframes alert-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.35); }
+      50%       { box-shadow: 0 0 0 5px rgba(239,68,68,0); }
+    }
+    .alert-item--critical { animation: alert-pulse 2.5s ease-in-out infinite; }
+    .alert-icon { font-size: 1.15rem; line-height: 1.4; }
+    .alert-content { min-width: 0; }
+    .alert-content-title {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--text, #e5e7eb);
+      margin-bottom: 0.15rem;
+    }
+    .alert-content-msg {
+      font-size: 0.8rem;
+      color: var(--text-muted, #9ca3af);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .alert-metric {
+      text-align: right;
+      white-space: nowrap;
+      font-size: 0.78rem;
+    }
+    .alert-metric-current {
+      font-weight: 700;
+      font-size: 0.9rem;
+      display: block;
+    }
+    .alert-metric-current--critical { color: #ef4444; }
+    .alert-metric-current--warning  { color: #eab308; }
+    .alert-metric-current--info     { color: #3b82f6; }
+    .alert-metric-threshold {
+      color: var(--text-muted, #9ca3af);
+      display: block;
+    }
+    .alert-all-clear {
+      padding: 1rem;
+      text-align: center;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #22c55e;
+      background: var(--card-bg, #1e2333);
+    }
+
+    /* ── View Switcher ────────────────────────────────────────────── */
+    .cc-view-switcher {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: var(--card-bg, #1e2333);
+      border: 1px solid var(--border, #2e3347);
+      border-radius: 999px;
+      padding: 0.2rem;
+      margin-top: 0.5rem;
+    }
+    .cc-view-btn {
+      background: none;
+      border: none;
+      border-radius: 999px;
+      padding: 0.3rem 0.85rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-muted, #9ca3af);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .cc-view-btn:hover { color: var(--text, #e5e7eb); }
+    .cc-view-btn.active {
+      background: var(--accent, #6366f1);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* ── View-based visibility rules ─────────────────────────────── */
+    /* Analyst: hide actions column (8th th/td in workqueue) */
+    [data-view="analyst"] .cc-workqueue thead th:last-child,
+    [data-view="analyst"] .cc-workqueue tbody td:last-child { display: none; }
+    /* Analyst: expand tier legend with larger text */
+    [data-view="analyst"] .cc-tier-legend { font-size: 0.9rem; gap: 1rem; }
+    [data-view="analyst"] .cc-tier-legend-item { gap: 0.4rem; }
+
+    /* Executive: hide workqueue and split panels */
+    [data-view="executive"] .cc-workqueue { display: none; }
+    [data-view="executive"] .cc-split { display: none; }
+    [data-view="executive"] .cc-exec-summary { display: flex !important; }
+
+    .cc-exec-summary {
+      display: none;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 1rem 1.25rem;
+      background: var(--card-bg, #1e2333);
+      border: 1px solid var(--border, #2e3347);
+      border-radius: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .cc-exec-summary h3 {
+      margin: 0 0 0.25rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .cc-exec-summary p {
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--text-muted, #9ca3af);
+    }
+  </style>
 </head>
 <body>
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/" aria-current="page">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+        </div>
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
-          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
@@ -23,16 +210,19 @@
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
         </div>
         <div class="nav-group portal-only">
-          <span class="nav-group-label">Workspace tools</span>
+          <span class="nav-group-label">Workspace</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
-          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">HEDI Edits</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Resources</span>
-          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
-          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
         </div>
         <div class="nav-group admin-only">
           <span class="nav-group-label">Administration</span>
@@ -45,138 +235,402 @@
       </div>
     </aside>
     <div class="app-main">
-      <main class="container">
-  <section class="hero-grid">
-    <div class="hero-copy card">
-      <span class="badge badge-loud">Lightning Medicare EDI</span>
-      <h1>Fast, friendly, and a little bit sassy.</h1>
-      <p>HEDI (Helix EDI) ingests, validates, and translates Medicare X12 files in seconds. Go handles the web tier, Python 3.12 powers the EDI intelligence, PostgreSQL 16 keeps every byte safe, and RabbitMQ orchestrates furious parallelism.</p>
-      <ul class="hero-points">
-        <li><strong>Speedster queues:</strong> Go → FastAPI → RabbitMQ → Workers keep throughput silky.</li>
-        <li><strong>Audit-ready:</strong> Every upload and translation lands in PostgreSQL for instant recall.</li>
-        <li><strong>HEDI has jokes:</strong> Our mascot pops in to keep Medicare fun (yes, really!).</li>
-      </ul>
-      <div class="cta-row">
-        <a class="cta" href="/oauth2/start?rd=/portal.html" data-login-trigger data-login-next="/portal.html">Open Claims Portal</a>
-        <a class="nav-pill" data-tone="admin" href="/oauth2/start?rd=/admin.html" data-login-trigger data-login-next="/admin.html">Admin Tools</a>
-      </div>
-      <div class="trish-callout" style="margin-top:1.5rem;">
-        <img src="/img/trish-badge.svg" alt="Trish inviting you in">
-        <div class="bubble">
-          <strong>Hi, I’m Trish!</strong>
-          Head into the Claims Portal when you’re ready—I’ll be there to guide uploads, mapping questions, and troubleshooting.
+      <main class="container ops-dashboard">
+        <!-- Hero: dollars at risk -->
+        <section class="cc-hero" id="ccHero">
+          <div class="cc-hero-primary">
+            <span class="cc-hero-label">Dollars at risk</span>
+            <strong class="cc-hero-value" id="heroDollars">$—</strong>
+            <span class="cc-hero-sub" id="heroFilesAction">— files need action</span>
+          </div>
+          <div class="cc-hero-secondary">
+            <div class="cc-metric">
+              <span class="cc-metric-value" id="metricImports">—</span>
+              <span class="cc-metric-label">imports today</span>
+            </div>
+            <div class="cc-metric">
+              <span class="cc-metric-value" id="metricProcessing">—</span>
+              <span class="cc-metric-label">in queue</span>
+            </div>
+            <div class="cc-metric">
+              <span class="cc-metric-value" id="metricFailures">—</span>
+              <span class="cc-metric-label">failures 24h</span>
+            </div>
+            <div class="cc-metric">
+              <span class="cc-metric-value" id="metricAvg">—</span>
+              <span class="cc-metric-label">avg time</span>
+            </div>
+            <div class="cc-view-switcher" role="group" aria-label="View mode">
+              <button class="cc-view-btn active" data-view-target="operator">Operator</button>
+              <button class="cc-view-btn" data-view-target="analyst">Analyst</button>
+              <button class="cc-view-btn" data-view-target="executive">Executive</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tier distribution bar -->
+        <section class="cc-tier-bar" id="ccTierBar">
+          <div class="cc-tier-header">
+            <span class="eyebrow">Routing tier distribution (24h)</span>
+          </div>
+          <div class="cc-tier-track" id="tierTrack">
+            <div class="cc-tier-empty">No routing data yet</div>
+          </div>
+          <div class="cc-tier-legend" id="tierLegend"></div>
+        </section>
+
+        <!-- Exception workqueue -->
+        <section class="card cc-workqueue">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">Exception workqueue</span>
+              <h2>Files needing operator action</h2>
+            </div>
+            <span class="badge badge-count" id="exceptionCount">0</span>
+          </div>
+          <div class="table-wrapper">
+            <table class="processed-table compact-table">
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Partner</th>
+                  <th>Tier</th>
+                  <th>Score</th>
+                  <th>Claims</th>
+                  <th>$ at risk</th>
+                  <th>Flags</th>
+                  <th>Verdict</th>
+                </tr>
+              </thead>
+              <tbody id="exceptionBody">
+                <tr><td colspan="8" class="muted">Loading exception queue…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Executive summary (visible only in executive view) -->
+        <div class="cc-exec-summary" id="execSummary" aria-live="polite">
+          <h3>Executive Summary</h3>
+          <p id="execSummaryText">Loading summary…</p>
         </div>
-      </div>
-    </div>
-    <div class="hero-visual card">
-      <figure class="card-photo hero-photo">
-        <img src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Operations team reviewing medical claims together">
-        <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/fIq0tET6llw" target="_blank" rel="noreferrer">National Cancer Institute</a> on Unsplash</figcaption>
-      </figure>
-      <img src="/img/mascot.png" alt="HEDI mascot cheering" class="mascot-main"/>
-      <p class="hero-caption">"Queue it up!" — HEDI, your claims Frenchie.</p>
-      <div class="tech-callouts">
-        <div class="callout"><span>Go</span><small>TLS web tier</small></div>
-        <div class="callout"><span>FastAPI</span><small>Async ingest API</small></div>
-        <div class="callout"><span>RabbitMQ</span><small>Streaming worker lanes</small></div>
-        <div class="callout"><span>PostgreSQL 16</span><small>Immutable audit trail</small></div>
-      </div>
-    </div>
-  </section>
 
-  <section class="feature-grid highlight-grid">
-    <article class="card highlight-card" data-tone="stack">
-      <h3>Battle-tested tech stack</h3>
-      <p>Helix EDI is built entirely on mature FOSS: hardened Go front end, FastAPI microservices, proven open-source edits, and structured storage in PostgreSQL. Deploy anywhere with Docker, scale horizontally, and stay vendor-neutral.</p>
-    </article>
-    <article class="card highlight-card" data-tone="observe">
-      <h3>Observability from day zero</h3>
-      <p>HEDI tracks every job ID, trading partner, and acknowledgement. Search, reprint, and download original files whenever auditors call.</p>
-    </article>
-    <article class="card highlight-card" data-tone="automation">
-      <h3>Automation with heart</h3>
-      <p>Bulk uploads, instant queueing, proactive edits, and lovable mascots. Medicare compliance without the monotony.</p>
-    </article>
-  </section>
+        <!-- Smart Tiered Alerts Panel -->
+        <section class="alert-panel" id="alertPanel">
+          <div class="alert-panel-header"
+               role="button"
+               tabindex="0"
+               aria-expanded="true"
+               aria-controls="alertPanelBody"
+               id="alertPanelHeader">
+            <span class="alert-panel-title">Alerts</span>
+            <span class="alert-badge alert-badge--zero" id="alertBadge" aria-label="active alerts">0</span>
+            <span class="alert-chevron" aria-hidden="true">▾</span>
+          </div>
+          <div class="alert-panel-body" id="alertPanelBody" role="region" aria-labelledby="alertPanelHeader">
+            <div class="alert-list" id="alertList">
+              <div class="alert-all-clear">Loading alerts…</div>
+            </div>
+          </div>
+        </section>
 
-  <section class="news-marquee news-marquee--vibrant card">
-    <header class="news-header">
-      <h2>Fresh signals from the EDI universe</h2>
-      <p class="muted">Roll through the latest community headlines, platform stability notes, and HEDI fun facts.</p>
-    </header>
-    <div class="news-track" role="list">
-      <article class="news-card" role="listitem" data-tone="wedi">
-        <h4>WEDI briefing</h4>
-        <p>The Workgroup for Electronic Data Interchange is spotlighting value-based care trading partners in this week’s newsletter.</p>
-        <a href="https://www.wedi.org/news" target="_blank" rel="noreferrer">Explore WEDI news →</a>
-      </article>
-      <article class="news-card" role="listitem" data-tone="x12">
-        <h4>X12 updates</h4>
-        <p>X12.org just published their latest implementation guide errata—perfect timing for testing your 837 edits.</p>
-        <a href="https://x12.org/products" target="_blank" rel="noreferrer">Browse official guidance →</a>
-      </article>
-      <article class="news-card" role="listitem" data-tone="mint">
-        <h4>Linux Mint reliability</h4>
-        <p>Mint 22 reports 99.97% desktop uptime in the community tracker—HEDI loves dependable operator workstations.</p>
-        <span class="tag">Stable &amp; smooth</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="rabbit">
-        <h4>RabbitMQ pulse</h4>
-        <p>Clustered RabbitMQ nodes push 1M messages/minute in our latest soak test. TLS upstream links keep PHI secure.</p>
-        <span class="tag">Messaging wins</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="postgres">
-        <h4>PostgreSQL 16</h4>
-        <p>Logical replication now respects row filtering, letting HEDI stream claim deltas straight into BI tooling.</p>
-        <span class="tag">Data flow</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="stack">
-        <h4>Go &amp; Python harmony</h4>
-        <p>Go handles web concurrency while Python 3.12 runs PyX12 and EDIFACT translators without breaking a sweat.</p>
-        <span class="tag">Bilingual stack</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="toolkit">
-        <h4>Translator toolkit</h4>
-        <p>PyX12 maps + EDIFACT schemas mean the same worker can validate 837s today and EDIFACT tomorrow.</p>
-        <span class="tag">Map ready</span>
-      </article>
-      <article class="news-card" role="listitem" data-tone="hedi">
-        <h4>HEDI humor</h4>
-        <p>“I processed 500K claims before your coffee finished brewing.” — HEDI, bragging with a wink.</p>
-        <span class="tag" data-tone="hedi">Fun fact</span>
-      </article>
-    </div>
-    <p class="tiny muted">Feeds update on deploy; add your own RSS or API drivers in <code>static/js/chatbot.js</code> to keep Trish stocked with tidbits.</p>
-  </section>
+        <div class="cc-split">
+          <!-- Recent imports -->
+          <section class="card">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Recent imports</span>
+                <h2>Latest file activity</h2>
+              </div>
+            </div>
+            <div class="table-wrapper">
+              <table class="processed-table compact-table">
+                <thead>
+                  <tr><th>Job</th><th>File</th><th>Status</th><th>Validation</th><th>Claims</th><th>Time</th></tr>
+                </thead>
+                <tbody id="recentImportsBody">
+                  <tr><td colspan="6" class="muted">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-  <section class="pipeline card">
-    <h2>The HEDI pipeline</h2>
-    <ol>
-      <li><strong>Secure upload:</strong> TLS 1.2 Go front end locks down every file.</li>
-      <li><strong>Async ingest:</strong> FastAPI signs, stores, and launches jobs into RabbitMQ.</li>
-      <li><strong>Python 3.12 workers:</strong> Validate, enrich, and generate friendly acks.</li>
-      <li><strong>PostgreSQL vault:</strong> Originals + translations ready for reprint, anytime.</li>
-    </ol>
-  </section>
-
-  <section class="mascot-banner card">
-    <div>
-      <h2>Meet HEDI</h2>
-      <p>Part compliance expert, part cheerleader. Sprinkle a mascot into your ops dashboards and morale goes up 837%*</p>
-      <p class="tiny">*Unofficial statistic. Official smiles guaranteed.</p>
-    </div>
-    <img src="/img/mascot.png" alt="HEDI mascot waving"/>
-  </section>
-</main>
+          <!-- Partner exceptions -->
+          <section class="card">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Partner health</span>
+                <h2>Trading partners with exceptions</h2>
+              </div>
+            </div>
+            <div id="partnerExceptions" class="partner-exception-list">
+              <p class="muted">Loading…</p>
+            </div>
+          </section>
+        </div>
+      </main>
     </div>
   </div>
 
-<footer>© 2025 HEDI — Happy EDI. Fast. Friendly. Fierce.</footer>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span class="footer-brand">Triage</span>
+      <span class="footer-separator">|</span>
+      <span class="footer-powered">Built by <strong>The Claw Firm</strong></span>
+      <span class="footer-separator">|</span>
+      <span class="footer-links">
+        <a href="/about.html">About</a>
+        <a href="https://clawfirm.io" target="_blank" rel="noopener">The Claw Firm</a>
+      </span>
+    </div>
+  </footer>
 
-<script src="/static/js/support_config.js"></script>
-<script src="/static/js/auth_config.js"></script>
-<script src="/static/js/authz.js"></script>
-<script src="/static/js/login-modal.js"></script>
-<script src="/static/js/chatbot.js"></script>
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script>
+    const API_BASE = window.HEDI_API_BASE || "";
+    const CC_URL     = API_BASE ? `${API_BASE}/ops/command-center` : "/ops/command-center";
+    const ALERTS_URL = API_BASE ? `${API_BASE}/ops/alerts`         : "/ops/alerts";
+
+    const TIER_COLORS = {
+      0: "#22c55e", // green — fast path
+      1: "#eab308", // amber — assisted
+      2: "#f97316", // orange — swarm
+      3: "#ef4444", // red — human exception
+    };
+    const TIER_NAMES = {
+      0: "Tier 0 — Fast Path",
+      1: "Tier 1 — Assisted",
+      2: "Tier 2 — AI Swarm",
+      3: "Tier 3 — Human",
+    };
+
+    function fmtDollars(v) {
+      if (v == null || isNaN(v)) return "$0";
+      return "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    function fmtDuration(seconds) {
+      if (seconds == null || isNaN(seconds)) return "—";
+      const v = Number(seconds);
+      if (v < 1) return `${(v * 1000).toFixed(0)}ms`;
+      if (v < 60) return `${v.toFixed(1)}s`;
+      return `${(v / 60).toFixed(1)}m`;
+    }
+
+    function renderStatus(value) {
+      const s = value || "unknown";
+      return `<span class="status status-${s}">${s}</span>`;
+    }
+
+    function renderTierBadge(tier) {
+      const color = TIER_COLORS[tier] || "#6b7280";
+      return `<span class="tier-badge" style="--tier-color:${color}">T${tier}</span>`;
+    }
+
+    function renderVerdict(v) {
+      if (!v) return '<span class="muted">—</span>';
+      const cls = v === "APPROVE" ? "status-valid" : v === "REJECT" ? "status-error" : "status-warn";
+      return `<span class="status ${cls}">${v}</span>`;
+    }
+
+    function renderFlags(flags) {
+      if (!flags || !flags.length) return '<span class="muted">none</span>';
+      const shown = flags.slice(0, 2).map(f => {
+        const short = f.replace(/^SWARM_ISSUE:/, "").substring(0, 30);
+        return `<span class="flag-chip">${short}${f.length > 30 ? "…" : ""}</span>`;
+      });
+      if (flags.length > 2) shown.push(`<span class="flag-chip flag-more">+${flags.length - 2}</span>`);
+      return shown.join(" ");
+    }
+
+    // ── Alerts Panel ────────────────────────────────────────────────
+    const ALERT_ICONS = { critical: "🔴", warning: "🟡", info: "🔵" };
+
+    async function loadAlerts() {
+      const listEl  = document.getElementById("alertList");
+      const badgeEl = document.getElementById("alertBadge");
+      try {
+        const res = await fetch(ALERTS_URL);
+        if (!res.ok) throw new Error(await res.text());
+        const alerts = await res.json();
+
+        const activeCount = alerts.filter(a => a.severity === "critical" || a.severity === "warning").length;
+        badgeEl.textContent = activeCount;
+        badgeEl.classList.toggle("alert-badge--zero", activeCount === 0);
+
+        if (!alerts.length) {
+          listEl.innerHTML = '<div class="alert-all-clear">All systems nominal</div>';
+          return;
+        }
+
+        // Sort: critical first, then warning, then info
+        const order = { critical: 0, warning: 1, info: 2 };
+        alerts.sort((a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9));
+
+        listEl.innerHTML = alerts.map(a => `
+          <div class="alert-item alert-item--${a.severity}" role="listitem">
+            <span class="alert-icon" aria-label="${a.severity}">${ALERT_ICONS[a.severity] || "⚪"}</span>
+            <div class="alert-content">
+              <div class="alert-content-title">${a.title || ""}</div>
+              <div class="alert-content-msg">${a.message || ""}</div>
+            </div>
+            <div class="alert-metric">
+              <span class="alert-metric-current alert-metric-current--${a.severity}">${a.current_value != null ? Number(a.current_value).toLocaleString() : "—"}</span>
+              <span class="alert-metric-threshold">threshold: ${a.threshold != null ? Number(a.threshold).toLocaleString() : "—"}</span>
+            </div>
+          </div>
+        `).join("");
+      } catch (err) {
+        console.error("Alerts load failed:", err);
+        listEl.innerHTML = '<div class="alert-all-clear" style="color:#ef4444">Failed to load alerts.</div>';
+      }
+    }
+
+    // ── Alerts panel collapse toggle ────────────────────────────────
+    (function initAlertToggle() {
+      const header  = document.getElementById("alertPanelHeader");
+      const body    = document.getElementById("alertPanelBody");
+      function toggle() {
+        const expanded = header.getAttribute("aria-expanded") === "true";
+        header.setAttribute("aria-expanded", String(!expanded));
+        body.hidden = expanded;
+      }
+      header.addEventListener("click", toggle);
+      header.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+    })();
+
+    // ── View Switcher ────────────────────────────────────────────────
+    (function initViewSwitcher() {
+      const buttons  = document.querySelectorAll(".cc-view-btn");
+      const STORAGE_KEY = "turbohediView";
+
+      function applyView(view) {
+        document.body.dataset.view = view;
+        buttons.forEach(btn => btn.classList.toggle("active", btn.dataset.viewTarget === view));
+        try { localStorage.setItem(STORAGE_KEY, view); } catch (_) {}
+      }
+
+      buttons.forEach(btn => {
+        btn.addEventListener("click", () => applyView(btn.dataset.viewTarget));
+      });
+
+      // Restore persisted view or default to operator
+      let saved = "operator";
+      try { saved = localStorage.getItem(STORAGE_KEY) || "operator"; } catch (_) {}
+      applyView(saved);
+    })();
+
+    async function loadCommandCenter() {
+      try {
+        const res = await fetch(CC_URL);
+        if (!res.ok) throw new Error(await res.text());
+        const d = await res.json();
+
+        // Hero
+        document.getElementById("heroDollars").textContent = fmtDollars(d.dollars_at_risk);
+        document.getElementById("heroFilesAction").textContent = `${d.files_needing_action} file${d.files_needing_action !== 1 ? "s" : ""} need action`;
+        const heroEl = document.getElementById("ccHero");
+        if (d.dollars_at_risk > 1000000) heroEl.classList.add("cc-hero--critical");
+        else if (d.dollars_at_risk > 100000) heroEl.classList.add("cc-hero--warn");
+        else heroEl.classList.add("cc-hero--ok");
+
+        // Metrics
+        document.getElementById("metricImports").textContent = d.imports_today ?? 0;
+        document.getElementById("metricProcessing").textContent = d.processing_now ?? 0;
+        document.getElementById("metricFailures").textContent = d.validation_failures_24h ?? 0;
+        document.getElementById("metricAvg").textContent = fmtDuration(d.avg_processing_seconds_24h);
+
+        // Tier distribution bar
+        const track = document.getElementById("tierTrack");
+        const legend = document.getElementById("tierLegend");
+        if (d.tier_distribution && d.tier_distribution.length) {
+          track.innerHTML = d.tier_distribution.map(t =>
+            `<div class="cc-tier-segment" style="width:${Math.max(t.pct, 2)}%;background:${TIER_COLORS[t.tier] || '#6b7280'}" title="${TIER_NAMES[t.tier]}: ${t.count} (${t.pct}%)"></div>`
+          ).join("");
+          legend.innerHTML = d.tier_distribution.map(t =>
+            `<span class="cc-tier-legend-item"><span class="cc-tier-dot" style="background:${TIER_COLORS[t.tier]}"></span>${TIER_NAMES[t.tier]}: ${t.count} (${t.pct}%)</span>`
+          ).join("");
+        }
+
+        // Exception workqueue
+        const exBody = document.getElementById("exceptionBody");
+        const exCount = document.getElementById("exceptionCount");
+        exCount.textContent = d.exception_queue?.length || 0;
+        if (d.exception_queue?.length) {
+          exBody.innerHTML = d.exception_queue.map(e => `
+            <tr class="exception-row ${e.supervisor_verdict === 'REJECT' ? 'exception-critical' : ''}">
+              <td><a class="table-link" href="/processed.html?job_id=${encodeURIComponent(e.job_id)}&uploaded_by=&trading_partner_id=${encodeURIComponent(e.trading_partner_id || '')}"><code>${(e.filename || "").substring(0, 28)}</code></a></td>
+              <td>${e.trading_partner_id || "—"}</td>
+              <td>${renderTierBadge(e.tier)}</td>
+              <td><strong>${e.score_total?.toFixed(1) || "—"}</strong></td>
+              <td>${e.claims_count ?? "—"}</td>
+              <td class="dollars">${fmtDollars(e.total_claim_dollars)}</td>
+              <td>${renderFlags(e.flags)}</td>
+              <td>${renderVerdict(e.supervisor_verdict)}</td>
+            </tr>
+          `).join("");
+        } else {
+          exBody.innerHTML = '<tr><td colspan="8" class="muted cc-all-clear">All clear — no exceptions right now.</td></tr>';
+        }
+
+        // Recent imports
+        const recentBody = document.getElementById("recentImportsBody");
+        if (d.recent_imports?.length) {
+          recentBody.innerHTML = d.recent_imports.map(j => `
+            <tr>
+              <td><a class="table-link" href="/processed.html?uploaded_by=${encodeURIComponent(j.uploaded_by || "")}&trading_partner_id=${encodeURIComponent(j.trading_partner_id || "")}&job_id=${encodeURIComponent(j.job_id)}"><code>${j.job_id.substring(0, 8)}</code></a></td>
+              <td>${j.filename || "—"}</td>
+              <td>${renderStatus(j.status)}</td>
+              <td>${renderStatus(j.validation_status)}</td>
+              <td>${j.claims_count ?? "—"}</td>
+              <td>${j.processed_at ? new Date(j.processed_at).toLocaleTimeString() : "—"}</td>
+            </tr>
+          `).join("");
+        } else {
+          recentBody.innerHTML = '<tr><td colspan="6" class="muted">No imports yet.</td></tr>';
+        }
+
+        // Partner exceptions
+        const partnerBox = document.getElementById("partnerExceptions");
+        if (d.partner_exceptions?.length) {
+          partnerBox.innerHTML = d.partner_exceptions.map(p => `
+            <div class="partner-exception-item">
+              <div>
+                <strong>${p.trading_partner_id}</strong>
+                <div class="muted">Invalid: ${p.invalid_imports} · Pending: ${p.pending_imports}</div>
+              </div>
+              <span class="status ${p.invalid_imports > 0 ? 'status-error' : 'status-processing'}">${p.invalid_imports + p.pending_imports}</span>
+            </div>
+          `).join("");
+        } else {
+          partnerBox.innerHTML = '<p class="muted">No partner exceptions.</p>';
+        }
+
+        // Executive summary
+        const execText = document.getElementById("execSummaryText");
+        if (execText) {
+          const exCount = d.exception_queue?.length || 0;
+          const dollars = fmtDollars(d.dollars_at_risk);
+          const failures = d.validation_failures_24h ?? 0;
+          execText.textContent = `${d.imports_today ?? 0} imports processed today. ` +
+            `${dollars} currently at risk across ${exCount} exception file${exCount !== 1 ? "s" : ""}. ` +
+            `${failures} validation failure${failures !== 1 ? "s" : ""} in the last 24 hours.`;
+        }
+      } catch (err) {
+        console.error("Command center load failed:", err);
+        document.getElementById("exceptionBody").innerHTML = '<tr><td colspan="8" class="error">Failed to load command center data.</td></tr>';
+      }
+    }
+
+    async function refreshAll() {
+      await Promise.allSettled([loadCommandCenter(), loadAlerts()]);
+    }
+
+    refreshAll();
+    // Auto-refresh every 15 seconds
+    setInterval(refreshAll, 15000);
+  </script>
 </body>
 </html>

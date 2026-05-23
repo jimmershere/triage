@@ -1,0 +1,1254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
+  <title>Triage — Trading Partners</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+  <script src="/config.js"></script>
+  <style>
+    /* ── Partners page styles ── */
+
+    .partner-page-header {
+      margin-bottom: 1.75rem;
+    }
+
+    .partner-page-header h1 {
+      margin: 0.4rem 0 0.35rem;
+      font-size: clamp(1.5rem, 1.2vw + 1.1rem, 2.1rem);
+      background: linear-gradient(135deg, var(--accent-strong), var(--contrast-strong));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      line-height: 1.2;
+    }
+
+    .partner-page-header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.97rem;
+    }
+
+    /* ── Toolbar ── */
+    .partner-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+
+    .partner-search-input {
+      flex: 1;
+      min-width: 200px;
+      max-width: 380px;
+    }
+
+    .partner-add-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1.4rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.93rem;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 8px 22px rgba(79, 70, 229, 0.28);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      white-space: nowrap;
+      margin-left: auto;
+    }
+
+    .partner-add-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 28px rgba(79, 70, 229, 0.36);
+    }
+
+    .partner-count-label {
+      font-size: 0.84rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    /* ── Inline form card (add / edit) ── */
+    .partner-form-card {
+      background: var(--surface-raised, var(--surface));
+      border: 1px solid rgba(99, 102, 241, 0.22);
+      border-radius: 16px;
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 1.75rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+      animation: partner-slide-in 0.18s ease;
+    }
+
+    @keyframes partner-slide-in {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .partner-form-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin: 0 0 1.25rem;
+    }
+
+    .partner-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    @media (max-width: 860px) {
+      .partner-form-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .partner-form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .partner-form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.32rem;
+    }
+
+    .partner-form-field label {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .partner-form-field label .partner-req {
+      color: var(--err);
+      margin-left: 0.1rem;
+    }
+
+    /* ── Transaction type checkboxes ── */
+    .partner-tx-group {
+      grid-column: 1 / -1;
+    }
+
+    .partner-tx-label {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink);
+      display: block;
+      margin-bottom: 0.55rem;
+    }
+
+    .partner-tx-checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+    }
+
+    .partner-tx-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.38rem;
+      font-size: 0.88rem;
+      color: var(--ink);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .partner-tx-check input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    /* ── Auto-ack toggle ── */
+    .partner-autoack-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .partner-toggle {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .partner-toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .partner-toggle-track {
+      position: absolute;
+      inset: 0;
+      background: rgba(99, 102, 241, 0.2);
+      border-radius: 999px;
+      transition: background 0.2s ease;
+      cursor: pointer;
+    }
+
+    .partner-toggle-track::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      transition: transform 0.2s ease;
+    }
+
+    .partner-toggle input:checked + .partner-toggle-track {
+      background: var(--accent);
+    }
+
+    .partner-toggle input:checked + .partner-toggle-track::after {
+      transform: translateX(18px);
+    }
+
+    .partner-autoack-label {
+      font-size: 0.88rem;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    /* ── Form action row ── */
+    .partner-form-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+
+    .partner-save-btn {
+      padding: 0.58rem 1.8rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.93rem;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 8px 22px rgba(79, 70, 229, 0.26);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    }
+
+    .partner-save-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(79, 70, 229, 0.34);
+    }
+
+    .partner-save-btn:disabled {
+      opacity: 0.52;
+      cursor: not-allowed;
+    }
+
+    .partner-cancel-btn {
+      padding: 0.55rem 1.4rem;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: 1px solid rgba(0,0,0,0.12);
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .partner-cancel-btn:hover {
+      background: rgba(0,0,0,0.05);
+      color: var(--ink);
+    }
+
+    .partner-form-error {
+      font-size: 0.84rem;
+      color: var(--err);
+      padding: 0.45rem 0.75rem;
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.28);
+      border-radius: 8px;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .partner-form-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: partner-spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.35rem;
+    }
+
+    @keyframes partner-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── Partner card grid ── */
+    .partner-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.1rem;
+    }
+
+    @media (max-width: 480px) {
+      .partner-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .partner-card {
+      background: var(--surface-raised, var(--surface));
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 16px;
+      padding: 1.25rem 1.4rem 1.1rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      transition: box-shadow 0.18s ease, border-color 0.18s ease;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .partner-card:hover {
+      box-shadow: 0 6px 22px rgba(0,0,0,0.1);
+      border-color: rgba(99, 102, 241, 0.28);
+    }
+
+    .partner-card.partner-card--expanded {
+      border-color: rgba(99, 102, 241, 0.38);
+      box-shadow: 0 6px 28px rgba(79, 70, 229, 0.1);
+      cursor: default;
+    }
+
+    .partner-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .partner-card-id {
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: var(--ink);
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      word-break: break-all;
+    }
+
+    .partner-card-name {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 0.45rem;
+      font-weight: 500;
+    }
+
+    .partner-card-email {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 0.65rem;
+    }
+
+    .partner-card-email a {
+      color: var(--accent-strong);
+      text-decoration: none;
+    }
+
+    .partner-card-email a:hover {
+      text-decoration: underline;
+    }
+
+    /* ── Transaction type badges ── */
+    .partner-tx-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 0.65rem;
+    }
+
+    .partner-tx-badge {
+      display: inline-block;
+      padding: 0.12rem 0.52rem;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .partner-tx-badge--837  { background: rgba(99,102,241,0.14);  color: #4338ca; }
+    .partner-tx-badge--835  { background: rgba(16,185,129,0.14);  color: #047857; }
+    .partner-tx-badge--270  { background: rgba(249,115,22,0.14);  color: #c2410c; }
+    .partner-tx-badge--271  { background: rgba(234,179,8,0.14);   color: #92400e; }
+    .partner-tx-badge--276  { background: rgba(20,184,166,0.14);  color: #0d9488; }
+    .partner-tx-badge--837D { background: rgba(139,92,246,0.14);  color: #6d28d9; }
+    .partner-tx-badge--default { background: var(--accent-soft); color: var(--accent-strong); }
+
+    /* ── Card footer row ── */
+    .partner-card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .partner-card-autoack {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    /* Inline toggle inside card — non-interactive display */
+    .partner-card-ack-pill {
+      display: inline-block;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+
+    .partner-card-ack-pill--on {
+      background: rgba(16,185,129,0.15);
+      color: #047857;
+    }
+
+    .partner-card-ack-pill--off {
+      background: rgba(0,0,0,0.07);
+      color: var(--muted);
+    }
+
+    .partner-card-actions {
+      display: flex;
+      gap: 0.45rem;
+    }
+
+    .partner-edit-btn,
+    .partner-delete-btn {
+      padding: 0.3rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .partner-edit-btn {
+      background: transparent;
+      color: var(--accent-strong);
+      border-color: rgba(99,102,241,0.3);
+    }
+
+    .partner-edit-btn:hover {
+      background: var(--accent-soft);
+    }
+
+    .partner-delete-btn {
+      background: transparent;
+      color: var(--err);
+      border-color: rgba(239,68,68,0.28);
+    }
+
+    .partner-delete-btn:hover {
+      background: rgba(239,68,68,0.09);
+    }
+
+    /* ── Notes preview ── */
+    .partner-card-notes {
+      font-size: 0.81rem;
+      color: var(--muted);
+      font-style: italic;
+      margin-bottom: 0.4rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* ── Inline edit section inside card ── */
+    .partner-card-edit-section {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(99, 102, 241, 0.15);
+    }
+
+    /* ── Empty state ── */
+    .partner-empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--muted);
+    }
+
+    .partner-empty-icon {
+      font-size: 2.8rem;
+      display: block;
+      margin-bottom: 0.75rem;
+      opacity: 0.4;
+    }
+
+    .partner-empty h3 {
+      margin: 0 0 0.4rem;
+      color: var(--ink);
+      font-size: 1.05rem;
+    }
+
+    .partner-empty p {
+      margin: 0;
+      font-size: 0.9rem;
+    }
+
+    /* ── Loading skeleton ── */
+    .partner-skeleton {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 1.1rem;
+      flex-wrap: wrap;
+    }
+
+    .partner-skeleton-card {
+      flex: 1 1 280px;
+      height: 160px;
+      background: linear-gradient(90deg,
+        rgba(0,0,0,0.05) 25%,
+        rgba(0,0,0,0.09) 50%,
+        rgba(0,0,0,0.05) 75%);
+      background-size: 200% 100%;
+      border-radius: 16px;
+      animation: partner-shimmer 1.4s infinite;
+    }
+
+    @keyframes partner-shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ── Global status banner ── */
+    .partner-status-banner {
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .partner-status-banner--error {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: var(--err);
+    }
+
+    .partner-status-banner--ok {
+      background: rgba(16,185,129,0.1);
+      border: 1px solid rgba(16,185,129,0.3);
+      color: #047857;
+    }
+
+    /* ── Delete confirm overlay inside card ── */
+    .partner-delete-confirm {
+      background: rgba(239,68,68,0.07);
+      border: 1px solid rgba(239,68,68,0.22);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+      font-size: 0.88rem;
+      color: var(--ink);
+    }
+
+    .partner-delete-confirm-msg {
+      flex: 1;
+    }
+
+    .partner-confirm-yes-btn {
+      padding: 0.32rem 0.95rem;
+      border-radius: 999px;
+      background: var(--err);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s ease;
+    }
+
+    .partner-confirm-yes-btn:hover {
+      opacity: 0.85;
+    }
+
+    .partner-confirm-no-btn {
+      padding: 0.3rem 0.85rem;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border: 1px solid rgba(0,0,0,0.12);
+    }
+  </style>
+</head>
+<body data-requires-auth="portal">
+  <div class="app-shell">
+    <aside class="site-sidebar">
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Claims Portal</span>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/271.html">271 Responses</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/276.html">276 Status</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Workspace</span>
+          <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html" aria-current="page">Partners</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Resources</span>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
+        </div>
+        <div class="nav-group admin-only">
+          <span class="nav-group-label">Administration</span>
+          <a class="nav-pill admin-link" data-tone="admin" href="/admin.html">Admin</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/partners.html" data-login-trigger data-login-next="/partners.html">Login</a>
+        <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <main class="container">
+
+        <!-- Page header -->
+        <div class="partner-page-header">
+          <span class="badge">Operations</span>
+          <h1>Trading Partner Configuration</h1>
+          <p>Manage trading partners and their transaction preferences without IT involvement. Changes take effect immediately.</p>
+        </div>
+
+        <!-- Global status -->
+        <div id="partnerStatusBanner" hidden></div>
+
+        <!-- Add partner inline form -->
+        <div id="partnerAddForm" hidden>
+          <div class="partner-form-card">
+            <h2 class="partner-form-title">Add new trading partner</h2>
+            <form id="partnerCreateForm" novalidate>
+              <div class="partner-form-grid">
+                <div class="partner-form-field">
+                  <label for="addPartnerId">Partner ID <span class="partner-req">*</span></label>
+                  <input type="text" id="addPartnerId" name="trading_partner_id" placeholder="TP123456" autocomplete="off" required>
+                </div>
+                <div class="partner-form-field">
+                  <label for="addPartnerName">Name <span class="partner-req">*</span></label>
+                  <input type="text" id="addPartnerName" name="name" placeholder="Acme Health Plan" required>
+                </div>
+                <div class="partner-form-field">
+                  <label for="addContactEmail">Contact Email</label>
+                  <input type="email" id="addContactEmail" name="contact_email" placeholder="edi@partner.example">
+                </div>
+                <div class="partner-form-field partner-tx-group">
+                  <span class="partner-tx-label">Transaction Types</span>
+                  <div class="partner-tx-checks" id="addTxChecks">
+                    <label class="partner-tx-check"><input type="checkbox" value="837"> 837</label>
+                    <label class="partner-tx-check"><input type="checkbox" value="835"> 835</label>
+                    <label class="partner-tx-check"><input type="checkbox" value="270"> 270</label>
+                    <label class="partner-tx-check"><input type="checkbox" value="271"> 271</label>
+                    <label class="partner-tx-check"><input type="checkbox" value="276"> 276</label>
+                    <label class="partner-tx-check"><input type="checkbox" value="837D"> 837D</label>
+                  </div>
+                </div>
+                <div class="partner-form-field">
+                  <label>Auto-Acknowledge</label>
+                  <div class="partner-autoack-row">
+                    <label class="partner-toggle" aria-label="Auto-acknowledge toggle">
+                      <input type="checkbox" id="addAutoAck" name="auto_ack">
+                      <span class="partner-toggle-track"></span>
+                    </label>
+                    <span class="partner-autoack-label" id="addAutoAckLabel">Off</span>
+                  </div>
+                </div>
+                <div class="partner-form-field">
+                  <label for="addNotes">Notes</label>
+                  <input type="text" id="addNotes" name="notes" placeholder="Optional internal notes">
+                </div>
+              </div>
+              <div class="partner-form-actions">
+                <button type="submit" class="partner-save-btn" id="addSaveBtn">Create partner</button>
+                <button type="button" class="partner-cancel-btn" id="addCancelBtn">Cancel</button>
+                <span id="addFormError" class="partner-form-error" hidden></span>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="partner-toolbar">
+          <input
+            type="search"
+            class="partner-search-input"
+            id="partnerSearch"
+            placeholder="Filter by ID or name…"
+            aria-label="Filter partners"
+          >
+          <span class="partner-count-label" id="partnerCountLabel"></span>
+          <button class="partner-add-btn" id="partnerAddBtn" type="button">
+            <span aria-hidden="true">+</span> Add Partner
+          </button>
+        </div>
+
+        <!-- Partner grid -->
+        <div class="partner-grid" id="partnerGrid" aria-live="polite" aria-label="Partner list">
+          <!-- Populated by JS -->
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <footer class="site-footer"><div class="footer-inner"><span class="footer-brand">Triage</span><span class="footer-separator">|</span><span class="footer-powered">Built by <strong>The Claw Firm</strong></span></div></footer>
+
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script>
+    // ── API configuration ──────────────────────────────────────────────────────
+    const API_BASE = window.HEDI_API_BASE || "";
+    const PARTNERS_URL = API_BASE ? `${API_BASE}/partners` : "/partners";
+
+    // NOTE: The shared secret below is a placeholder and must be replaced with
+    // proper authentication (e.g. bearer token, session cookie forwarding) before
+    // going to production.
+    const PARTNER_HEADERS = {
+      "Content-Type": "application/json",
+      "X-HEDI-SECRET": window.HEDI_SHARED_SECRET || "turbohedi-shared-secret",
+    };
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let allPartners = [];        // full partner list as returned by the API
+    let expandedId = null;       // partner_id currently showing inline edit
+    let pendingDeleteId = null;  // partner_id pending delete confirmation
+
+    // ── Element refs ──────────────────────────────────────────────────────────
+    const partnerGrid        = document.getElementById("partnerGrid");
+    const partnerAddBtn      = document.getElementById("partnerAddBtn");
+    const partnerAddForm     = document.getElementById("partnerAddForm");
+    const partnerCreateForm  = document.getElementById("partnerCreateForm");
+    const addSaveBtn         = document.getElementById("addSaveBtn");
+    const addCancelBtn       = document.getElementById("addCancelBtn");
+    const addFormError       = document.getElementById("addFormError");
+    const addAutoAckToggle   = document.getElementById("addAutoAck");
+    const addAutoAckLabel    = document.getElementById("addAutoAckLabel");
+    const partnerSearch      = document.getElementById("partnerSearch");
+    const countLabel         = document.getElementById("partnerCountLabel");
+    const statusBanner       = document.getElementById("partnerStatusBanner");
+
+    // ── Utilities ─────────────────────────────────────────────────────────────
+    function escHtml(v) {
+      return String(v ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function fmtDate(v) {
+      if (!v) return "—";
+      return new Date(v).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    }
+
+    function txBadgeClass(type) {
+      const t = (type || "").toString().toUpperCase().replace(/\s/g, "");
+      if (t === "837D") return "partner-tx-badge--837D";
+      if (t.startsWith("837")) return "partner-tx-badge--837";
+      if (t.startsWith("835")) return "partner-tx-badge--835";
+      if (t.startsWith("270")) return "partner-tx-badge--270";
+      if (t.startsWith("271")) return "partner-tx-badge--271";
+      if (t.startsWith("276")) return "partner-tx-badge--276";
+      return "partner-tx-badge--default";
+    }
+
+    function renderTxBadges(types) {
+      if (!Array.isArray(types) || types.length === 0) {
+        return '<span style="font-size:0.8rem;color:var(--muted);">None configured</span>';
+      }
+      return types.map(t =>
+        `<span class="partner-tx-badge ${escHtml(txBadgeClass(t))}">${escHtml(t)}</span>`
+      ).join("");
+    }
+
+    function showBanner(msg, tone) {
+      statusBanner.className = `partner-status-banner partner-status-banner--${tone === "error" ? "error" : "ok"}`;
+      statusBanner.textContent = msg;
+      statusBanner.hidden = false;
+      setTimeout(() => { statusBanner.hidden = true; }, 4500);
+    }
+
+    // ── Auto-ack label sync for add form ──────────────────────────────────────
+    addAutoAckToggle.addEventListener("change", () => {
+      addAutoAckLabel.textContent = addAutoAckToggle.checked ? "On" : "Off";
+    });
+
+    // ── Add form show/hide ────────────────────────────────────────────────────
+    partnerAddBtn.addEventListener("click", () => {
+      const isOpen = !partnerAddForm.hidden;
+      if (isOpen) {
+        closeAddForm();
+      } else {
+        openAddForm();
+      }
+    });
+
+    function openAddForm() {
+      partnerAddForm.hidden = false;
+      partnerAddBtn.textContent = "Cancel";
+      partnerCreateForm.reset();
+      addAutoAckLabel.textContent = "Off";
+      hideFormError(addFormError);
+      partnerAddForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      document.getElementById("addPartnerId").focus();
+    }
+
+    function closeAddForm() {
+      partnerAddForm.hidden = true;
+      partnerAddBtn.innerHTML = '<span aria-hidden="true">+</span> Add Partner';
+      partnerCreateForm.reset();
+      hideFormError(addFormError);
+    }
+
+    addCancelBtn.addEventListener("click", closeAddForm);
+
+    // ── Search / filter ───────────────────────────────────────────────────────
+    partnerSearch.addEventListener("input", renderGrid);
+
+    function filterPartners(query) {
+      if (!query) return allPartners;
+      const q = query.toLowerCase();
+      return allPartners.filter(p =>
+        (p.trading_partner_id || "").toLowerCase().includes(q) ||
+        (p.name || "").toLowerCase().includes(q)
+      );
+    }
+
+    // ── Grid rendering ────────────────────────────────────────────────────────
+    function renderGrid() {
+      const query = partnerSearch.value.trim();
+      const filtered = filterPartners(query);
+
+      countLabel.textContent = query
+        ? `${filtered.length} of ${allPartners.length} partner${allPartners.length !== 1 ? "s" : ""}`
+        : `${allPartners.length} partner${allPartners.length !== 1 ? "s" : ""}`;
+
+      if (!allPartners.length && !query) {
+        partnerGrid.innerHTML = `
+          <div class="partner-empty">
+            <span class="partner-empty-icon" aria-hidden="true">&#128101;</span>
+            <h3>No trading partners yet</h3>
+            <p>Add your first partner using the button above.</p>
+          </div>`;
+        return;
+      }
+
+      if (!filtered.length) {
+        partnerGrid.innerHTML = `
+          <div class="partner-empty">
+            <span class="partner-empty-icon" aria-hidden="true">&#128269;</span>
+            <h3>No partners match &#8220;${escHtml(query)}&#8221;</h3>
+            <p>Try a different search term.</p>
+          </div>`;
+        return;
+      }
+
+      partnerGrid.innerHTML = filtered.map(p => renderPartnerCard(p)).join("");
+    }
+
+    function renderPartnerCard(p) {
+      const pid = p.trading_partner_id;
+      const isExpanded = expandedId === pid;
+      const isPendingDelete = pendingDeleteId === pid;
+
+      const ackPillClass = p.auto_ack ? "partner-card-ack-pill--on" : "partner-card-ack-pill--off";
+      const ackText = p.auto_ack ? "Auto-ack: On" : "Auto-ack: Off";
+
+      const notesHtml = p.notes
+        ? `<p class="partner-card-notes">${escHtml(p.notes)}</p>`
+        : "";
+
+      const deleteConfirmHtml = isPendingDelete ? `
+        <div class="partner-delete-confirm" role="alert">
+          <span class="partner-delete-confirm-msg">Delete <strong>${escHtml(pid)}</strong>? This cannot be undone.</span>
+          <button class="partner-confirm-yes-btn" data-confirm-delete="${escHtml(pid)}">Yes, delete</button>
+          <button class="partner-confirm-no-btn" data-cancel-delete="${escHtml(pid)}">Cancel</button>
+        </div>` : "";
+
+      const editSectionHtml = isExpanded ? renderEditSection(p) : "";
+
+      return `
+        <div
+          class="partner-card${isExpanded ? " partner-card--expanded" : ""}"
+          data-partner-id="${escHtml(pid)}"
+          role="article"
+          aria-label="Partner ${escHtml(pid)}"
+        >
+          <div class="partner-card-header">
+            <span class="partner-card-id">${escHtml(pid)}</span>
+          </div>
+          <p class="partner-card-name">${escHtml(p.name || "—")}</p>
+          ${p.contact_email
+            ? `<p class="partner-card-email"><a href="mailto:${escHtml(p.contact_email)}">${escHtml(p.contact_email)}</a></p>`
+            : `<p class="partner-card-email" style="opacity:0.45">No contact email</p>`}
+          <div class="partner-tx-badges">${renderTxBadges(p.default_transaction_types)}</div>
+          ${notesHtml}
+          <div class="partner-card-footer">
+            <span class="partner-card-ack-pill ${ackPillClass}">${ackText}</span>
+            <div class="partner-card-actions">
+              <button class="partner-edit-btn" data-edit="${escHtml(pid)}" type="button" aria-expanded="${isExpanded}">
+                ${isExpanded ? "Collapse" : "Edit"}
+              </button>
+              <button class="partner-delete-btn" data-delete="${escHtml(pid)}" type="button">Delete</button>
+            </div>
+          </div>
+          ${deleteConfirmHtml}
+          ${editSectionHtml}
+        </div>`;
+    }
+
+    const TX_TYPES = ["837", "835", "270", "271", "276", "837D"];
+
+    function renderEditSection(p) {
+      const pid = p.trading_partner_id;
+      const txChecks = TX_TYPES.map(t => {
+        const checked = Array.isArray(p.default_transaction_types) && p.default_transaction_types.includes(t)
+          ? "checked" : "";
+        return `<label class="partner-tx-check">
+          <input type="checkbox" value="${escHtml(t)}" ${checked} data-edit-tx="${escHtml(pid)}"> ${escHtml(t)}
+        </label>`;
+      }).join("");
+
+      return `
+        <div class="partner-card-edit-section">
+          <form data-edit-form="${escHtml(pid)}" novalidate>
+            <div class="partner-form-grid">
+              <div class="partner-form-field">
+                <label for="editName_${escHtml(pid)}">Name <span class="partner-req">*</span></label>
+                <input type="text" id="editName_${escHtml(pid)}" name="name" value="${escHtml(p.name || "")}" required>
+              </div>
+              <div class="partner-form-field">
+                <label for="editEmail_${escHtml(pid)}">Contact Email</label>
+                <input type="email" id="editEmail_${escHtml(pid)}" name="contact_email" value="${escHtml(p.contact_email || "")}">
+              </div>
+              <div class="partner-form-field partner-tx-group">
+                <span class="partner-tx-label">Transaction Types</span>
+                <div class="partner-tx-checks">${txChecks}</div>
+              </div>
+              <div class="partner-form-field">
+                <label>Auto-Acknowledge</label>
+                <div class="partner-autoack-row">
+                  <label class="partner-toggle" aria-label="Auto-acknowledge toggle">
+                    <input type="checkbox" data-edit-autoack="${escHtml(pid)}" ${p.auto_ack ? "checked" : ""}>
+                    <span class="partner-toggle-track"></span>
+                  </label>
+                  <span data-edit-autoack-label="${escHtml(pid)}">${p.auto_ack ? "On" : "Off"}</span>
+                </div>
+              </div>
+              <div class="partner-form-field">
+                <label for="editNotes_${escHtml(pid)}">Notes</label>
+                <input type="text" id="editNotes_${escHtml(pid)}" name="notes" value="${escHtml(p.notes || "")}">
+              </div>
+            </div>
+            <div class="partner-form-actions">
+              <button type="submit" class="partner-save-btn" data-edit-save="${escHtml(pid)}">Save changes</button>
+              <button type="button" class="partner-cancel-btn" data-edit-cancel="${escHtml(pid)}">Cancel</button>
+              <span data-edit-error="${escHtml(pid)}" class="partner-form-error" hidden></span>
+            </div>
+          </form>
+        </div>`;
+    }
+
+    // ── Grid event delegation ─────────────────────────────────────────────────
+    partnerGrid.addEventListener("change", e => {
+      // Sync auto-ack label in edit forms
+      const autoAckToggle = e.target.closest("[data-edit-autoack]");
+      if (autoAckToggle) {
+        const pid = autoAckToggle.dataset.editAutoack;
+        const labelEl = partnerGrid.querySelector(`[data-edit-autoack-label="${CSS.escape(pid)}"]`);
+        if (labelEl) labelEl.textContent = autoAckToggle.checked ? "On" : "Off";
+      }
+    });
+
+    partnerGrid.addEventListener("click", e => {
+      // Edit toggle
+      const editBtn = e.target.closest("[data-edit]");
+      if (editBtn) {
+        const pid = editBtn.dataset.edit;
+        if (expandedId === pid) {
+          expandedId = null;
+        } else {
+          expandedId = pid;
+        }
+        pendingDeleteId = null;
+        renderGrid();
+        return;
+      }
+
+      // Edit cancel
+      const editCancel = e.target.closest("[data-edit-cancel]");
+      if (editCancel) {
+        expandedId = null;
+        renderGrid();
+        return;
+      }
+
+      // Delete button (first click — show confirmation)
+      const deleteBtn = e.target.closest("[data-delete]");
+      if (deleteBtn) {
+        const pid = deleteBtn.dataset.delete;
+        pendingDeleteId = pendingDeleteId === pid ? null : pid;
+        renderGrid();
+        return;
+      }
+
+      // Delete confirm — yes
+      const confirmYes = e.target.closest("[data-confirm-delete]");
+      if (confirmYes) {
+        doDelete(confirmYes.dataset.confirmDelete);
+        return;
+      }
+
+      // Delete confirm — cancel
+      const confirmNo = e.target.closest("[data-cancel-delete]");
+      if (confirmNo) {
+        pendingDeleteId = null;
+        renderGrid();
+        return;
+      }
+    });
+
+    partnerGrid.addEventListener("submit", e => {
+      const editForm = e.target.closest("[data-edit-form]");
+      if (editForm) {
+        e.preventDefault();
+        doUpdate(editForm.dataset.editForm, editForm);
+      }
+    });
+
+    // ── API helpers ───────────────────────────────────────────────────────────
+    function collectTxTypes(container) {
+      return Array.from(container.querySelectorAll("input[type='checkbox']:checked"))
+        .map(cb => cb.value);
+    }
+
+    function showFormError(el, msg) {
+      el.textContent = msg;
+      el.hidden = false;
+    }
+
+    function hideFormError(el) {
+      el.textContent = "";
+      el.hidden = true;
+    }
+
+    // ── Load partners ─────────────────────────────────────────────────────────
+    async function loadPartners() {
+      partnerGrid.innerHTML = `
+        <div class="partner-skeleton">
+          <div class="partner-skeleton-card"></div>
+          <div class="partner-skeleton-card"></div>
+          <div class="partner-skeleton-card"></div>
+        </div>`;
+
+      try {
+        const res = await fetch(PARTNERS_URL, {
+          headers: { "X-HEDI-SECRET": window.HEDI_SHARED_SECRET || "turbohedi-shared-secret" }
+        });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const data = await res.json();
+        allPartners = data.partners || data;
+        renderGrid();
+      } catch (err) {
+        allPartners = [];
+        partnerGrid.innerHTML = `
+          <div class="partner-empty">
+            <span class="partner-empty-icon" aria-hidden="true">&#9888;</span>
+            <h3>Could not load partners</h3>
+            <p>${escHtml(err.message)}</p>
+          </div>`;
+        countLabel.textContent = "";
+      }
+    }
+
+    // ── Create partner ────────────────────────────────────────────────────────
+    partnerCreateForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      hideFormError(addFormError);
+
+      const pid = document.getElementById("addPartnerId").value.trim();
+      const name = document.getElementById("addPartnerName").value.trim();
+      if (!pid) {
+        showFormError(addFormError, "Partner ID is required.");
+        document.getElementById("addPartnerId").focus();
+        return;
+      }
+      if (!name) {
+        showFormError(addFormError, "Partner name is required.");
+        document.getElementById("addPartnerName").focus();
+        return;
+      }
+
+      const body = {
+        trading_partner_id: pid,
+        name,
+        contact_email: document.getElementById("addContactEmail").value.trim() || null,
+        default_transaction_types: collectTxTypes(document.getElementById("addTxChecks")),
+        auto_ack: document.getElementById("addAutoAck").checked,
+        notes: document.getElementById("addNotes").value.trim() || null,
+      };
+
+      addSaveBtn.disabled = true;
+      addSaveBtn.innerHTML = '<span class="partner-form-spinner" aria-hidden="true"></span>Creating…';
+
+      try {
+        const res = await fetch(PARTNERS_URL, {
+          method: "POST",
+          headers: PARTNER_HEADERS, // TODO: replace X-Shared-Secret with proper auth
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => res.statusText);
+          throw new Error(`${res.status}: ${text}`);
+        }
+        closeAddForm();
+        showBanner(`Partner "${pid}" created successfully.`, "ok");
+        await loadPartners();
+      } catch (err) {
+        showFormError(addFormError, `Create failed: ${err.message}`);
+      } finally {
+        addSaveBtn.disabled = false;
+        addSaveBtn.textContent = "Create partner";
+      }
+    });
+
+    // ── Update partner ────────────────────────────────────────────────────────
+    async function doUpdate(pid, form) {
+      const errorEl = form.querySelector(`[data-edit-error="${CSS.escape(pid)}"]`);
+      if (errorEl) hideFormError(errorEl);
+
+      const nameInput = form.querySelector("[name='name']");
+      const name = nameInput ? nameInput.value.trim() : "";
+      if (!name) {
+        if (errorEl) showFormError(errorEl, "Name is required.");
+        return;
+      }
+
+      const emailInput = form.querySelector("[name='contact_email']");
+      const notesInput = form.querySelector("[name='notes']");
+      const autoAckInput = form.querySelector(`[data-edit-autoack="${CSS.escape(pid)}"]`);
+      const txContainer = form.querySelector(".partner-tx-checks");
+
+      const body = {
+        name,
+        contact_email: emailInput ? emailInput.value.trim() || null : null,
+        default_transaction_types: txContainer ? collectTxTypes(txContainer) : [],
+        auto_ack: autoAckInput ? autoAckInput.checked : false,
+        notes: notesInput ? notesInput.value.trim() || null : null,
+      };
+
+      const saveBtn = form.querySelector(`[data-edit-save="${CSS.escape(pid)}"]`);
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="partner-form-spinner" aria-hidden="true"></span>Saving…';
+      }
+
+      try {
+        const res = await fetch(`${PARTNERS_URL}/${encodeURIComponent(pid)}`, {
+          method: "PUT",
+          headers: PARTNER_HEADERS, // TODO: replace X-Shared-Secret with proper auth
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => res.statusText);
+          throw new Error(`${res.status}: ${text}`);
+        }
+        expandedId = null;
+        showBanner(`Partner "${pid}" updated.`, "ok");
+        await loadPartners();
+      } catch (err) {
+        if (errorEl) showFormError(errorEl, `Save failed: ${err.message}`);
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save changes";
+        }
+      }
+    }
+
+    // ── Delete partner ────────────────────────────────────────────────────────
+    async function doDelete(pid) {
+      pendingDeleteId = null;
+      try {
+        const res = await fetch(`${PARTNERS_URL}/${encodeURIComponent(pid)}`, {
+          method: "DELETE",
+          headers: { "X-HEDI-SECRET": window.HEDI_SHARED_SECRET || "turbohedi-shared-secret" }
+        });
+        if (!res.ok && res.status !== 404) {
+          const text = await res.text().catch(() => res.statusText);
+          throw new Error(`${res.status}: ${text}`);
+        }
+        if (expandedId === pid) expandedId = null;
+        showBanner(`Partner "${pid}" deleted.`, "ok");
+        await loadPartners();
+      } catch (err) {
+        showBanner(`Delete failed: ${err.message}`, "error");
+        renderGrid();
+      }
+    }
+
+    // ── Bootstrap ─────────────────────────────────────────────────────────────
+    loadPartners();
+  </script>
+</body>
+</html>

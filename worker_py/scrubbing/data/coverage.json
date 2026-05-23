@@ -1,0 +1,23 @@
+{
+  "source": "Representative CMS National/Local Coverage Determination subset",
+  "complete": false,
+  "note": "statutorily_excluded procedures are never covered. medical_necessity procedures are covered only when billed with a diagnosis matching one of the covered ICD-10 prefixes.",
+  "statutorily_excluded": {
+    "S0028": "Injection, vancomycin — non-covered statutory exclusion (example)",
+    "0001U": "Example excluded proprietary lab analysis"
+  },
+  "medical_necessity": {
+    "93000": {
+      "covered_dx_prefixes": ["I", "R00", "R07", "R55", "Z01.81"],
+      "policy": "LCD electrocardiogram — covered for cardiac signs/symptoms"
+    },
+    "G0283": {
+      "covered_dx_prefixes": ["M", "S", "G"],
+      "policy": "LCD electrical stimulation — covered for musculoskeletal/neurologic conditions"
+    },
+    "97110": {
+      "covered_dx_prefixes": ["M", "S", "G", "Z51"],
+      "policy": "LCD therapeutic exercise — covered for musculoskeletal/rehab conditions"
+    }
+  }
+}

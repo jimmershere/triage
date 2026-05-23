@@ -1,0 +1,11 @@
+{
+  "name": "gender",
+  "description": "Administrative gender / sex code (X12 element 1068, DMG03 and related).",
+  "source": "X12 element 1068",
+  "complete": true,
+  "codes": {
+    "F": "Female",
+    "M": "Male",
+    "U": "Unknown"
+  }
+}

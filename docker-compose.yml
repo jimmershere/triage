@@ -21,7 +21,7 @@ services:
       POSTGRES_DB: edi
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
     ports:
-      - "5432:5432"
+      - "15432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -45,8 +45,8 @@ services:
     image: docker.io/library/rabbitmq:3-management
     container_name: turboedi-starter_rabbitmq_1
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "15673:5672"
+      - "35672:15672"
     environment:
       # Create the exact creds your API/Worker expect
       RABBITMQ_DEFAULT_USER: ediapp
@@ -71,7 +71,7 @@ services:
     env_file:
       - ./.env
     environment:
-      DATABASE_URL: postgresql://edi:edi@postgres:5432/edi?sslmode=require
+      DATABASE_URL: postgresql://edi:edi@postgres:5432/edi?sslmode=disable
       RABBITMQ_URL: amqp://ediapp:3wm078uu@rabbitmq:5672/
       RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
       ARCHIVE_DIR: /archive
@@ -99,7 +99,7 @@ services:
     env_file:
       - ./.env
     environment:
-      DATABASE_URL: postgresql://edi:edi@postgres:5432/edi?sslmode=require
+      DATABASE_URL: postgresql://edi:edi@postgres:5432/edi?sslmode=disable
       RMQ_HOST: ${RMQ_HOST:-rabbitmq}
       RMQ_PORT: "${RMQ_PORT:-5672}"
       RMQ_USER: ${RMQ_USER:-ediapp}
@@ -108,6 +108,8 @@ services:
       RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
       RMQ_ACKS_QUEUE: ${RMQ_ACKS_QUEUE:-acks}
       ARCHIVE_DIR: /archive
+      OLLAMA_URL: ${OLLAMA_URL:-http://192.168.1.206:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
     volumes:
       - archive:/archive
     depends_on:

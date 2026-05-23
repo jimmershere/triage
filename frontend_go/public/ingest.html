@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
+  <title>Triage — Unified Ingest</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+  <script src="/config.js"></script>
+  <style>
+    /* ── Ingest-specific styles ── */
+    .ingest-page-header {
+      margin-bottom: 1.75rem;
+    }
+
+    .ingest-page-header h1 {
+      margin: 0.4rem 0 0.35rem;
+      font-size: clamp(1.5rem, 1.2vw + 1.1rem, 2.1rem);
+      background: linear-gradient(135deg, var(--accent-strong), var(--contrast-strong));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      line-height: 1.2;
+    }
+
+    .ingest-page-header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.97rem;
+    }
+
+    /* ── Upload card ── */
+    .ingest-upload-card {
+      margin-bottom: 1.5rem;
+    }
+
+    .ingest-form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    @media (max-width: 720px) {
+      .ingest-form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .ingest-field label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.88rem;
+      margin-bottom: 0.35rem;
+      color: var(--ink);
+    }
+
+    /* ── Drop zone ── */
+    .ingest-drop-zone {
+      border: 2px dashed rgba(99, 102, 241, 0.38);
+      border-radius: 14px;
+      background: rgba(99, 102, 241, 0.04);
+      padding: 2.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease;
+      position: relative;
+      margin-bottom: 1.25rem;
+    }
+
+    .ingest-drop-zone:hover,
+    .ingest-drop-zone.ingest-dragover {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.09);
+    }
+
+    .ingest-drop-zone.ingest-dragover {
+      border-color: var(--contrast);
+      background: rgba(20, 184, 166, 0.07);
+    }
+
+    .ingest-drop-icon {
+      font-size: 2.4rem;
+      line-height: 1;
+      margin-bottom: 0.65rem;
+      color: var(--accent);
+      display: block;
+      user-select: none;
+    }
+
+    .ingest-drop-title {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--ink);
+      margin: 0 0 0.3rem;
+    }
+
+    .ingest-drop-sub {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin: 0 0 0.9rem;
+    }
+
+    .ingest-browse-btn {
+      display: inline-block;
+      padding: 0.4rem 1.1rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #fff;
+      font-weight: 650;
+      font-size: 0.88rem;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 6px 18px rgba(79, 70, 229, 0.28);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .ingest-browse-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(79, 70, 229, 0.34);
+    }
+
+    .ingest-file-input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    .ingest-file-summary {
+      margin-top: 0.65rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ingest-file-chip {
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: 999px;
+      padding: 0.18rem 0.65rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ingest-file-totals {
+      font-size: 0.82rem;
+      color: var(--muted);
+      width: 100%;
+      text-align: center;
+      margin-top: 0.3rem;
+    }
+
+    /* ── Progress bar ── */
+    .ingest-progress-wrap {
+      margin-top: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .ingest-progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.83rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .ingest-progress-bar-track {
+      height: 6px;
+      background: rgba(99, 102, 241, 0.14);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .ingest-progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--contrast));
+      border-radius: 999px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    /* ── Submit row ── */
+    .ingest-submit-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .ingest-submit-btn {
+      padding: 0.62rem 2rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #fff;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 12px 30px rgba(79, 70, 229, 0.3);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+      letter-spacing: 0.01em;
+    }
+
+    .ingest-submit-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 36px rgba(79, 70, 229, 0.38);
+    }
+
+    .ingest-submit-btn:disabled {
+      opacity: 0.52;
+      cursor: not-allowed;
+    }
+
+    .ingest-submit-hint {
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+
+    /* ── Success banner ── */
+    .ingest-success-banner {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(20, 184, 166, 0.1));
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 14px;
+      padding: 1.1rem 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .ingest-success-icon {
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    .ingest-success-body {
+      flex: 1;
+    }
+
+    .ingest-success-body strong {
+      display: block;
+      color: var(--contrast-strong);
+      font-size: 0.97rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .ingest-success-body p {
+      margin: 0;
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    .ingest-job-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.42rem 1.15rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--contrast), var(--contrast-strong));
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.88rem;
+      text-decoration: none;
+      box-shadow: 0 8px 22px rgba(20, 184, 166, 0.3);
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .ingest-job-link:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(20, 184, 166, 0.38);
+      text-decoration: none;
+    }
+
+    /* ── Upload error ── */
+    .ingest-error-banner {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.32);
+      border-radius: 14px;
+      padding: 0.9rem 1.2rem;
+      color: var(--err);
+      font-size: 0.9rem;
+      margin-top: 1rem;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* ── Search / results card ── */
+    .ingest-search-card {
+      margin-top: 1.5rem;
+    }
+
+    .ingest-search-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 1rem;
+      align-items: flex-end;
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 640px) {
+      .ingest-search-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .ingest-search-btn {
+      padding: 0.68rem 1.5rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 8px 22px rgba(79, 70, 229, 0.26);
+      font-size: 0.93rem;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .ingest-search-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 28px rgba(79, 70, 229, 0.32);
+    }
+
+    .ingest-refresh-indicator {
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .ingest-refresh-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      animation: ingest-pulse 2s infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes ingest-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .ingest-results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .ingest-results-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .ingest-type-badge {
+      display: inline-block;
+      padding: 0.12rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      letter-spacing: 0.03em;
+    }
+
+    /* Tone variations on type badge by transaction type */
+    .ingest-type-badge--837 { background: rgba(99,102,241,0.14); color: #4338ca; }
+    .ingest-type-badge--835 { background: rgba(16,185,129,0.14); color: #047857; }
+    .ingest-type-badge--270 { background: rgba(249,115,22,0.14); color: #c2410c; }
+    .ingest-type-badge--271 { background: rgba(234,179,8,0.14); color: #92400e; }
+    .ingest-type-badge--276 { background: rgba(20,184,166,0.14); color: #0d9488; }
+    .ingest-type-badge--837D { background: rgba(139,92,246,0.14); color: #6d28d9; }
+
+    /* ── Column header for search results table ── */
+    .ingest-results-table-wrap {
+      margin-top: 0.5rem;
+    }
+
+    /* ── Spinner for in-flight uploads ── */
+    .ingest-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: ingest-spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.4rem;
+    }
+
+    @keyframes ingest-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── table link ── */
+    .table-link {
+      color: var(--accent-strong);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .table-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body data-requires-auth="portal">
+  <div class="app-shell">
+    <aside class="site-sidebar">
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html" aria-current="page">Ingest</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Claims Portal</span>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/271.html">271 Responses</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/276.html">276 Status</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Workspace</span>
+          <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Resources</span>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
+        </div>
+        <div class="nav-group admin-only">
+          <span class="nav-group-label">Administration</span>
+          <a class="nav-pill admin-link" data-tone="admin" href="/admin.html">Admin</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/ingest.html" data-login-trigger data-login-next="/ingest.html">Login</a>
+        <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <main class="container">
+
+        <!-- Page header -->
+        <div class="ingest-page-header">
+          <span class="badge">Unified Ingest</span>
+          <h1>Submit EDI transactions</h1>
+          <p>Upload any X12 transaction type — one form, every format. Files are assigned a durable job ID on receipt and routed immediately for validation and processing.</p>
+        </div>
+
+        <!-- Upload card -->
+        <section class="card ingest-upload-card" id="uploadCard">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">File upload</span>
+              <h2 style="margin:0.3rem 0 0;">Queue new transactions</h2>
+            </div>
+          </div>
+
+          <form id="ingestForm" novalidate>
+            <!-- Form row: login, partner, type -->
+            <div class="ingest-form-row">
+              <div class="ingest-field">
+                <label for="ingestUploadedBy">Login ID <span style="color:var(--err)">*</span></label>
+                <input type="text" id="ingestUploadedBy" name="uploaded_by" placeholder="your.login" autocomplete="username" required>
+              </div>
+              <div class="ingest-field">
+                <label for="ingestPartnerId">Trading Partner ID</label>
+                <input type="text" id="ingestPartnerId" name="trading_partner_id" placeholder="TP123456">
+              </div>
+              <div class="ingest-field">
+                <label for="ingestTxType">Transaction Type</label>
+                <select id="ingestTxType" name="transaction_type">
+                  <option value="">Auto-detect</option>
+                  <option value="837">837 Professional</option>
+                  <option value="835">835 Remittance</option>
+                  <option value="270">270 Eligibility</option>
+                  <option value="271">271 Responses</option>
+                  <option value="276">276 Status</option>
+                  <option value="837D">837D Dental</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Drop zone -->
+            <div class="ingest-drop-zone" id="ingestDropZone" role="button" aria-label="File drop zone — click or drag files here" tabindex="0">
+              <input type="file" class="ingest-file-input" id="ingestFileInput" name="file" multiple accept=".x12,.edi,.txt,.dat,application/octet-stream" tabindex="-1" aria-hidden="true">
+              <span class="ingest-drop-icon" aria-hidden="true">&#128196;</span>
+              <p class="ingest-drop-title">Drop X12 files here</p>
+              <p class="ingest-drop-sub">Supports .x12, .edi, .txt, .dat — multiple files accepted</p>
+              <button type="button" class="ingest-browse-btn" id="ingestBrowseBtn" tabindex="-1">Browse files</button>
+              <div class="ingest-file-summary" id="ingestFileSummary" aria-live="polite"></div>
+            </div>
+
+            <!-- Progress -->
+            <div class="ingest-progress-wrap" id="ingestProgressWrap" hidden>
+              <div class="ingest-progress-label">
+                <span id="ingestProgressText">Uploading…</span>
+                <span id="ingestProgressPct">0%</span>
+              </div>
+              <div class="ingest-progress-bar-track">
+                <div class="ingest-progress-bar-fill" id="ingestProgressFill"></div>
+              </div>
+            </div>
+
+            <!-- Submit row -->
+            <div class="ingest-submit-row">
+              <button type="submit" class="ingest-submit-btn" id="ingestSubmitBtn">Queue files</button>
+              <span class="ingest-submit-hint" id="ingestSubmitHint">Select at least one file and enter a Login ID.</span>
+            </div>
+          </form>
+
+          <!-- Success / error feedback -->
+          <div id="ingestFeedback" aria-live="polite"></div>
+        </section>
+
+        <!-- Search / results card -->
+        <section class="card ingest-search-card" id="searchCard">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">Recent uploads</span>
+              <h2 style="margin:0.3rem 0 0;">Find submissions by login or partner</h2>
+            </div>
+            <div class="ingest-refresh-indicator" id="ingestRefreshIndicator" hidden>
+              <span class="ingest-refresh-dot"></span>
+              <span>Auto-refresh</span>
+            </div>
+          </div>
+
+          <form id="ingestSearchForm" novalidate>
+            <div class="ingest-search-row">
+              <div class="ingest-field">
+                <label for="searchLoginId">Login ID</label>
+                <input type="text" id="searchLoginId" placeholder="your.login" autocomplete="username">
+              </div>
+              <div class="ingest-field">
+                <label for="searchPartnerId">Trading Partner ID</label>
+                <input type="text" id="searchPartnerId" placeholder="TP123456">
+              </div>
+              <button type="submit" class="ingest-search-btn">Search</button>
+            </div>
+          </form>
+
+          <div id="ingestSearchStatus" class="status-panel" hidden></div>
+
+          <div class="ingest-results-header" id="ingestResultsHeader" hidden>
+            <span class="ingest-results-title" id="ingestResultsTitle">Results</span>
+          </div>
+
+          <div class="ingest-results-table-wrap">
+            <div class="table-wrapper">
+              <table class="processed-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Job</th>
+                    <th>File</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Validation</th>
+                    <th>Claims</th>
+                    <th>Acks</th>
+                    <th>Processed</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="ingestJobsBody">
+                  <tr><td colspan="9" class="muted">Search by Login ID or Trading Partner ID to load history.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <footer class="site-footer"><div class="footer-inner"><span class="footer-brand">Triage</span><span class="footer-separator">|</span><span class="footer-powered">Built by <strong>The Claw Firm</strong></span></div></footer>
+
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script>
+    // ── API config ──────────────────────────────────────────────────────────
+    const API_BASE = window.HEDI_API_BASE || "";
+    const INGEST_URL = API_BASE ? `${API_BASE}/ingest` : "/ingest";
+    const JOBS_URL = API_BASE ? `${API_BASE}/jobs` : "/jobs";
+
+    // ── State ───────────────────────────────────────────────────────────────
+    let selectedFiles = [];
+    let autoRefreshTimer = null;
+    let lastSearchUploadedBy = "";
+    let lastSearchPartnerId = "";
+    let isSearchActive = false;
+
+    // ── Element refs ────────────────────────────────────────────────────────
+    const ingestForm        = document.getElementById("ingestForm");
+    const dropZone          = document.getElementById("ingestDropZone");
+    const fileInput         = document.getElementById("ingestFileInput");
+    const browseBtn         = document.getElementById("ingestBrowseBtn");
+    const fileSummary       = document.getElementById("ingestFileSummary");
+    const progressWrap      = document.getElementById("ingestProgressWrap");
+    const progressText      = document.getElementById("ingestProgressText");
+    const progressPct       = document.getElementById("ingestProgressPct");
+    const progressFill      = document.getElementById("ingestProgressFill");
+    const submitBtn         = document.getElementById("ingestSubmitBtn");
+    const submitHint        = document.getElementById("ingestSubmitHint");
+    const feedbackEl        = document.getElementById("ingestFeedback");
+    const uploadedByInput   = document.getElementById("ingestUploadedBy");
+    const partnerIdInput    = document.getElementById("ingestPartnerId");
+    const txTypeSelect      = document.getElementById("ingestTxType");
+    const searchForm        = document.getElementById("ingestSearchForm");
+    const searchLoginInput  = document.getElementById("searchLoginId");
+    const searchPartnerInput = document.getElementById("searchPartnerId");
+    const searchStatus      = document.getElementById("ingestSearchStatus");
+    const jobsBody          = document.getElementById("ingestJobsBody");
+    const resultsHeader     = document.getElementById("ingestResultsHeader");
+    const resultsTitle      = document.getElementById("ingestResultsTitle");
+    const refreshIndicator  = document.getElementById("ingestRefreshIndicator");
+
+    // ── Utility helpers ─────────────────────────────────────────────────────
+    function escHtml(v) {
+      return String(v ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function fmtBytes(bytes) {
+      if (bytes === 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+
+    function fmtDate(v) {
+      return v ? new Date(v).toLocaleString() : "—";
+    }
+
+    function statusBadge(v) {
+      const s = v || "pending";
+      return `<span class="status status-${escHtml(s)}">${escHtml(s)}</span>`;
+    }
+
+    function txTypeBadgeClass(type) {
+      if (!type) return "";
+      const norm = type.toUpperCase().replace(/\s+/g, "");
+      if (norm.startsWith("837D")) return "ingest-type-badge--837D";
+      if (norm.startsWith("837")) return "ingest-type-badge--837";
+      if (norm.startsWith("835")) return "ingest-type-badge--835";
+      if (norm.startsWith("270")) return "ingest-type-badge--270";
+      if (norm.startsWith("271")) return "ingest-type-badge--271";
+      if (norm.startsWith("276")) return "ingest-type-badge--276";
+      return "";
+    }
+
+    function renderTxTypeBadge(type) {
+      if (!type) return '<span class="muted">—</span>';
+      const cls = txTypeBadgeClass(type);
+      return `<span class="ingest-type-badge ${cls}">${escHtml(type)}</span>`;
+    }
+
+    // ── File selection management ────────────────────────────────────────────
+    function setFiles(files) {
+      selectedFiles = Array.from(files);
+      renderFileSummary();
+      updateSubmitState();
+    }
+
+    function renderFileSummary() {
+      fileSummary.innerHTML = "";
+      if (!selectedFiles.length) return;
+
+      const totalBytes = selectedFiles.reduce((s, f) => s + f.size, 0);
+      const chips = selectedFiles.slice(0, 6).map(f =>
+        `<span class="ingest-file-chip" title="${escHtml(f.name)}">${escHtml(f.name)}</span>`
+      );
+      if (selectedFiles.length > 6) {
+        chips.push(`<span class="ingest-file-chip">+${selectedFiles.length - 6} more</span>`);
+      }
+      fileSummary.innerHTML = chips.join("") +
+        `<span class="ingest-file-totals">${selectedFiles.length} file${selectedFiles.length !== 1 ? "s" : ""} selected — ${fmtBytes(totalBytes)} total</span>`;
+    }
+
+    function updateSubmitState() {
+      const hasFiles = selectedFiles.length > 0;
+      const hasLogin = uploadedByInput.value.trim().length > 0;
+      submitBtn.disabled = !(hasFiles && hasLogin);
+      if (!hasLogin) {
+        submitHint.textContent = "Enter a Login ID to continue.";
+      } else if (!hasFiles) {
+        submitHint.textContent = "Add at least one file to the drop zone.";
+      } else {
+        submitHint.textContent = `${selectedFiles.length} file${selectedFiles.length !== 1 ? "s" : ""} ready to queue.`;
+      }
+    }
+
+    // ── Drop zone interactions ───────────────────────────────────────────────
+    dropZone.addEventListener("dragenter", e => { e.preventDefault(); dropZone.classList.add("ingest-dragover"); });
+    dropZone.addEventListener("dragleave", e => { if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove("ingest-dragover"); });
+    dropZone.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropZone.classList.remove("ingest-dragover");
+      if (e.dataTransfer.files.length) setFiles(e.dataTransfer.files);
+    });
+
+    dropZone.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+    });
+
+    browseBtn.addEventListener("click", e => { e.stopPropagation(); fileInput.click(); });
+
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files.length) setFiles(fileInput.files);
+    });
+
+    uploadedByInput.addEventListener("input", updateSubmitState);
+
+    // ── Feedback helpers ─────────────────────────────────────────────────────
+    function showSuccess(jobIds) {
+      const links = jobIds.map(id =>
+        `<a class="ingest-job-link" href="/processed.html?job_id=${encodeURIComponent(id)}&uploaded_by=${encodeURIComponent(uploadedByInput.value.trim())}&trading_partner_id=${encodeURIComponent(partnerIdInput.value.trim())}">
+          View job <code style="font-size:0.82rem">${escHtml(id.substring(0, 8))}</code> &#8594;
+        </a>`
+      ).join("");
+      feedbackEl.innerHTML = `
+        <div class="ingest-success-banner">
+          <span class="ingest-success-icon" aria-hidden="true">&#10003;</span>
+          <div class="ingest-success-body">
+            <strong>${jobIds.length} file${jobIds.length !== 1 ? "s" : ""} queued successfully</strong>
+            <p>Each file has been assigned a durable job ID and routed for validation. Track progress in Import Detail.</p>
+          </div>
+          ${links}
+        </div>`;
+    }
+
+    function showUploadError(msg) {
+      feedbackEl.innerHTML = `<div class="ingest-error-banner">Upload failed: ${escHtml(msg)}</div>`;
+    }
+
+    function clearFeedback() {
+      feedbackEl.innerHTML = "";
+    }
+
+    // ── Progress bar ─────────────────────────────────────────────────────────
+    function showProgress(pct, label) {
+      progressWrap.hidden = false;
+      progressFill.style.width = `${pct}%`;
+      progressPct.textContent = `${Math.round(pct)}%`;
+      progressText.textContent = label || "Uploading…";
+    }
+
+    function hideProgress() {
+      progressWrap.hidden = true;
+      progressFill.style.width = "0%";
+    }
+
+    // ── Upload (one POST per file, sequential) ───────────────────────────────
+    async function uploadFile(file, uploadedBy, partnerId, index, total) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("uploaded_by", uploadedBy);
+      if (partnerId) formData.append("trading_partner_id", partnerId);
+
+      const pctBase = (index / total) * 100;
+      showProgress(pctBase, `Uploading ${file.name} (${index + 1} of ${total})…`);
+
+      const res = await fetch(INGEST_URL, { method: "POST", body: formData });
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new Error(`${file.name}: ${text}`);
+      }
+      return res.json();
+    }
+
+    // ── Form submit ──────────────────────────────────────────────────────────
+    ingestForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const uploadedBy = uploadedByInput.value.trim();
+      const partnerId = partnerIdInput.value.trim();
+      if (!uploadedBy) { uploadedByInput.focus(); return; }
+      if (!selectedFiles.length) return;
+
+      clearFeedback();
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="ingest-spinner" aria-hidden="true"></span>Uploading…';
+
+      const jobIds = [];
+      const errors = [];
+
+      for (let i = 0; i < selectedFiles.length; i++) {
+        try {
+          const result = await uploadFile(selectedFiles[i], uploadedBy, partnerId, i, selectedFiles.length);
+          const id = result?.job_id || result?.id;
+          if (id) jobIds.push(id);
+        } catch (err) {
+          errors.push(err.message);
+        }
+      }
+
+      hideProgress();
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Queue files";
+
+      if (jobIds.length) {
+        showSuccess(jobIds);
+        // Reset file selection after successful upload
+        selectedFiles = [];
+        fileInput.value = "";
+        fileSummary.innerHTML = "";
+        updateSubmitState();
+        // Trigger search refresh if filters already set
+        const sLogin = searchLoginInput.value.trim() || uploadedBy;
+        const sPartner = searchPartnerInput.value.trim() || partnerId;
+        if (!searchLoginInput.value.trim()) searchLoginInput.value = uploadedBy;
+        if (!searchPartnerInput.value.trim() && partnerId) searchPartnerInput.value = partnerId;
+        await runSearch(sLogin, sPartner);
+      }
+
+      if (errors.length) {
+        showUploadError(errors.join("\n"));
+      }
+    });
+
+    // ── Search ───────────────────────────────────────────────────────────────
+    function showSearchStatus(msg, tone) {
+      searchStatus.hidden = false;
+      searchStatus.textContent = msg;
+      searchStatus.dataset.tone = tone || "info";
+    }
+
+    function clearSearchStatus() {
+      searchStatus.hidden = true;
+      searchStatus.textContent = "";
+    }
+
+    function renderJobs(jobs) {
+      jobsBody.innerHTML = "";
+      if (!jobs || !jobs.length) {
+        jobsBody.innerHTML = '<tr><td colspan="9" class="muted">No uploads found for the given filters.</td></tr>';
+        return;
+      }
+      jobsBody.innerHTML = jobs.map(j => {
+        const uploadedBy = encodeURIComponent(j.uploaded_by || "");
+        const partner    = encodeURIComponent(j.trading_partner_id || "");
+        const jobId      = encodeURIComponent(j.job_id);
+        const detailHref = `/processed.html?uploaded_by=${uploadedBy}&trading_partner_id=${partner}&job_id=${jobId}`;
+        return `<tr>
+          <td><a class="table-link" href="${detailHref}"><code>${escHtml(j.job_id.substring(0, 8))}</code></a></td>
+          <td>${escHtml(j.filename || "—")}</td>
+          <td>${renderTxTypeBadge(j.file_type || j.transaction_type)}</td>
+          <td>${statusBadge(j.status)}</td>
+          <td>${statusBadge(j.validation_status)}</td>
+          <td>${j.claims_count ?? "—"}</td>
+          <td>${j.ack_count ?? 0}</td>
+          <td>${fmtDate(j.processed_at)}</td>
+          <td class="actions"><a class="ghost" href="${detailHref}">Open</a></td>
+        </tr>`;
+      }).join("");
+    }
+
+    async function runSearch(uploadedBy, partnerId) {
+      clearSearchStatus();
+      const params = new URLSearchParams();
+      if (uploadedBy) params.set("uploaded_by", uploadedBy);
+      if (partnerId) params.set("trading_partner_id", partnerId);
+
+      lastSearchUploadedBy = uploadedBy;
+      lastSearchPartnerId = partnerId;
+
+      try {
+        const res = await fetch(`${JOBS_URL}?${params.toString()}`);
+        if (res.status === 401 || res.status === 403) {
+          showSearchStatus("Session expired — please log in again.", "error");
+          stopAutoRefresh();
+          return;
+        }
+        if (!res.ok) {
+          showSearchStatus(`Search failed (${res.status}): ${await res.text().catch(() => res.statusText)}`, "error");
+          return;
+        }
+        const jobs = await res.json();
+        renderJobs(jobs);
+
+        if (jobs && jobs.length) {
+          const terms = [uploadedBy, partnerId].filter(Boolean).join(" / ");
+          resultsTitle.textContent = `${jobs.length} result${jobs.length !== 1 ? "s" : ""}${terms ? " — " + terms : ""}`;
+          resultsHeader.hidden = false;
+        } else {
+          resultsHeader.hidden = true;
+          showSearchStatus("No uploads found for those filters.", "warn");
+        }
+
+        isSearchActive = true;
+        startAutoRefresh();
+      } catch (err) {
+        showSearchStatus(`Search error: ${err.message}`, "error");
+      }
+    }
+
+    searchForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const login = searchLoginInput.value.trim();
+      const partner = searchPartnerInput.value.trim();
+      if (!login && !partner) {
+        showSearchStatus("Enter at least a Login ID or Trading Partner ID.", "warn");
+        return;
+      }
+      await runSearch(login, partner);
+    });
+
+    // ── Auto-refresh every 10 seconds while a search is active ───────────────
+    function startAutoRefresh() {
+      if (autoRefreshTimer) return;
+      refreshIndicator.hidden = false;
+      autoRefreshTimer = setInterval(async () => {
+        if (isSearchActive) {
+          await runSearch(lastSearchUploadedBy, lastSearchPartnerId);
+        }
+      }, 10000);
+    }
+
+    function stopAutoRefresh() {
+      if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+      }
+      refreshIndicator.hidden = true;
+      isSearchActive = false;
+    }
+
+    // ── Hydrate from URL params (deep link support) ───────────────────────────
+    (function hydrate() {
+      const q = new URLSearchParams(window.location.search);
+      const uploadedBy = q.get("uploaded_by") || "";
+      const partner    = q.get("trading_partner_id") || "";
+      if (uploadedBy) {
+        uploadedByInput.value = uploadedBy;
+        searchLoginInput.value = uploadedBy;
+      }
+      if (partner) {
+        partnerIdInput.value = partner;
+        searchPartnerInput.value = partner;
+      }
+      if (uploadedBy || partner) {
+        runSearch(uploadedBy, partner);
+      }
+      updateSubmitState();
+    })();
+  </script>
+</body>
+</html>

@@ -4,18 +4,24 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>HEDI — Processed Files</title>
+  <title>Triage — Import Detail</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
   <script src="/config.js"></script>
 </head>
 <body data-requires-auth="portal">
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html" aria-current="page">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+        </div>
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
-          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
@@ -24,16 +30,19 @@
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
         </div>
         <div class="nav-group portal-only">
-          <span class="nav-group-label">Workspace tools</span>
+          <span class="nav-group-label">Workspace</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
-          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html" aria-current="page">Processed Files</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">HEDI Edits</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Resources</span>
-          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
-          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
         </div>
         <div class="nav-group admin-only">
           <span class="nav-group-label">Administration</span>
@@ -47,314 +56,503 @@
     </aside>
     <div class="app-main">
       <main class="container processed">
-  <section class="card processed-card">
-    <figure class="card-photo">
-      <img src="https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Operations analyst reviewing processed EDI files">
-      <figcaption class="photo-credit">Photo by <a href="https://unsplash.com/photos/7okkFhxrxNw" target="_blank" rel="noreferrer">Campaign Creators</a> on Unsplash</figcaption>
-    </figure>
-    <div class="badge badge-loud">Outputs Archive</div>
-    <h2>Review processed submissions</h2>
-    <p>Search by login ID and optional trading partner to review completed jobs, see generated acknowledgement files, and download them individually or as a bundle.</p>
-    <form id="searchForm" class="search-form">
-      <div class="row">
-        <div>
-          <label for="searchUploadedBy">Login ID</label>
-          <input type="text" id="searchUploadedBy" placeholder="your.login" required>
-        </div>
-        <div>
-          <label for="searchPartnerId">Trading Partner ID</label>
-          <input type="text" id="searchPartnerId" placeholder="TP123456">
-        </div>
-      </div>
-      <button type="submit">Find processed files</button>
-    </form>
-    <div id="statusPanel" class="status-panel" hidden></div>
+        <section class="card processed-card processed-card--serious">
+          <span class="badge">Import Detail</span>
+          <h1>Search imports and inspect the full evidence trail.</h1>
+          <p>Review lifecycle state, raw X12, parsed claims, CMS projection output, validation issues, acknowledgements, and audit history for each processed file.</p>
+          <div class="confidence-strip confidence-strip--left">
+            <span class="confidence-pill">Job ID first</span>
+            <span class="confidence-pill">Validation trace</span>
+            <span class="confidence-pill">Ack downloads</span>
+            <span class="confidence-pill">Audit timeline</span>
+          </div>
+          <div class="demo-checklist demo-checklist--compact">
+            <div><strong>Best demo move:</strong> search a real operator + trading partner, open one import, then walk Overview → Validation Issues → Acknowledgements → Audit Trail.</div>
+          </div>
+          <form id="searchForm" class="search-form">
+            <div class="row">
+              <div>
+                <label for="searchUploadedBy">Login ID</label>
+                <input type="text" id="searchUploadedBy" placeholder="your.login" required>
+              </div>
+              <div>
+                <label for="searchPartnerId">Trading Partner ID</label>
+                <input type="text" id="searchPartnerId" placeholder="TP123456">
+              </div>
+            </div>
+            <button type="submit">Load imports</button>
+          </form>
+          <div id="statusPanel" class="status-panel" hidden></div>
 
-    <div class="table-wrapper processed-table-wrapper">
-      <table class="processed-table">
-        <thead>
-          <tr><th>Job</th><th>File</th><th>Status</th><th>Processed</th><th>Outputs</th><th></th></tr>
-        </thead>
-        <tbody id="processedBody">
-          <tr><td colspan="6" class="muted">Run a search to list your processed jobs.</td></tr>
-        </tbody>
-      </table>
-    </div>
+          <div class="table-wrapper processed-table-wrapper">
+            <table class="processed-table compact-table">
+              <thead>
+                <tr><th>Job</th><th>File</th><th>Status</th><th>Validation</th><th>Claims</th><th>Acks</th><th>Processed</th><th></th></tr>
+              </thead>
+              <tbody id="processedBody">
+                <tr><td colspan="8" class="muted">Run a search to list imports.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-    <div class="trish-callout">
-      <img src="/img/trish-laptop.svg" alt="Trish reviewing outputs">
-      <div class="bubble">
-        <strong>Outputs overview:</strong>
-        Open the Outputs drawer to see every 999, 277CA, or error note we saved. Download one file or grab a zip of them all.
-      </div>
-    </div>
-  </section>
-</main>
+        <section id="detailCard" class="card import-detail-card" hidden>
+          <div class="import-detail-header">
+            <div>
+              <span class="eyebrow">Import detail</span>
+              <h2 id="detailTitle">Select an import</h2>
+              <p id="detailMeta" class="muted"></p>
+            </div>
+            <div class="import-detail-actions">
+              <a id="downloadOriginalLink" class="ghost" href="#" target="_blank" rel="noopener">Download original</a>
+              <a id="downloadAckZipLink" class="ghost" href="#" target="_blank" rel="noopener">Download ack bundle</a>
+            </div>
+          </div>
+
+          <div class="detail-summary-grid" id="detailSummary"></div>
+
+          <div class="detail-tabs" id="detailTabs">
+            <button type="button" class="detail-tab is-active" data-tab="overview">Overview</button>
+            <button type="button" class="detail-tab" data-tab="raw">Raw X12</button>
+            <button type="button" class="detail-tab" data-tab="claims">Parsed JSON</button>
+            <button type="button" class="detail-tab" data-tab="projection">CMS Projection</button>
+            <button type="button" class="detail-tab" data-tab="issues">Validation Issues</button>
+            <button type="button" class="detail-tab" data-tab="routing">Routing & AI</button>
+            <button type="button" class="detail-tab" data-tab="acks">Acknowledgements</button>
+            <button type="button" class="detail-tab" data-tab="audit">Audit Trail</button>
+          </div>
+
+          <div class="detail-panel is-active" data-panel="overview" id="panelOverview"></div>
+          <div class="detail-panel" data-panel="raw"><pre class="code-panel" id="panelRaw"></pre></div>
+          <div class="detail-panel" data-panel="claims"><pre class="code-panel" id="panelClaims"></pre></div>
+          <div class="detail-panel" data-panel="projection"><pre class="code-panel" id="panelProjection"></pre></div>
+          <div class="detail-panel" data-panel="issues" id="panelIssues"></div>
+          <div class="detail-panel" data-panel="routing" id="panelRouting"></div>
+          <div class="detail-panel" data-panel="acks" id="panelAcks"></div>
+          <div class="detail-panel" data-panel="audit" id="panelAudit"></div>
+        </section>
+      </main>
     </div>
   </div>
 
-<script src="/static/js/support_config.js"></script>
-<script src="/static/js/auth_config.js"></script>
-<script src="/static/js/authz.js"></script>
-<script src="/static/js/login-modal.js"></script>
-<script src="/static/js/chatbot.js"></script>
-<script>
-const API_BASE = window.HEDI_API_BASE || "";
-const JOBS_URL = window.HEDI_JOBS_URL || (API_BASE ? `${API_BASE}/jobs` : "/jobs");
-const JOBS_BASE = JOBS_URL.replace(/\/$/, "");
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script>
+    const API_BASE = window.HEDI_API_BASE || "";
+    const JOBS_URL = window.HEDI_JOBS_URL || (API_BASE ? `${API_BASE}/jobs` : "/jobs");
+    const JOBS_BASE = JOBS_URL.replace(/\/$/, "");
+    const FILTER_STATE_KEY = "turbohediImportFilters";
 
-const searchForm = document.getElementById("searchForm");
-const statusPanel = document.getElementById("statusPanel");
-const processedBody = document.getElementById("processedBody");
-const searchUploadedInput = document.getElementById("searchUploadedBy");
-const searchPartnerInput = document.getElementById("searchPartnerId");
-const jobCache = new Map();
-const queryParams = new URLSearchParams(window.location.search);
-const presetUploadedBy = queryParams.get("uploaded_by") || queryParams.get("login") || "";
-const presetPartnerId = queryParams.get("trading_partner_id") || queryParams.get("partner") || "";
-const focusJobId = queryParams.get("job_id") || queryParams.get("focus_job") || "";
-const autoOpenOutputs = queryParams.get("open_outputs") !== "false";
-let focusConsumed = !focusJobId;
-const defer = typeof queueMicrotask === "function" ? queueMicrotask : (cb) => setTimeout(cb, 0);
+    const searchForm = document.getElementById("searchForm");
+    const statusPanel = document.getElementById("statusPanel");
+    const processedBody = document.getElementById("processedBody");
+    const searchUploadedInput = document.getElementById("searchUploadedBy");
+    const searchPartnerInput = document.getElementById("searchPartnerId");
+    const detailCard = document.getElementById("detailCard");
+    const detailTitle = document.getElementById("detailTitle");
+    const detailMeta = document.getElementById("detailMeta");
+    const detailSummary = document.getElementById("detailSummary");
+    const downloadOriginalLink = document.getElementById("downloadOriginalLink");
+    const downloadAckZipLink = document.getElementById("downloadAckZipLink");
+    const panelOverview = document.getElementById("panelOverview");
+    const panelRaw = document.getElementById("panelRaw");
+    const panelClaims = document.getElementById("panelClaims");
+    const panelProjection = document.getElementById("panelProjection");
+    const panelIssues = document.getElementById("panelIssues");
+    const panelAcks = document.getElementById("panelAcks");
+    const panelRouting = document.getElementById("panelRouting");
+    const panelAudit = document.getElementById("panelAudit");
 
-function formatBytes(size) {
-  if (size === undefined || size === null) return "";
-  if (size === 0) return "0 bytes";
-  const units = ["bytes", "KB", "MB", "GB"];
-  const power = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
-  const value = size / Math.pow(1024, power);
-  return `${value.toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
-}
-
-function sendToLogin() {
-  const next = `${window.location.pathname}${window.location.search || ""}`;
-  if (typeof window.hediLoginURL === "function") {
-    window.location.href = window.hediLoginURL(next);
-    return;
-  }
-  const base = (typeof window.HEDI_OAUTH2_START === "string" && window.HEDI_OAUTH2_START.trim()) || "/oauth2/start";
-  const separator = base.includes("?") ? "&" : "?";
-  window.location.href = `${base}${separator}rd=${encodeURIComponent(next || "/")}`;
-}
-
-function redirectIfUnauthorized(res) {
-  if (res.status === 401 || res.status === 403) {
-    sendToLogin();
-    return true;
-  }
-  return false;
-}
-
-function showStatus(message, tone = "info") {
-  statusPanel.hidden = false;
-  statusPanel.textContent = message;
-  statusPanel.dataset.tone = tone;
-}
-
-function clearStatus() {
-  statusPanel.hidden = true;
-  statusPanel.textContent = "";
-}
-
-function renderJobs(jobs) {
-  processedBody.innerHTML = "";
-  if (!jobs.length) {
-    processedBody.innerHTML = '<tr><td colspan="6" class="muted">No processed jobs match your filters yet.</td></tr>';
-    return;
-  }
-
-  jobCache.clear();
-  for (const job of jobs) {
-    jobCache.set(job.job_id, job);
-    const tr = document.createElement("tr");
-    tr.dataset.rowId = job.job_id;
-    const processed = job.processed_at ? new Date(job.processed_at).toLocaleString() : "—";
-    const ackCount = job.ack_count ?? 0;
-    tr.innerHTML = `
-      <td><code>${job.job_id}</code></td>
-      <td>${job.filename}</td>
-      <td><span class="status status-${job.status}">${job.status}</span></td>
-      <td>${processed}</td>
-      <td>${ackCount}</td>
-      <td class="actions">
-        <button class="ghost" data-toggle="${job.job_id}">Outputs</button>
-        <a class="ghost" href="${JOBS_BASE}/${job.job_id}/download" target="_blank" rel="noopener">Original</a>
-        ${ackCount ? `<a class="ghost" data-zip="${job.job_id}" href="${JOBS_BASE}/${job.job_id}/acks.zip" target="_blank" rel="noopener">Download all</a>` : ''}
-      </td>`;
-
-    const ackRow = document.createElement("tr");
-    ackRow.className = "ack-row";
-    ackRow.hidden = true;
-    ackRow.innerHTML = `<td colspan="6"><div class="ack-container" data-job="${job.job_id}"><p class="muted">Select Outputs to load acknowledgement files.</p></div></td>`;
-
-    processedBody.appendChild(tr);
-    processedBody.appendChild(ackRow);
-  }
-}
-
-async function loadAcks(job, container) {
-  container.dataset.loaded = "loading";
-  container.innerHTML = '<p class="muted">Loading outputs…</p>';
-  try {
-    const res = await fetch(`${JOBS_BASE}/${job.job_id}/acks`);
-    if (redirectIfUnauthorized(res)) {
-      return;
+    function queryParams() {
+      return new URLSearchParams(window.location.search || "");
     }
-    if (!res.ok) {
-      container.innerHTML = `<p class="error">Failed to load outputs: ${await res.text()}</p>`;
-      return;
-    }
-    const acks = await res.json();
-    container.dataset.loaded = "true";
-    const totalOutputs = acks.length;
-    const summaryHtml = `
-      <div class="ack-summary">
-        <div><strong>Claims detected:</strong> ${job.claims_count ?? "—"}</div>
-        <div><strong>Order lines:</strong> ${job.order_lines_count ?? "—"}</div>
-        <div><strong>Total outputs:</strong> ${totalOutputs}</div>
-      </div>`;
-    if (!acks.length) {
-      jobCache.set(job.job_id, { ...job, ack_count: 0 });
-      const row = processedBody.querySelector(`tr[data-row-id="${job.job_id}"]`);
-      if (row) {
-        const cell = row.querySelector("td:nth-child(5)");
-        if (cell) cell.textContent = "0";
-      }
-      container.innerHTML = summaryHtml + '<p class="muted">No acknowledgement files were generated for this job.</p>';
-      return;
-    }
-    const updatedJob = { ...job, ack_count: totalOutputs };
-    jobCache.set(job.job_id, updatedJob);
-    const rows = acks.map(ack => `
-      <tr>
-        <td><span class="badge">${ack.ack_type}</span></td>
-        <td>${ack.created_at ? new Date(ack.created_at).toLocaleString() : ""}</td>
-        <td>${formatBytes(ack.size_bytes) || ""}</td>
-        <td><a class="ghost" href="${JOBS_BASE}/${job.job_id}/acks/${ack.id}/download" target="_blank" rel="noopener">Download</a></td>
-      </tr>
-    `).join("");
-    container.innerHTML = `${summaryHtml}
-      <table class="ack-table">
-        <thead><tr><th>Type</th><th>Created</th><th>Size</th><th></th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
-    const row = processedBody.querySelector(`tr[data-row-id="${job.job_id}"]`);
-    if (row) {
-      const cell = row.querySelector("td:nth-child(5)");
-      if (cell) cell.textContent = totalOutputs;
-      const actions = row.querySelector("td.actions");
-      if (actions && totalOutputs && !actions.querySelector(`[data-zip="${job.job_id}"]`)) {
-        const link = document.createElement("a");
-        link.className = "ghost";
-        link.href = `${JOBS_BASE}/${job.job_id}/acks.zip`;
-        link.target = "_blank";
-        link.rel = "noopener";
-        link.textContent = "Download all";
-        link.setAttribute("data-zip", job.job_id);
-        actions.appendChild(link);
+
+    function readState() {
+      try {
+        return JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "{}") || {};
+      } catch {
+        return {};
       }
     }
-  } catch (err) {
-    console.error(err);
-    container.dataset.loaded = "error";
-    container.innerHTML = '<p class="error">Unexpected error loading acknowledgement files.</p>';
-  }
-}
 
-async function fetchJobs(uploadedBy, partnerId) {
-  const params = new URLSearchParams();
-  if (uploadedBy) params.set("uploaded_by", uploadedBy);
-  if (partnerId) params.set("trading_partner_id", partnerId);
-  clearStatus();
-  try {
-    const res = await fetch(`${JOBS_URL}?${params.toString()}`);
-    if (redirectIfUnauthorized(res)) {
-      return;
+    function writeState(next) {
+      try {
+        localStorage.setItem(FILTER_STATE_KEY, JSON.stringify({ ...readState(), ...next }));
+      } catch {}
     }
-    if (!res.ok) {
-      showStatus(`Search failed: ${await res.text()}`, "error");
-      return;
+
+    function showStatus(message, tone = "info") {
+      statusPanel.hidden = false;
+      statusPanel.textContent = message;
+      statusPanel.dataset.tone = tone;
     }
-    const data = await res.json();
-    const processed = data.filter(job => job.status && job.status.toLowerCase() === "processed");
-    if (!processed.length) {
-      showStatus("No processed jobs found for the provided filters yet.", "warn");
+
+    function clearStatus() {
+      statusPanel.hidden = true;
+      statusPanel.textContent = "";
     }
-    renderJobs(processed);
-    if (focusJobId && !focusConsumed) {
-      focusConsumed = true;
-      defer(() => focusOnJob(focusJobId, { openOutputs: autoOpenOutputs }));
+
+    function sendToLogin() {
+      const next = `${window.location.pathname}${window.location.search || ""}`;
+      if (typeof window.hediLoginURL === "function") {
+        window.location.href = window.hediLoginURL(next);
+        return;
+      }
+      const base = (typeof window.HEDI_OAUTH2_START === "string" && window.HEDI_OAUTH2_START.trim()) || "/oauth2/start";
+      const separator = base.includes("?") ? "&" : "?";
+      window.location.href = `${base}${separator}rd=${encodeURIComponent(next || "/")}`;
     }
-    return processed;
-  } catch (err) {
-    console.error(err);
-    showStatus("Unable to load processed jobs — please try again.", "error");
-    return null;
-  }
-}
 
-async function focusOnJob(jobId, { openOutputs = true } = {}) {
-  if (!jobId) return;
-  const row = processedBody.querySelector(`tr[data-row-id="${jobId}"]`);
-  if (!row) return;
-  processedBody.querySelectorAll("tr.focus-target").forEach(el => el.classList.remove("focus-target"));
-  row.classList.add("focus-target");
-  if (typeof row.scrollIntoView === "function") {
-    row.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
-  if (!openOutputs) return;
-  const ackRow = row.nextElementSibling;
-  if (!ackRow || !ackRow.classList.contains("ack-row")) return;
-  ackRow.hidden = false;
-  const container = ackRow.querySelector(".ack-container");
-  if (!container) return;
-  const job = jobCache.get(jobId);
-  if (job && container.dataset.loaded !== "true") {
-    await loadAcks(job, container);
-  }
-}
-
-searchForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const uploadedBy = searchUploadedInput.value.trim();
-  const partnerId = searchPartnerInput.value.trim();
-  if (!uploadedBy) {
-    showStatus("Login ID is required to search processed jobs.", "warn");
-    return;
-  }
-  fetchJobs(uploadedBy, partnerId);
-});
-
-processedBody.addEventListener("click", async (e) => {
-  const toggle = e.target.closest("[data-toggle]");
-  if (!toggle) return;
-  const row = toggle.closest("tr");
-  if (!row) return;
-  const jobId = toggle.getAttribute("data-toggle");
-  const ackRow = row.nextElementSibling;
-  if (!ackRow || !ackRow.classList.contains("ack-row")) return;
-  const container = ackRow.querySelector(".ack-container");
-  if (ackRow.hidden) {
-    ackRow.hidden = false;
-    const job = jobCache.get(jobId);
-    if (job && container.dataset.loaded !== "true") {
-      await loadAcks(job, container);
+    function redirectIfUnauthorized(res) {
+      if (res.status === 401 || res.status === 403) {
+        sendToLogin();
+        return true;
+      }
+      return false;
     }
-  } else {
-    ackRow.hidden = true;
-  }
-});
 
-if (presetUploadedBy) {
-  searchUploadedInput.value = presetUploadedBy;
-}
-if (presetPartnerId) {
-  searchPartnerInput.value = presetPartnerId;
-}
+    function formatDate(value) {
+      return value ? new Date(value).toLocaleString() : "—";
+    }
 
-if (presetUploadedBy) {
-  fetchJobs(presetUploadedBy, presetPartnerId);
-}
-</script>
+    function statusBadge(value) {
+      const status = value || "pending";
+      return `<span class="status status-${status}">${status}</span>`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function formatDuration(start, end) {
+      if (!start || !end) return "—";
+      const seconds = (new Date(end).getTime() - new Date(start).getTime()) / 1000;
+      if (!Number.isFinite(seconds) || seconds < 0) return "—";
+      if (seconds < 60) return `${seconds.toFixed(1)}s`;
+      return `${(seconds / 60).toFixed(1)}m`;
+    }
+
+    function renderJobs(jobs) {
+      processedBody.innerHTML = "";
+      if (!jobs.length) {
+        processedBody.innerHTML = '<tr><td colspan="8" class="muted">No imports match your filters yet.</td></tr>';
+        return;
+      }
+      processedBody.innerHTML = jobs.map((job) => `
+        <tr>
+          <td><code>${job.job_id}</code></td>
+          <td>${escapeHtml(job.filename)}</td>
+          <td>${statusBadge(job.status)}</td>
+          <td>${statusBadge(job.validation_status)}</td>
+          <td>${job.claims_count ?? "—"}</td>
+          <td>${job.ack_count ?? 0}</td>
+          <td>${formatDate(job.processed_at)}</td>
+          <td class="actions"><button class="ghost" data-detail="${job.job_id}">Open</button></td>
+        </tr>`).join("");
+    }
+
+    async function fetchJobs(uploadedBy, partnerId) {
+      const params = new URLSearchParams();
+      if (uploadedBy) params.set("uploaded_by", uploadedBy);
+      if (partnerId) params.set("trading_partner_id", partnerId);
+      writeState({ uploadedBy, tradingPartnerId: partnerId });
+      clearStatus();
+      const res = await fetch(`${JOBS_URL}?${params.toString()}`);
+      if (redirectIfUnauthorized(res)) return;
+      if (!res.ok) {
+        showStatus(`Search failed: ${await res.text()}`, "error");
+        return;
+      }
+      const jobs = await res.json();
+      renderJobs(jobs);
+      if (!jobs.length) showStatus("No imports found for the provided filters.", "warn");
+      const targetJob = queryParams().get("job_id") || readState().jobId;
+      if (targetJob && jobs.some((job) => job.job_id === targetJob)) {
+        fetchDetail(targetJob);
+      }
+    }
+
+    function setActiveTab(tabName) {
+      document.querySelectorAll(".detail-tab").forEach((tab) => {
+        tab.classList.toggle("is-active", tab.dataset.tab === tabName);
+      });
+      document.querySelectorAll(".detail-panel").forEach((panel) => {
+        panel.classList.toggle("is-active", panel.dataset.panel === tabName);
+      });
+    }
+
+    function renderSummaryCard(label, value) {
+      return `<div class="summary-kv"><span>${label}</span><strong>${value}</strong></div>`;
+    }
+
+    function jsonBlock(value) {
+      return escapeHtml(JSON.stringify(value, null, 2));
+    }
+
+    function latestAuditEvent(job) {
+      return Array.isArray(job.audit_events) && job.audit_events.length ? job.audit_events[0] : null;
+    }
+
+    function updateUrl(job) {
+      const next = new URL(window.location.href);
+      if (job.uploaded_by) next.searchParams.set("uploaded_by", job.uploaded_by);
+      if (job.trading_partner_id) next.searchParams.set("trading_partner_id", job.trading_partner_id);
+      next.searchParams.set("job_id", job.job_id);
+      window.history.replaceState({}, "", next);
+      writeState({ uploadedBy: job.uploaded_by || "", tradingPartnerId: job.trading_partner_id || "", jobId: job.job_id });
+    }
+
+    function renderDetail(job) {
+      const lastAudit = latestAuditEvent(job);
+      const issueCount = Array.isArray(job.validation_report_json) ? job.validation_report_json.length : 0;
+      const cycleTime = formatDuration(job.created_at, job.processed_at);
+      detailTitle.textContent = job.filename;
+      detailMeta.textContent = `${job.job_id} · ${job.file_type || "Unknown"}`;
+      downloadOriginalLink.href = `${JOBS_BASE}/${job.job_id}/download`;
+      downloadAckZipLink.href = `${JOBS_BASE}/${job.job_id}/acks.zip`;
+      updateUrl(job);
+
+      detailSummary.innerHTML = [
+        renderSummaryCard("Status", statusBadge(job.status)),
+        renderSummaryCard("Validation", statusBadge(job.validation_status)),
+        renderSummaryCard("Uploaded by", escapeHtml(job.uploaded_by || "—")),
+        renderSummaryCard("Trading partner", escapeHtml(job.trading_partner_id || "—")),
+        renderSummaryCard("Claims", job.claims_count ?? "—"),
+        renderSummaryCard("Acknowledgements", job.ack_count ?? 0),
+        renderSummaryCard("Cycle time", cycleTime),
+        renderSummaryCard("Validation issues", issueCount || "0")
+      ].join("");
+
+      panelOverview.innerHTML = `
+        <div class="detail-two-col">
+          <div>
+            <h3>Operational summary</h3>
+            <ul class="hero-points compact-list">
+              <li><strong>Lifecycle state:</strong> ${escapeHtml(job.status || "unknown")}</li>
+              <li><strong>Validation outcome:</strong> ${escapeHtml(job.validation_status || "pending")}</li>
+              <li><strong>Claims parsed:</strong> ${job.claims_count ?? "—"}</li>
+              <li><strong>Acknowledgements generated:</strong> ${job.ack_count ?? 0}</li>
+              <li><strong>Cycle time:</strong> ${cycleTime}</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Operator confidence signals</h3>
+            <ul class="hero-points compact-list">
+              <li><strong>Raw payload captured:</strong> ${job.raw_payload_text ? "yes" : "no preview available"}</li>
+              <li><strong>Latest audit event:</strong> ${escapeHtml(lastAudit?.event_type || "none")}</li>
+              <li><strong>Validation issues:</strong> ${issueCount || "none captured"}</li>
+              <li><strong>Recommended next step:</strong> ${job.validation_status === "invalid" ? "Open Validation Issues and inspect the failing claim segments." : job.ack_count ? "Download acknowledgements and confirm partner delivery." : "Review parsed claims and wait for downstream acknowledgements."}</li>
+            </ul>
+          </div>
+        </div>`;
+
+      panelRaw.textContent = job.raw_payload_text || "No raw payload preview available.";
+      panelClaims.textContent = JSON.stringify(job.claims || [], null, 2);
+      panelProjection.textContent = JSON.stringify((job.claims || []).map((claim) => ({ claim_id: claim.claim_id, claim_status_code: claim.claim_status_code, cms_projection_json: claim.cms_projection_json })), null, 2);
+
+      if (Array.isArray(job.validation_report_json) && job.validation_report_json.length) {
+        panelIssues.innerHTML = job.validation_report_json.map((issue) => `
+          <article class="issue-card">
+            <div class="issue-card__header">
+              ${statusBadge(issue.severity || "warn")}
+              <strong>${escapeHtml(issue.code || "Validation issue")}</strong>
+            </div>
+            <p>${escapeHtml(issue.message || "No message provided.")}</p>
+            <p class="muted">Claim ${escapeHtml(issue.claim_id || "—")} · Segment ${escapeHtml(issue.segment || issue.segment_id || "—")} · Spec ${escapeHtml(issue.spec_ref || "—")}</p>
+          </article>`).join("");
+      } else {
+        panelIssues.innerHTML = '<p class="muted">No validation issues captured for this import.</p>';
+      }
+
+      if (Array.isArray(job.acknowledgements) && job.acknowledgements.length) {
+        panelAcks.innerHTML = `
+          <div class="table-wrapper">
+            <table class="processed-table compact-table">
+              <thead><tr><th>Type</th><th>Created</th><th>Size</th><th></th></tr></thead>
+              <tbody>
+                ${job.acknowledgements.map((ack) => `
+                  <tr>
+                    <td>${escapeHtml(ack.ack_type)}</td>
+                    <td>${formatDate(ack.created_at)}</td>
+                    <td>${ack.size_bytes ?? "—"}</td>
+                    <td><a class="ghost" href="${JOBS_BASE}/${job.job_id}/acks/${ack.id}/download" target="_blank" rel="noopener">Download</a></td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`;
+      } else {
+        panelAcks.innerHTML = '<p class="muted">No acknowledgement content available for this import.</p>';
+      }
+
+      if (Array.isArray(job.audit_events) && job.audit_events.length) {
+        panelAudit.innerHTML = job.audit_events.map((event) => `
+          <article class="audit-event-card">
+            <div class="issue-card__header">
+              <strong>${escapeHtml(event.event_type)}</strong>
+              <span class="muted">${formatDate(event.created_at)}</span>
+            </div>
+            <pre class="code-panel code-panel--small">${jsonBlock(event.detail_json || {})}</pre>
+          </article>`).join("");
+      } else {
+        panelAudit.innerHTML = '<p class="muted">No audit events recorded yet.</p>';
+      }
+
+      // --- Routing & AI tab: load from /jobs/{id}/routing ---
+      panelRouting.innerHTML = '<p class="muted">Loading routing data…</p>';
+      loadRoutingPanel(job.job_id);
+
+      detailCard.hidden = false;
+      setActiveTab("overview");
+      detailCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    async function fetchDetail(jobId) {
+      clearStatus();
+      const res = await fetch(`${JOBS_BASE}/${jobId}`);
+      if (redirectIfUnauthorized(res)) return;
+      if (!res.ok) {
+        showStatus(`Unable to load import detail: ${await res.text()}`, "error");
+        return;
+      }
+      renderDetail(await res.json());
+    }
+
+    function hydrateFilters() {
+      const state = readState();
+      const query = queryParams();
+      if (!searchUploadedInput.value) searchUploadedInput.value = query.get("uploaded_by") || state.uploadedBy || "";
+      if (!searchPartnerInput.value) searchPartnerInput.value = query.get("trading_partner_id") || state.tradingPartnerId || "";
+    }
+
+    searchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await fetchJobs(searchUploadedInput.value.trim(), searchPartnerInput.value.trim());
+    });
+
+    processedBody.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-detail]");
+      if (!button) return;
+      fetchDetail(button.getAttribute("data-detail"));
+    });
+
+    document.getElementById("detailTabs").addEventListener("click", (event) => {
+      const button = event.target.closest(".detail-tab");
+      if (!button) return;
+      setActiveTab(button.dataset.tab);
+    });
+
+    const TIER_COLORS = { 0: "#22c55e", 1: "#eab308", 2: "#f97316", 3: "#ef4444" };
+    const TIER_NAMES = { 0: "Tier 0 — Fast Path", 1: "Tier 1 — Assisted", 2: "Tier 2 — AI Swarm", 3: "Tier 3 — Human" };
+
+    async function loadRoutingPanel(jobId) {
+      try {
+        const res = await fetch(`${JOBS_BASE}/${jobId}/routing`);
+        if (!res.ok) {
+          panelRouting.innerHTML = '<p class="muted">No routing data available.</p>';
+          return;
+        }
+        const d = await res.json();
+        let html = '';
+
+        // Routing decision
+        if (d.routing) {
+          const r = d.routing;
+          const tierColor = TIER_COLORS[r.tier] || "#6b7280";
+          html += `
+            <article class="routing-card">
+              <div class="routing-header">
+                <span class="tier-badge" style="--tier-color:${tierColor}">${TIER_NAMES[r.tier] || 'Tier ' + r.tier}</span>
+                <span class="routing-score">Score: <strong>${r.score_total?.toFixed(1) || '—'}</strong>/100</span>
+                <span class="muted">${r.decision_duration_ms != null ? r.decision_duration_ms.toFixed(2) + 'ms' : ''}</span>
+              </div>
+              ${r.gate_triggers?.length ? `<div class="routing-gates"><strong>Gate triggers:</strong> ${r.gate_triggers.map(g => '<span class="flag-chip">' + escapeHtml(g) + '</span>').join(' ')}</div>` : ''}
+              ${r.explanation ? `<p class="routing-explain">${escapeHtml(r.explanation)}</p>` : ''}
+            </article>`;
+        }
+
+        // Tier execution
+        if (d.tier_execution) {
+          const t = d.tier_execution;
+          const verdictClass = t.supervisor_verdict === 'APPROVE' ? 'status-valid' : t.supervisor_verdict === 'REJECT' ? 'status-error' : 'status-warn';
+          html += `
+            <article class="routing-card tier-exec-card">
+              <div class="routing-header">
+                <strong>Tier Execution</strong>
+                <span class="status status-${t.status}">${t.status}</span>
+                ${t.supervisor_verdict ? `<span class="status ${verdictClass}">Verdict: ${t.supervisor_verdict}</span>` : ''}
+                <span class="muted">${t.processing_ms != null ? t.processing_ms.toFixed(0) + 'ms' : ''}</span>
+              </div>
+              ${t.flags?.length ? `<div class="routing-flags"><strong>Flags (${t.flags.length}):</strong><ul>${t.flags.map(f => '<li class="flag-item">' + escapeHtml(f) + '</li>').join('')}</ul></div>` : ''}
+              ${t.recommendations?.length ? `<div class="routing-recs"><strong>Recommendations:</strong><ul>${t.recommendations.map(r => '<li>' + escapeHtml(r) + '</li>').join('')}</ul></div>` : ''}
+              ${t.error ? `<div class="routing-error"><strong>Error:</strong> ${escapeHtml(t.error)}</div>` : ''}
+            </article>`;
+
+          // AI analyses (Tier 2 swarm results)
+          if (t.ai_analyses?.length) {
+            html += '<h3 class="routing-section-title">AI Swarm Analyses</h3>';
+            for (const a of t.ai_analyses) {
+              const statusIcon = a.error ? '&#x26A0;' : '&#x2713;';
+              html += `
+                <article class="routing-card ai-card ${a.error ? 'ai-card--error' : ''}">
+                  <div class="routing-header">
+                    <strong>${statusIcon} ${escapeHtml(a.task)}</strong>
+                    <span class="muted">${a.duration_ms != null ? a.duration_ms.toFixed(0) + 'ms' : '—'}</span>
+                  </div>
+                  ${a.response ? `<pre class="code-panel code-panel--small">${escapeHtml(a.response)}</pre>` : ''}
+                  ${a.error ? `<p class="routing-error">${escapeHtml(a.error)}</p>` : ''}
+                </article>`;
+            }
+          }
+        }
+
+        panelRouting.innerHTML = html || '<p class="muted">No routing or tier execution data.</p>';
+      } catch (err) {
+        console.error("Routing panel load failed:", err);
+        panelRouting.innerHTML = '<p class="error">Failed to load routing data.</p>';
+      }
+    }
+
+    hydrateFilters();
+    if (searchUploadedInput.value.trim() || searchPartnerInput.value.trim()) {
+      fetchJobs(searchUploadedInput.value.trim(), searchPartnerInput.value.trim());
+    }
+
+    // WebSocket real-time updates
+    (function initWebSocket() {
+      const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${wsProto}//${location.host}/ws/jobs`;
+      let ws, reconnectTimer;
+
+      function connect() {
+        try { ws = new WebSocket(wsUrl); } catch { return; }
+        ws.onmessage = function(event) {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "job_update" || msg.type === "new_job") {
+              // Re-fetch the job list if we have active filters
+              if (searchUploadedInput.value.trim() || searchPartnerInput.value.trim()) {
+                fetchJobs(searchUploadedInput.value.trim(), searchPartnerInput.value.trim());
+              }
+              // If we're viewing the detail for this job, refresh it
+              const qp = queryParams();
+              if (qp.get("job_id") === msg.job_id) {
+                fetchDetail(msg.job_id);
+              }
+            }
+          } catch {}
+        };
+        ws.onclose = function() { reconnectTimer = setTimeout(connect, 5000); };
+        ws.onerror = function() { ws.close(); };
+      }
+
+      connect();
+    })();
+  </script>
 </body>
 </html>

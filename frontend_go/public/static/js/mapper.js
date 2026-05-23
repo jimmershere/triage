@@ -158,7 +158,7 @@
     illustration.src = "/img/trish-laptop.svg";
     illustration.width = 56;
     illustration.height = 56;
-    illustration.alt = "Trish reviewing X12 guidance";
+    illustration.alt = "X12 guidance illustration";
     illustration.className = "issue-thought-illustration";
 
     const copy = document.createElement("div");

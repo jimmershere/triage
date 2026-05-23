@@ -41,10 +41,10 @@ async function submitClaim(e){
   try {
     // Replace with POST to backend
     console.log("Submitting claim", data);
-    toast("✨ Claim submitted (demo)", "success");
+    toast("Claim submitted", "success");
     e.target.reset();
   } catch (err){
-    toast("Submission failed (demo)", "error");
+    toast("Submission failed", "error");
   }
 }
 

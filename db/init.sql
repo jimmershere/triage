@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS imports (
   status TEXT NOT NULL DEFAULT 'queued',
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   processed_at TIMESTAMP,
+  validation_status TEXT NOT NULL DEFAULT 'pending',
+  validation_report_json JSONB,
   claims_count INTEGER,
   order_lines_count INTEGER
 );
@@ -23,6 +25,8 @@ ALTER TABLE imports
   ADD COLUMN IF NOT EXISTS file_type TEXT,
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMP,
   ADD COLUMN IF NOT EXISTS processed_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS validation_status TEXT,
+  ADD COLUMN IF NOT EXISTS validation_report_json JSONB,
   ADD COLUMN IF NOT EXISTS claims_count INTEGER,
   ADD COLUMN IF NOT EXISTS order_lines_count INTEGER;
 
@@ -36,6 +40,12 @@ ALTER TABLE imports
 ALTER TABLE imports
   ALTER COLUMN status SET NOT NULL;
 
+UPDATE imports SET validation_status = 'pending' WHERE validation_status IS NULL;
+ALTER TABLE imports
+  ALTER COLUMN validation_status SET DEFAULT 'pending';
+ALTER TABLE imports
+  ALTER COLUMN validation_status SET NOT NULL;
+
 UPDATE imports SET created_at = NOW() WHERE created_at IS NULL;
 ALTER TABLE imports
   ALTER COLUMN created_at SET DEFAULT NOW();
@@ -47,7 +57,21 @@ CREATE TABLE IF NOT EXISTS claims (
   import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
   claim_id TEXT,
   amount NUMERIC(12,2),
-  raw_claim TEXT
+  raw_claim TEXT,
+  cms_projection_json JSONB,
+  claim_status_code TEXT
+);
+
+ALTER TABLE claims
+  ADD COLUMN IF NOT EXISTS cms_projection_json JSONB,
+  ADD COLUMN IF NOT EXISTS claim_status_code TEXT;
+
+CREATE TABLE IF NOT EXISTS audit_events (
+  id SERIAL PRIMARY KEY,
+  import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL,
+  detail_json JSONB,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS order_lines (

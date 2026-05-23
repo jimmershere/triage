@@ -16,6 +16,8 @@ from fastapi import (
     Query,
     Depends,
     Header,
+    WebSocket,
+    WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -92,6 +94,13 @@ ldap_manager: Optional[ldap_utils.LDAPManager] = None
 
 app = FastAPI(title="TurboEDI Ingest API", version="0.2.0")
 
+# TurboHEDI engines: SNIP 1-7 validation, CMS scrubbing, FHIR, supervised swarms.
+try:
+    from .turbo_routes import register as register_turbo_routes
+except ImportError:  # tests / direct script invocation without package context
+    from turbo_routes import register as register_turbo_routes  # type: ignore
+register_turbo_routes(app)
+
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
 
@@ -113,8 +122,10 @@ def run_startup_migrations() -> None:
             ensure_import_core_columns(conn)
             ensure_import_job_ids(conn)
             ensure_import_uploaded_by(conn)
+            ensure_validation_columns(conn)
             ensure_app_users(conn)
             ensure_x12_addon_tables(conn)
+            ensure_partner_configs_table(conn)
             ensure_ldap_bootstrap(conn)
     except Exception:
         logger.exception("Failed to run startup migrations")
@@ -660,6 +671,28 @@ def fetch_trading_partner_ids(conn) -> List[str]:
         return [row[0] for row in cur.fetchall()]
 
 
+def ensure_partner_configs_table(conn) -> None:
+    """Create the partner_configs table if it does not already exist."""
+    logger.info("Ensuring partner_configs table exists")
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS partner_configs (
+                id SERIAL PRIMARY KEY,
+                trading_partner_id TEXT UNIQUE NOT NULL,
+                name TEXT,
+                contact_email TEXT,
+                default_transaction_types JSONB DEFAULT '[]',
+                auto_ack BOOLEAN DEFAULT FALSE,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+            """
+        )
+    conn.commit()
+
+
 def ensure_ldap_bootstrap(conn) -> None:
     manager = get_ldap_manager()
     if not manager:
@@ -808,6 +841,57 @@ def ensure_import_uploaded_by(conn) -> None:
         conn.commit()
 
 
+
+def ensure_validation_columns(conn) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT table_name, column_name
+              FROM information_schema.columns
+             WHERE table_name IN ('imports', 'claims')
+               AND column_name IN (
+                   'validation_status',
+                   'validation_report_json',
+                   'cms_projection_json',
+                   'claim_status_code'
+               )
+            """
+        )
+        existing = {(row[0], row[1]) for row in cur.fetchall()}
+
+    with conn.cursor() as cur:
+        if ('imports', 'validation_status') not in existing:
+            logger.info("Adding validation_status column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN validation_status TEXT")
+        if ('imports', 'validation_report_json') not in existing:
+            logger.info("Adding validation_report_json column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN validation_report_json JSONB")
+        if ('claims', 'cms_projection_json') not in existing:
+            logger.info("Adding cms_projection_json column to claims table")
+            cur.execute("ALTER TABLE claims ADD COLUMN cms_projection_json JSONB")
+        if ('claims', 'claim_status_code') not in existing:
+            logger.info("Adding claim_status_code column to claims table")
+            cur.execute("ALTER TABLE claims ADD COLUMN claim_status_code TEXT")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                event_type TEXT NOT NULL,
+                detail_json JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+
+    with conn.cursor() as cur:
+        cur.execute("UPDATE imports SET validation_status = 'pending' WHERE validation_status IS NULL")
+        cur.execute("ALTER TABLE imports ALTER COLUMN validation_status SET DEFAULT 'pending'")
+        cur.execute("ALTER TABLE imports ALTER COLUMN validation_status SET NOT NULL")
+
+    conn.commit()
+
+
 def get_channel():
     params = pika.URLParameters(RABBITMQ_URL)
     connection = pika.BlockingConnection(params)
@@ -885,6 +969,7 @@ class JobSummary(BaseModel):
     processed_at: Optional[str]
     uploaded_by: Optional[str]
     trading_partner_id: Optional[str]
+    validation_status: Optional[str] = None
     claims_count: Optional[int]
     order_lines_count: Optional[int]
     ack_count: int
@@ -901,8 +986,101 @@ class Acknowledgement(AcknowledgementSummary):
     content: Optional[str]
 
 
+class ValidationIssue(BaseModel):
+    severity: Optional[str] = None
+    code: Optional[str] = None
+    message: Optional[str] = None
+    segment_id: Optional[str] = None
+    claim_id: Optional[str] = None
+    loop_id: Optional[str] = None
+    position: Optional[str] = None
+
+
+class ClaimArtifact(BaseModel):
+    claim_id: Optional[str] = None
+    amount: Optional[str] = None
+    raw_claim: Optional[str] = None
+    claim_status_code: Optional[str] = None
+    cms_projection_json: Optional[dict | list] = None
+
+
+class AuditEventRecord(BaseModel):
+    id: int
+    event_type: str
+    created_at: Optional[str]
+    detail_json: Optional[dict | list] = None
+
+
 class JobDetail(JobSummary):
     acknowledgements: List[Acknowledgement]
+    validation_report_json: List[ValidationIssue] = []
+    claims: List[ClaimArtifact] = []
+    audit_events: List[AuditEventRecord] = []
+    raw_payload_text: Optional[str] = None
+
+
+class OpsPartnerException(BaseModel):
+    trading_partner_id: str
+    invalid_imports: int
+    pending_imports: int
+
+
+class OpsSummary(BaseModel):
+    imports_today: int
+    processing_now: int
+    validation_failures_24h: int
+    avg_processing_seconds_24h: Optional[float]
+    recent_imports: List[JobSummary]
+    partner_exceptions: List[OpsPartnerException]
+
+
+# ---------------------------------------------------------------------------
+# WebSocket connection manager
+# ---------------------------------------------------------------------------
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: set[WebSocket] = set()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.add(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.discard(websocket)
+
+    async def broadcast(self, message: dict):
+        data = json.dumps(message)
+        dead = set()
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(data)
+            except Exception:
+                dead.add(connection)
+        for connection in dead:
+            self.active_connections.discard(connection)
+
+
+ws_manager = ConnectionManager()
+
+
+async def broadcast_job_update(
+    job_id: str,
+    status: str,
+    validation_status: Optional[str] = None,
+    claims_count: Optional[int] = None,
+    filename: Optional[str] = None,
+):
+    await ws_manager.broadcast(
+        {
+            "type": "job_update",
+            "job_id": job_id,
+            "status": status,
+            "validation_status": validation_status,
+            "claims_count": claims_count,
+            "filename": filename,
+        }
+    )
 
 
 @app.post("/auth/login")
@@ -1170,6 +1348,8 @@ async def ingest(
         content = await file.read()
         if not content:
             raise HTTPException(status_code=400, detail="Empty file")
+        if len(content) > 50 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large (max 50MB)")
 
         job_uuid = uuid.uuid4()
         filename = file.filename or "upload.dat"
@@ -1253,6 +1433,24 @@ async def ingest(
 
         total_duration = time.perf_counter() - start_time
         logger.info("Completed ingest for job %s in %.3fs", job_uuid, total_duration)
+
+        try:
+            import asyncio
+            asyncio.create_task(
+                ws_manager.broadcast(
+                    {
+                        "type": "new_job",
+                        "job_id": str(job_uuid),
+                        "status": "queued",
+                        "validation_status": "pending",
+                        "claims_count": None,
+                        "filename": filename,
+                    }
+                )
+            )
+        except Exception:
+            logger.debug("WebSocket broadcast skipped (no event loop or no clients)")
+
         return {"job_id": str(job_uuid), "import_id": import_id, "queued_bytes": size, "filename": filename}
     except HTTPException:
         raise
@@ -1277,13 +1475,14 @@ async def list_jobs(
     uploaded_by: Optional[str] = Query(default=None),
     trading_partner_id: Optional[str] = Query(default=None),
     limit: int = Query(default=25, ge=1, le=200),
+    _: None = Depends(require_secret),
 ):
     if not uploaded_by and not trading_partner_id:
         raise HTTPException(status_code=400, detail="Provide uploaded_by or trading_partner_id to search")
 
     query = [
         "SELECT i.job_id, i.filename, i.file_type, i.byte_size, i.status, i.created_at, i.processed_at,",
-        "       i.uploaded_by, i.trading_partner_id, i.claims_count, i.order_lines_count,",
+        "       i.uploaded_by, i.trading_partner_id, i.validation_status, i.claims_count, i.order_lines_count,",
         "       COALESCE((SELECT COUNT(*) FROM acks a WHERE a.import_id = i.id), 0) AS ack_count",
         "FROM imports i WHERE 1=1",
     ]
@@ -1315,6 +1514,7 @@ async def list_jobs(
                 processed_at=row["processed_at"].isoformat() if row["processed_at"] else None,
                 uploaded_by=row.get("uploaded_by"),
                 trading_partner_id=row.get("trading_partner_id"),
+                validation_status=row.get("validation_status"),
                 claims_count=row.get("claims_count"),
                 order_lines_count=row.get("order_lines_count"),
                 ack_count=int(row.get("ack_count") or 0),
@@ -1324,12 +1524,12 @@ async def list_jobs(
 
 
 @app.get("/jobs/{job_id}", response_model=JobDetail)
-async def job_detail(job_id: str):
+async def job_detail(job_id: str, _: None = Depends(require_secret)):
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT i.*,
+                SELECT i.*, 
                        COALESCE((SELECT COUNT(*) FROM acks a2 WHERE a2.import_id = i.id), 0) AS ack_count,
                        a.id AS ack_id,
                        a.ack_type,
@@ -1345,10 +1545,34 @@ async def job_detail(job_id: str):
             )
             rows = cur.fetchall()
 
-    if not rows:
-        raise HTTPException(status_code=404, detail="Job not found")
+            if not rows:
+                raise HTTPException(status_code=404, detail="Job not found")
 
-    base = rows[0]
+            base = rows[0]
+            import_id = base["id"]
+            cur.execute(
+                """
+                SELECT claim_id, amount, raw_claim, claim_status_code, cms_projection_json
+                  FROM claims
+                 WHERE import_id = %s
+                 ORDER BY id ASC
+                 LIMIT 50
+                """,
+                (import_id,),
+            )
+            claim_rows = cur.fetchall()
+            cur.execute(
+                """
+                SELECT id, event_type, detail_json, created_at
+                  FROM audit_events
+                 WHERE import_id = %s
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT 100
+                """,
+                (import_id,),
+            )
+            audit_rows = cur.fetchall()
+
     acks: List[Acknowledgement] = []
     for row in rows:
         if row.get("ack_id"):
@@ -1362,6 +1586,38 @@ async def job_detail(job_id: str):
                 )
             )
 
+    claims = [
+        ClaimArtifact(
+            claim_id=row.get("claim_id"),
+            amount=str(row.get("amount")) if row.get("amount") is not None else None,
+            raw_claim=row.get("raw_claim"),
+            claim_status_code=row.get("claim_status_code"),
+            cms_projection_json=row.get("cms_projection_json"),
+        )
+        for row in claim_rows
+    ]
+    audit_events = [
+        AuditEventRecord(
+            id=int(row["id"]),
+            event_type=row["event_type"],
+            created_at=row["created_at"].isoformat() if row.get("created_at") else None,
+            detail_json=row.get("detail_json"),
+        )
+        for row in audit_rows
+    ]
+    validation_issues = [
+        ValidationIssue(**item)
+        for item in (base.get("validation_report_json") or [])
+        if isinstance(item, dict)
+    ]
+    raw_payload_text = None
+    raw_bytes = base.get("original_content")
+    if raw_bytes is not None:
+        try:
+            raw_payload_text = bytes(raw_bytes).decode("utf-8", errors="replace")[:25000]
+        except Exception:
+            raw_payload_text = None
+
     ack_count_val = base.get("ack_count")
     detail = JobDetail(
         job_id=base["job_id"],
@@ -1373,16 +1629,99 @@ async def job_detail(job_id: str):
         processed_at=base["processed_at"].isoformat() if base["processed_at"] else None,
         uploaded_by=base.get("uploaded_by"),
         trading_partner_id=base.get("trading_partner_id"),
+        validation_status=base.get("validation_status"),
         claims_count=base.get("claims_count"),
         order_lines_count=base.get("order_lines_count"),
         ack_count=int(ack_count_val) if ack_count_val is not None else len(acks),
         acknowledgements=acks,
+        validation_report_json=validation_issues,
+        claims=claims,
+        audit_events=audit_events,
+        raw_payload_text=raw_payload_text,
     )
     return detail
 
 
+@app.get("/ops/summary", response_model=OpsSummary)
+async def ops_summary():
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(SUM(CASE WHEN created_at >= date_trunc('day', NOW()) THEN 1 ELSE 0 END), 0) AS imports_today,
+                    COALESCE(SUM(CASE WHEN status IN ('queued', 'processing') THEN 1 ELSE 0 END), 0) AS processing_now,
+                    COALESCE(SUM(CASE WHEN validation_status IN ('invalid', 'error') AND created_at >= NOW() - INTERVAL '24 hours' THEN 1 ELSE 0 END), 0) AS validation_failures_24h,
+                    AVG(CASE WHEN processed_at IS NOT NULL THEN EXTRACT(EPOCH FROM (processed_at - created_at)) END) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') AS avg_processing_seconds_24h
+                FROM imports
+                """
+            )
+            summary_row = cur.fetchone() or {}
+            cur.execute(
+                """
+                SELECT i.job_id, i.filename, i.file_type, i.byte_size, i.status, i.created_at, i.processed_at,
+                       i.uploaded_by, i.trading_partner_id, i.validation_status, i.claims_count, i.order_lines_count,
+                       COALESCE((SELECT COUNT(*) FROM acks a WHERE a.import_id = i.id), 0) AS ack_count
+                  FROM imports i
+                 ORDER BY i.created_at DESC
+                 LIMIT 8
+                """
+            )
+            recent_rows = cur.fetchall()
+            cur.execute(
+                """
+                SELECT COALESCE(NULLIF(trading_partner_id, ''), 'Unassigned') AS trading_partner_id,
+                       SUM(CASE WHEN validation_status IN ('invalid', 'error') THEN 1 ELSE 0 END) AS invalid_imports,
+                       SUM(CASE WHEN status IN ('queued', 'processing') THEN 1 ELSE 0 END) AS pending_imports
+                  FROM imports
+                 GROUP BY COALESCE(NULLIF(trading_partner_id, ''), 'Unassigned')
+                 HAVING SUM(CASE WHEN validation_status IN ('invalid', 'error') THEN 1 ELSE 0 END) > 0
+                     OR SUM(CASE WHEN status IN ('queued', 'processing') THEN 1 ELSE 0 END) > 0
+                 ORDER BY invalid_imports DESC, pending_imports DESC, trading_partner_id ASC
+                 LIMIT 6
+                """
+            )
+            partner_rows = cur.fetchall()
+
+    recent_imports = [
+        JobSummary(
+            job_id=row["job_id"],
+            filename=row["filename"],
+            file_type=row["file_type"],
+            byte_size=row["byte_size"],
+            status=row["status"],
+            created_at=row["created_at"].isoformat() if row["created_at"] else None,
+            processed_at=row["processed_at"].isoformat() if row["processed_at"] else None,
+            uploaded_by=row.get("uploaded_by"),
+            trading_partner_id=row.get("trading_partner_id"),
+            validation_status=row.get("validation_status"),
+            claims_count=row.get("claims_count"),
+            order_lines_count=row.get("order_lines_count"),
+            ack_count=int(row.get("ack_count") or 0),
+        )
+        for row in recent_rows
+    ]
+    partner_exceptions = [
+        OpsPartnerException(
+            trading_partner_id=row["trading_partner_id"],
+            invalid_imports=int(row.get("invalid_imports") or 0),
+            pending_imports=int(row.get("pending_imports") or 0),
+        )
+        for row in partner_rows
+    ]
+    avg_seconds = summary_row.get("avg_processing_seconds_24h")
+    return OpsSummary(
+        imports_today=int(summary_row.get("imports_today") or 0),
+        processing_now=int(summary_row.get("processing_now") or 0),
+        validation_failures_24h=int(summary_row.get("validation_failures_24h") or 0),
+        avg_processing_seconds_24h=float(avg_seconds) if avg_seconds is not None else None,
+        recent_imports=recent_imports,
+        partner_exceptions=partner_exceptions,
+    )
+
+
 @app.get("/jobs/{job_id}/acks", response_model=List[AcknowledgementSummary])
-async def list_job_acks(job_id: str):
+async def list_job_acks(job_id: str, _: None = Depends(require_secret)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM imports WHERE job_id = %s", (job_id,))
@@ -1417,7 +1756,7 @@ async def list_job_acks(job_id: str):
 
 
 @app.get("/jobs/{job_id}/download")
-async def download_original(job_id: str):
+async def download_original(job_id: str, _: None = Depends(require_secret)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1436,7 +1775,7 @@ async def download_original(job_id: str):
 
 
 @app.get("/jobs/{job_id}/acks/{ack_id}/download")
-async def download_ack(job_id: str, ack_id: int):
+async def download_ack(job_id: str, ack_id: int, _: None = Depends(require_secret)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1461,7 +1800,7 @@ async def download_ack(job_id: str, ack_id: int):
 
 
 @app.get("/jobs/{job_id}/acks.zip")
-async def download_ack_archive(job_id: str):
+async def download_ack_archive(job_id: str, _: None = Depends(require_secret)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM imports WHERE job_id = %s", (job_id,))
@@ -1500,6 +1839,676 @@ async def download_ack_archive(job_id: str):
     buffer.seek(0)
     headers = {"Content-Disposition": f'attachment; filename="{job_id}_acks.zip"'}
     return StreamingResponse(buffer, media_type="application/zip", headers=headers)
+
+
+# ---------------------------------------------------------------------------
+# Command Center API — routing, tier execution, exception workqueue
+# ---------------------------------------------------------------------------
+
+class RoutingDecisionSummary(BaseModel):
+    routing_decision_id: Optional[str] = None
+    file_id: Optional[str] = None
+    tier: int = 0
+    tier_label: str = "deterministic_fast_path"
+    score_total: float = 0.0
+    gate_triggers: Optional[list] = None
+    explanation: Optional[str] = None
+    decided_at: Optional[str] = None
+    decision_duration_ms: Optional[float] = None
+
+class TierExecutionSummary(BaseModel):
+    tier: int = 0
+    status: str = "pending"
+    processing_ms: Optional[float] = None
+    flags: Optional[list] = None
+    recommendations: Optional[list] = None
+    ai_analyses: Optional[list] = None
+    swarm_task_count: int = 0
+    supervisor_verdict: Optional[str] = None
+    error: Optional[str] = None
+    created_at: Optional[str] = None
+
+class JobRoutingDetail(BaseModel):
+    job_id: str
+    filename: Optional[str] = None
+    status: Optional[str] = None
+    routing: Optional[RoutingDecisionSummary] = None
+    tier_execution: Optional[TierExecutionSummary] = None
+
+class TierDistribution(BaseModel):
+    tier: int
+    tier_label: str
+    count: int
+    pct: float
+
+class ExceptionQueueItem(BaseModel):
+    job_id: str
+    filename: Optional[str] = None
+    status: str
+    tier: int
+    tier_label: str
+    score_total: float
+    flags: Optional[list] = None
+    supervisor_verdict: Optional[str] = None
+    claims_count: Optional[int] = None
+    total_claim_dollars: Optional[float] = None
+    created_at: Optional[str] = None
+    trading_partner_id: Optional[str] = None
+
+class CommandCenterSummary(BaseModel):
+    imports_today: int = 0
+    processing_now: int = 0
+    validation_failures_24h: int = 0
+    avg_processing_seconds_24h: Optional[float] = None
+    files_needing_action: int = 0
+    dollars_at_risk: float = 0.0
+    tier_distribution: List[TierDistribution] = []
+    exception_queue: List[ExceptionQueueItem] = []
+    recent_imports: List[JobSummary] = []
+    partner_exceptions: List[OpsPartnerException] = []
+
+
+@app.get("/ops/command-center", response_model=CommandCenterSummary)
+async def command_center():
+    """Exception Command Center — hero metrics, $ at risk, workqueues."""
+    tier_labels = {0: "deterministic_fast_path", 1: "assisted_review", 2: "supervised_swarm", 3: "human_exception"}
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Core metrics
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(SUM(CASE WHEN i.created_at >= date_trunc('day', NOW()) THEN 1 ELSE 0 END), 0) AS imports_today,
+                    COALESCE(SUM(CASE WHEN i.status IN ('queued', 'processing') THEN 1 ELSE 0 END), 0) AS processing_now,
+                    COALESCE(SUM(CASE WHEN i.validation_status IN ('invalid', 'error') AND i.created_at >= NOW() - INTERVAL '24 hours' THEN 1 ELSE 0 END), 0) AS validation_failures_24h,
+                    AVG(CASE WHEN i.processed_at IS NOT NULL THEN EXTRACT(EPOCH FROM (i.processed_at - i.created_at)) END)
+                        FILTER (WHERE i.created_at >= NOW() - INTERVAL '24 hours') AS avg_processing_seconds_24h
+                FROM imports i
+                """
+            )
+            metrics = cur.fetchone() or {}
+
+            # Tier distribution
+            cur.execute(
+                """
+                SELECT r.tier, COUNT(*) AS cnt
+                FROM routing_decisions r
+                JOIN imports i ON r.import_id = i.id
+                WHERE i.created_at >= NOW() - INTERVAL '24 hours'
+                GROUP BY r.tier
+                ORDER BY r.tier
+                """
+            )
+            tier_rows = cur.fetchall()
+            total_routed = sum(r["cnt"] for r in tier_rows) or 1
+            tier_dist = [
+                TierDistribution(
+                    tier=r["tier"],
+                    tier_label=tier_labels.get(r["tier"], f"tier_{r['tier']}"),
+                    count=r["cnt"],
+                    pct=round(r["cnt"] / total_routed * 100, 1),
+                )
+                for r in tier_rows
+            ]
+
+            # Exception queue: files needing action (parked, needs_review, flagged)
+            cur.execute(
+                """
+                SELECT i.job_id, i.filename, i.status, i.claims_count,
+                       i.trading_partner_id, i.created_at,
+                       r.tier, r.tier_label, r.score_total,
+                       t.flags, t.supervisor_verdict,
+                       COALESCE((SELECT SUM(c.amount) FROM claims c WHERE c.import_id = i.id), 0) AS total_claim_dollars
+                FROM imports i
+                JOIN routing_decisions r ON r.import_id = i.id
+                LEFT JOIN tier_executions t ON t.import_id = i.id
+                WHERE i.status IN ('parked', 'queued', 'processing')
+                   OR t.status IN ('parked', 'needs_review')
+                   OR i.validation_status IN ('invalid', 'error')
+                ORDER BY COALESCE((SELECT SUM(c.amount) FROM claims c WHERE c.import_id = i.id), 0) DESC,
+                         i.created_at DESC
+                LIMIT 20
+                """
+            )
+            exception_rows = cur.fetchall()
+
+            dollars_at_risk = 0.0
+            exception_queue = []
+            for row in exception_rows:
+                dollars = float(row.get("total_claim_dollars") or 0)
+                dollars_at_risk += dollars
+                flags_raw = row.get("flags")
+                if isinstance(flags_raw, str):
+                    try:
+                        flags_raw = json.loads(flags_raw)
+                    except Exception:
+                        flags_raw = []
+                exception_queue.append(
+                    ExceptionQueueItem(
+                        job_id=row["job_id"],
+                        filename=row.get("filename"),
+                        status=row["status"],
+                        tier=row["tier"],
+                        tier_label=row["tier_label"],
+                        score_total=float(row.get("score_total") or 0),
+                        flags=flags_raw,
+                        supervisor_verdict=row.get("supervisor_verdict"),
+                        claims_count=row.get("claims_count"),
+                        total_claim_dollars=dollars,
+                        created_at=row["created_at"].isoformat() if row.get("created_at") else None,
+                        trading_partner_id=row.get("trading_partner_id"),
+                    )
+                )
+
+            # Recent imports (same as ops/summary)
+            cur.execute(
+                """
+                SELECT i.job_id, i.filename, i.file_type, i.byte_size, i.status, i.created_at, i.processed_at,
+                       i.uploaded_by, i.trading_partner_id, i.validation_status, i.claims_count, i.order_lines_count,
+                       COALESCE((SELECT COUNT(*) FROM acks a WHERE a.import_id = i.id), 0) AS ack_count
+                FROM imports i
+                ORDER BY i.created_at DESC
+                LIMIT 10
+                """
+            )
+            recent_rows = cur.fetchall()
+
+            # Partner exceptions
+            cur.execute(
+                """
+                SELECT COALESCE(NULLIF(trading_partner_id, ''), 'Unassigned') AS trading_partner_id,
+                       SUM(CASE WHEN validation_status IN ('invalid', 'error') THEN 1 ELSE 0 END) AS invalid_imports,
+                       SUM(CASE WHEN status IN ('queued', 'processing') THEN 1 ELSE 0 END) AS pending_imports
+                FROM imports
+                GROUP BY COALESCE(NULLIF(trading_partner_id, ''), 'Unassigned')
+                HAVING SUM(CASE WHEN validation_status IN ('invalid', 'error') THEN 1 ELSE 0 END) > 0
+                    OR SUM(CASE WHEN status IN ('queued', 'processing') THEN 1 ELSE 0 END) > 0
+                ORDER BY invalid_imports DESC
+                LIMIT 6
+                """
+            )
+            partner_rows = cur.fetchall()
+
+    recent_imports = [
+        JobSummary(
+            job_id=row["job_id"], filename=row["filename"], file_type=row["file_type"],
+            byte_size=row["byte_size"], status=row["status"],
+            created_at=row["created_at"].isoformat() if row["created_at"] else None,
+            processed_at=row["processed_at"].isoformat() if row["processed_at"] else None,
+            uploaded_by=row.get("uploaded_by"), trading_partner_id=row.get("trading_partner_id"),
+            validation_status=row.get("validation_status"), claims_count=row.get("claims_count"),
+            order_lines_count=row.get("order_lines_count"),
+            ack_count=int(row.get("ack_count") or 0),
+        )
+        for row in recent_rows
+    ]
+    partner_exceptions = [
+        OpsPartnerException(
+            trading_partner_id=row["trading_partner_id"],
+            invalid_imports=int(row.get("invalid_imports") or 0),
+            pending_imports=int(row.get("pending_imports") or 0),
+        )
+        for row in partner_rows
+    ]
+    avg_s = metrics.get("avg_processing_seconds_24h")
+
+    return CommandCenterSummary(
+        imports_today=int(metrics.get("imports_today") or 0),
+        processing_now=int(metrics.get("processing_now") or 0),
+        validation_failures_24h=int(metrics.get("validation_failures_24h") or 0),
+        avg_processing_seconds_24h=float(avg_s) if avg_s is not None else None,
+        files_needing_action=len(exception_queue),
+        dollars_at_risk=round(dollars_at_risk, 2),
+        tier_distribution=tier_dist,
+        exception_queue=exception_queue,
+        recent_imports=recent_imports,
+        partner_exceptions=partner_exceptions,
+    )
+
+
+@app.get("/jobs/{job_id}/routing", response_model=JobRoutingDetail)
+async def job_routing_detail(job_id: str, _: None = Depends(require_secret)):
+    """Get routing decision and tier execution details for a specific job."""
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT id, job_id, filename, status FROM imports WHERE job_id = %s", (job_id,))
+            imp = cur.fetchone()
+            if not imp:
+                raise HTTPException(status_code=404, detail="Job not found")
+
+            import_id = imp["id"]
+
+            cur.execute(
+                """
+                SELECT routing_decision_id, file_id, tier, tier_label, score_total::float,
+                       gate_triggers, explanation, decided_at, decision_duration_ms::float
+                FROM routing_decisions WHERE import_id = %s ORDER BY id DESC LIMIT 1
+                """,
+                (import_id,),
+            )
+            rd = cur.fetchone()
+
+            cur.execute(
+                """
+                SELECT tier, status, processing_ms::float, flags, recommendations,
+                       ai_analyses, swarm_task_count, supervisor_verdict, error, created_at
+                FROM tier_executions WHERE import_id = %s ORDER BY id DESC LIMIT 1
+                """,
+                (import_id,),
+            )
+            te = cur.fetchone()
+
+    routing = None
+    if rd:
+        gt = rd.get("gate_triggers")
+        if isinstance(gt, str):
+            try: gt = json.loads(gt)
+            except Exception: gt = []
+        routing = RoutingDecisionSummary(
+            routing_decision_id=rd.get("routing_decision_id"),
+            file_id=rd.get("file_id"),
+            tier=rd["tier"], tier_label=rd["tier_label"],
+            score_total=rd["score_total"],
+            gate_triggers=gt,
+            explanation=rd.get("explanation"),
+            decided_at=rd["decided_at"].isoformat() if rd.get("decided_at") else None,
+            decision_duration_ms=rd.get("decision_duration_ms"),
+        )
+
+    tier_exec = None
+    if te:
+        for field in ("flags", "recommendations", "ai_analyses"):
+            v = te.get(field)
+            if isinstance(v, str):
+                try: te[field] = json.loads(v)
+                except Exception: te[field] = []
+        tier_exec = TierExecutionSummary(
+            tier=te["tier"], status=te["status"],
+            processing_ms=te.get("processing_ms"),
+            flags=te.get("flags"), recommendations=te.get("recommendations"),
+            ai_analyses=te.get("ai_analyses"),
+            swarm_task_count=te.get("swarm_task_count") or 0,
+            supervisor_verdict=te.get("supervisor_verdict"),
+            error=te.get("error"),
+            created_at=te["created_at"].isoformat() if te.get("created_at") else None,
+        )
+
+    return JobRoutingDetail(
+        job_id=imp["job_id"], filename=imp.get("filename"),
+        status=imp.get("status"), routing=routing, tier_execution=tier_exec,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Partner configuration CRUD
+# ---------------------------------------------------------------------------
+
+class PartnerConfig(BaseModel):
+    trading_partner_id: str
+    name: Optional[str] = None
+    contact_email: Optional[str] = None
+    default_transaction_types: List[str] = []
+    auto_ack: bool = False
+    notes: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+def _row_to_partner_config(row) -> dict:
+    dtypes = row.get("default_transaction_types")
+    if isinstance(dtypes, str):
+        try:
+            dtypes = json.loads(dtypes)
+        except Exception:
+            dtypes = []
+    if dtypes is None:
+        dtypes = []
+    return {
+        "trading_partner_id": row["trading_partner_id"],
+        "name": row.get("name"),
+        "contact_email": row.get("contact_email"),
+        "default_transaction_types": dtypes,
+        "auto_ack": bool(row.get("auto_ack", False)),
+        "notes": row.get("notes"),
+        "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+        "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+    }
+
+
+@app.get("/partners")
+async def list_partners(_: None = Depends(require_secret)):
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT trading_partner_id, name, contact_email, default_transaction_types,
+                       auto_ack, notes, created_at, updated_at
+                  FROM partner_configs
+                 ORDER BY trading_partner_id
+                """
+            )
+            rows = cur.fetchall()
+    return {"partners": [_row_to_partner_config(row) for row in rows]}
+
+
+@app.get("/partners/{partner_id}")
+async def get_partner(partner_id: str, _: None = Depends(require_secret)):
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT trading_partner_id, name, contact_email, default_transaction_types,
+                       auto_ack, notes, created_at, updated_at
+                  FROM partner_configs
+                 WHERE trading_partner_id = %s
+                """,
+                (partner_id,),
+            )
+            row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    return {"partner": _row_to_partner_config(row)}
+
+
+@app.post("/partners", status_code=201)
+async def create_partner(payload: PartnerConfig, _: None = Depends(require_secret)):
+    with get_db() as conn:
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    INSERT INTO partner_configs
+                        (trading_partner_id, name, contact_email, default_transaction_types, auto_ack, notes)
+                    VALUES (%s, %s, %s, %s::jsonb, %s, %s)
+                    RETURNING trading_partner_id, name, contact_email, default_transaction_types,
+                              auto_ack, notes, created_at, updated_at
+                    """,
+                    (
+                        payload.trading_partner_id,
+                        payload.name,
+                        payload.contact_email,
+                        json.dumps(payload.default_transaction_types),
+                        payload.auto_ack,
+                        payload.notes,
+                    ),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        except errors.UniqueViolation:
+            conn.rollback()
+            raise HTTPException(status_code=409, detail="Partner already exists")
+    return {"partner": _row_to_partner_config(row)}
+
+
+@app.put("/partners/{partner_id}")
+async def update_partner(
+    partner_id: str, payload: PartnerConfig, _: None = Depends(require_secret)
+):
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                UPDATE partner_configs
+                   SET name = %s,
+                       contact_email = %s,
+                       default_transaction_types = %s::jsonb,
+                       auto_ack = %s,
+                       notes = %s,
+                       updated_at = NOW()
+                 WHERE trading_partner_id = %s
+                RETURNING trading_partner_id, name, contact_email, default_transaction_types,
+                          auto_ack, notes, created_at, updated_at
+                """,
+                (
+                    payload.name,
+                    payload.contact_email,
+                    json.dumps(payload.default_transaction_types),
+                    payload.auto_ack,
+                    payload.notes,
+                    partner_id,
+                ),
+            )
+            row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="Partner not found")
+        conn.commit()
+    return {"partner": _row_to_partner_config(row)}
+
+
+@app.delete("/partners/{partner_id}")
+async def delete_partner(partner_id: str, _: None = Depends(require_secret)):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM partner_configs WHERE trading_partner_id = %s RETURNING trading_partner_id",
+                (partner_id,),
+            )
+            deleted = cur.fetchone()
+        if not deleted:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="Partner not found")
+        conn.commit()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Alerts endpoint
+# ---------------------------------------------------------------------------
+
+class AlertItem(BaseModel):
+    id: str
+    severity: str  # "critical" | "warning" | "info"
+    title: str
+    message: str
+    metric: str
+    threshold: float
+    current_value: float
+    created_at: str
+
+
+@app.get("/ops/alerts")
+async def ops_alerts():
+    """Return dynamically generated active alerts based on current system state."""
+    alerts: List[dict] = []
+    now_iso = datetime.datetime.utcnow().isoformat() + "Z"
+
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Files parked > 1 hour
+            cur.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                  FROM imports
+                 WHERE status IN ('parked', 'queued', 'processing')
+                   AND created_at < NOW() - INTERVAL '1 hour'
+                """
+            )
+            parked_row = cur.fetchone() or {}
+            parked_count = int(parked_row.get("cnt") or 0)
+
+            # Dollars at risk (parked/queued/processing)
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(c.amount), 0) AS total
+                  FROM claims c
+                  JOIN imports i ON c.import_id = i.id
+                 WHERE i.status IN ('parked', 'queued', 'processing')
+                """
+            )
+            dollars_row = cur.fetchone() or {}
+            dollars_at_risk = float(dollars_row.get("total") or 0)
+
+            # Validation failure rate in last hour
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN validation_status IN ('invalid', 'error') THEN 1 ELSE 0 END) AS failures
+                  FROM imports
+                 WHERE created_at >= NOW() - INTERVAL '1 hour'
+                """
+            )
+            vf_row = cur.fetchone() or {}
+            vf_total = int(vf_row.get("total") or 0)
+            vf_failures = int(vf_row.get("failures") or 0)
+            vf_rate = (vf_failures / vf_total * 100) if vf_total > 0 else 0.0
+
+            # Average processing time last hour
+            cur.execute(
+                """
+                SELECT AVG(EXTRACT(EPOCH FROM (processed_at - created_at))) AS avg_s
+                  FROM imports
+                 WHERE processed_at IS NOT NULL
+                   AND created_at >= NOW() - INTERVAL '1 hour'
+                """
+            )
+            avg_row = cur.fetchone() or {}
+            avg_proc = float(avg_row.get("avg_s") or 0)
+
+            # New partners (first submission in last 24h)
+            cur.execute(
+                """
+                SELECT trading_partner_id
+                  FROM imports
+                 WHERE trading_partner_id IS NOT NULL
+                   AND TRIM(trading_partner_id) <> ''
+                   AND created_at >= NOW() - INTERVAL '24 hours'
+                GROUP BY trading_partner_id
+                HAVING MIN(created_at) >= NOW() - INTERVAL '24 hours'
+                   AND COUNT(*) = 1
+                   AND NOT EXISTS (
+                       SELECT 1 FROM imports i2
+                        WHERE i2.trading_partner_id = imports.trading_partner_id
+                          AND i2.created_at < NOW() - INTERVAL '24 hours'
+                   )
+                """
+            )
+            new_partner_rows = cur.fetchall()
+
+            # Tier distribution shift (tier 2+ > 30% in last hour vs prior hour)
+            cur.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN r.tier >= 2 AND i.created_at >= NOW() - INTERVAL '1 hour' THEN 1 ELSE 0 END)::float
+                        / NULLIF(SUM(CASE WHEN i.created_at >= NOW() - INTERVAL '1 hour' THEN 1 ELSE 0 END), 0) AS recent_high_tier_pct,
+                    SUM(CASE WHEN r.tier >= 2 AND i.created_at BETWEEN NOW() - INTERVAL '2 hours' AND NOW() - INTERVAL '1 hour' THEN 1 ELSE 0 END)::float
+                        / NULLIF(SUM(CASE WHEN i.created_at BETWEEN NOW() - INTERVAL '2 hours' AND NOW() - INTERVAL '1 hour' THEN 1 ELSE 0 END), 0) AS prior_high_tier_pct
+                FROM imports i
+                LEFT JOIN routing_decisions r ON r.import_id = i.id
+                WHERE i.created_at >= NOW() - INTERVAL '2 hours'
+                """
+            )
+            tier_shift_row = cur.fetchone() or {}
+            recent_pct = float(tier_shift_row.get("recent_high_tier_pct") or 0) * 100
+            prior_pct = float(tier_shift_row.get("prior_high_tier_pct") or 0) * 100
+
+    # --- Critical alerts ---
+    if parked_count > 0:
+        alerts.append(
+            AlertItem(
+                id=f"parked_files_{parked_count}",
+                severity="critical",
+                title="Files stalled in queue",
+                message=f"{parked_count} file(s) have been queued or processing for over 1 hour without completion.",
+                metric="parked_files_over_1h",
+                threshold=0,
+                current_value=float(parked_count),
+                created_at=now_iso,
+            ).model_dump()
+        )
+
+    if dollars_at_risk > 1_000_000:
+        alerts.append(
+            AlertItem(
+                id="dollars_at_risk_critical",
+                severity="critical",
+                title="High dollar exposure in queue",
+                message=f"${dollars_at_risk:,.2f} in claims are currently in unprocessed or parked files.",
+                metric="dollars_at_risk",
+                threshold=1_000_000.0,
+                current_value=round(dollars_at_risk, 2),
+                created_at=now_iso,
+            ).model_dump()
+        )
+
+    # --- Warning alerts ---
+    if vf_rate > 20.0:
+        alerts.append(
+            AlertItem(
+                id="validation_failure_rate_warning",
+                severity="warning",
+                title="Elevated validation failure rate",
+                message=f"Validation failure rate is {vf_rate:.1f}% over the last hour ({vf_failures}/{vf_total} files).",
+                metric="validation_failure_rate_pct_1h",
+                threshold=20.0,
+                current_value=round(vf_rate, 2),
+                created_at=now_iso,
+            ).model_dump()
+        )
+
+    if avg_proc > 30.0:
+        alerts.append(
+            AlertItem(
+                id="avg_processing_time_warning",
+                severity="warning",
+                title="Slow average processing time",
+                message=f"Average processing time over the last hour is {avg_proc:.1f}s (threshold: 30s).",
+                metric="avg_processing_seconds_1h",
+                threshold=30.0,
+                current_value=round(avg_proc, 2),
+                created_at=now_iso,
+            ).model_dump()
+        )
+
+    # --- Info alerts ---
+    for row in new_partner_rows:
+        pid = row.get("trading_partner_id", "unknown")
+        alerts.append(
+            AlertItem(
+                id=f"new_partner_{pid}",
+                severity="info",
+                title="New trading partner first submission",
+                message=f"Trading partner '{pid}' submitted their first EDI file in the last 24 hours.",
+                metric="new_partner_submission",
+                threshold=0.0,
+                current_value=1.0,
+                created_at=now_iso,
+            ).model_dump()
+        )
+
+    if prior_pct > 0 and recent_pct > prior_pct * 1.5 and recent_pct > 10:
+        alerts.append(
+            AlertItem(
+                id="tier_distribution_shift_info",
+                severity="info",
+                title="Tier distribution shift detected",
+                message=f"High-complexity files (tier 2+) rose from {prior_pct:.1f}% to {recent_pct:.1f}% of submissions in the last hour.",
+                metric="high_tier_pct_1h",
+                threshold=round(prior_pct, 2),
+                current_value=round(recent_pct, 2),
+                created_at=now_iso,
+            ).model_dump()
+        )
+
+    return {"alerts": alerts, "count": len(alerts)}
+
+
+# ---------------------------------------------------------------------------
+# WebSocket endpoint
+# ---------------------------------------------------------------------------
+
+@app.websocket("/ws/jobs")
+async def websocket_jobs(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            # Keep the connection alive; client may send pings
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception:
+        ws_manager.disconnect(websocket)
 
 
 @app.on_event("shutdown")

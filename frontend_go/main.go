@@ -389,7 +389,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprintf(w, "window.HEDI_API_BASE = %q;\nwindow.HEDI_INGEST_URL = %q;\nwindow.HEDI_JOBS_URL = %q;\nwindow.HEDI_OAUTH2_START = %q;\n", apiBase, ingest, jobs, oauthStart)
+	fmt.Fprintf(w, "window.HEDI_API_BASE = %q;\nwindow.HEDI_INGEST_URL = %q;\nwindow.HEDI_JOBS_URL = %q;\nwindow.HEDI_OAUTH2_START = %q;\nwindow.HEDI_SHARED_SECRET = %q;\n", apiBase, ingest, jobs, oauthStart, sharedSecret)
 }
 
 func isSafeUsername(v string) bool {
@@ -582,29 +582,9 @@ func classifyPath(p string) accessLevel {
 	if strings.HasPrefix(p+"/", "/admin/") {
 		return accessAdmin
 	}
-	portalExact := map[string]bool{
-		"/portal":           true,
-		"/portal.html":      true,
-		"/processed":        true,
-		"/processed.html":   true,
-		"/claim-entry":      true,
-		"/claim-entry.html": true,
-		"/hedi-edit":      true,
-		"/hedi-edit.html": true,
-		"/about":            true,
-		"/about.html":       true,
-		"/edi-news":         true,
-		"/edi-news.html":    true,
-	}
-	if portalExact[p] {
-		return accessPortal
-	}
-	portalPrefixes := []string{"/portal/", "/processed/", "/claim-entry/", "/hedi-edit/"}
-	for _, pref := range portalPrefixes {
-		if strings.HasPrefix(p+"/", pref) {
-			return accessPortal
-		}
-	}
+	// Portal and workspace pages are now public (read-only).
+	// Write operations are protected at the API level.
+	// Only admin pages remain behind auth.
 	return accessNone
 }
 
@@ -725,6 +705,28 @@ func main() {
 		mux.Handle("/ingest", handler)
 		mux.Handle("/jobs", handler)
 		mux.Handle("/jobs/", handler)
+		// Ops endpoints are public (command center is the landing page)
+		opsProxy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Header.Del("Cookie")
+			proxy.ServeHTTP(w, r)
+		})
+		mux.Handle("/ops/", opsProxy)
+		mux.Handle("/ops/summary", opsProxy)
+		mux.Handle("/ops/command-center", opsProxy)
+		// Partner config endpoints (public for self-service)
+		mux.Handle("/partners", opsProxy)
+		mux.Handle("/partners/", opsProxy)
+		// WebSocket proxy for real-time updates
+		mux.HandleFunc("/ws/", func(w http.ResponseWriter, r *http.Request) {
+			wsTarget := *apiProxyTarget
+			if wsTarget.Scheme == "http" {
+				wsTarget.Scheme = "ws"
+			} else {
+				wsTarget.Scheme = "wss"
+			}
+			wsTarget.Path = r.URL.Path
+			proxy.ServeHTTP(w, r)
+		})
 		apiProxyEnabled = true
 	}
 

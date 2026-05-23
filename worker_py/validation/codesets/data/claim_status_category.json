@@ -1,0 +1,30 @@
+{
+  "name": "claim_status_category",
+  "description": "Health Care Claim Status Category Codes (STC01-1) used in 277 / 277CA.",
+  "source": "X12 / Washington Publishing Company Claim Status Category Codes (public)",
+  "complete": false,
+  "codes": {
+    "A0": "Acknowledgement/Forwarded - The claim/encounter has been forwarded to another entity.",
+    "A1": "Acknowledgement/Receipt - The claim/encounter has been received.",
+    "A2": "Acknowledgement/Acceptance into adjudication system.",
+    "A3": "Acknowledgement/Returned as unprocessable claim.",
+    "A4": "Acknowledgement/Not Found - The claim/encounter cannot be found.",
+    "A5": "Acknowledgement/Split Claim.",
+    "A6": "Acknowledgement/Rejected for Missing Information.",
+    "A7": "Acknowledgement/Rejected for Invalid Information.",
+    "A8": "Acknowledgement/Rejected for relational field in error.",
+    "P0": "Pending - The claim/encounter is pending.",
+    "P1": "Pending/In Process - awaiting completion of the adjudication cycle.",
+    "P2": "Pending/Payer Review.",
+    "P3": "Pending/Provider Requested Information.",
+    "P4": "Pending/Patient Requested Information.",
+    "P5": "Pending/Payer Administrative/System hold.",
+    "F0": "Finalized - The claim/encounter has completed the adjudication cycle.",
+    "F1": "Finalized/Payment - The claim/line has been paid.",
+    "F2": "Finalized/Denial - The claim/line has been denied.",
+    "F3": "Finalized/Revised - Adjudication information has been changed.",
+    "F4": "Finalized/Forwarded - completed and forwarded to another entity.",
+    "R1": "Request for additional information - General.",
+    "R3": "Request for additional information - Claim/Line."
+  }
+}

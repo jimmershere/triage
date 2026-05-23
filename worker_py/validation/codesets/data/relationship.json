@@ -1,0 +1,17 @@
+{
+  "name": "relationship",
+  "description": "Individual relationship codes (X12 element 1069) used in SBR02 and PAT01.",
+  "source": "X12 element 1069 — curated healthcare subset",
+  "complete": false,
+  "codes": {
+    "01": "Spouse",
+    "18": "Self",
+    "19": "Child",
+    "20": "Employee",
+    "21": "Unknown",
+    "39": "Organ Donor",
+    "40": "Cadaver Donor",
+    "53": "Life Partner",
+    "G8": "Other Relationship"
+  }
+}

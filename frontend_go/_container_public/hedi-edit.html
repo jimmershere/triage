@@ -1,17 +1,17 @@
 <!doctype html>
-<!-- Container variant of the HEDI Edits workspace -->
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>HEDI — HEDI Edits Workspace</title>
+  <title>TurboHEDI — Edits Studio</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
+  <link rel="stylesheet" href="/static/css/studio.css"/>
 </head>
 <body data-requires-auth="portal">
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="TurboHEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="TurboHEDI logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
@@ -27,8 +27,8 @@
           <span class="nav-group-label">Workspace tools</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
           <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html" aria-current="page">HEDI Edits</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html" aria-current="page">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Resources</span>
@@ -46,109 +46,142 @@
       </div>
     </aside>
     <div class="app-main">
-      <main class="container edits-container">
-        <section class="card">
-          <div class="badge badge-loud">Submitter workspace</div>
-          <h1>HEDI Edits Studio</h1>
-          <p class="muted">Search, repair, and resubmit X12 payloads that were halted by syntax or formatting issues. Users with submit access can trace segment-level changes in the visual canvas while updating the raw transaction file.</p>
+      <main class="container studio-container">
 
-          <div class="edits-layout">
-            <aside class="edits-sidebar" data-requires-role="submit">
-              <div class="field-group">
-                <label class="field-label" for="fileSearch">Search X12 files</label>
-                <input type="search" id="fileSearch" placeholder="Search by file name, identifier, or trading partner" autocomplete="off" data-requires-role="submit"/>
-              </div>
-
-              <div class="file-results" id="fileResults" role="list" aria-live="polite"></div>
-
-              <button type="button" class="pill-button" id="newFileButton" data-requires-role="submit">Add new file</button>
-
-              <form id="newFileForm" class="card inline-form" hidden>
-                <fieldset>
-                  <legend>Create new correction file</legend>
-                  <label class="field-label" for="newFileName">File name</label>
-                  <input type="text" id="newFileName" name="newFileName" placeholder="e.g. 837P-FollowUp" required data-requires-role="submit"/>
-
-                  <label class="field-label" for="newFileTemplate">Template</label>
-                  <select id="newFileTemplate" name="newFileTemplate" data-requires-role="submit">
-                    <option value="837p">837 Professional</option>
-                    <option value="837i">837 Institutional</option>
-                    <option value="837d">837 Dental</option>
-                    <option value="835">835 Remittance</option>
-                  </select>
-
-                  <label class="field-label" for="newFileNotes">Notes</label>
-                  <textarea id="newFileNotes" name="newFileNotes" rows="3" placeholder="Describe the correction goal" data-requires-role="submit"></textarea>
-                </fieldset>
-                <div class="inline-actions">
-                  <button type="submit" class="pill-button" id="createFile" data-requires-role="submit">Create file</button>
-                  <button type="button" class="pill-button ghost" id="cancelCreate" data-requires-role="submit">Cancel</button>
-                </div>
-              </form>
-            </aside>
-
-            <section class="edits-editor" aria-live="polite">
-              <header class="editor-header" data-requires-role="submit">
-                <div class="editor-title-group">
-                  <label class="field-label" for="fileNameInput">File name</label>
-                  <input type="text" id="fileNameInput" placeholder="Select a file to edit" autocomplete="off" data-requires-role="submit"/>
-                </div>
-                <div class="editor-status">
-                  <div class="file-selector" data-requires-role="submit">
-                    <input type="file" id="localFileInput" accept=".edi,.x12,.txt,.xml" hidden data-requires-role="submit"/>
-                    <button type="button" class="pill-button ghost" id="browseLocalFile" data-requires-role="submit">Browse File…</button>
-                    <span id="fileSelectionLabel" class="muted file-selector__label" aria-live="polite">No file selected</span>
-                  </div>
-                  <span id="fileStatus" class="status-pill" aria-live="polite">No file selected</span>
-                  <small id="fileUpdated" class="muted"></small>
-                </div>
-              </header>
-
-              <div class="editor-body" data-requires-role="submit">
-                <div class="editor-actions">
-                  <button type="button" class="pill-button" id="saveFile" data-requires-role="submit">Save with new version</button>
-                  <button type="button" class="pill-button ghost" id="submitFile" data-requires-role="submit">Submit to Worker API</button>
-                  <button type="button" class="pill-button ghost" id="resubmitFile" data-requires-role="submit">Resubmit last claim</button>
-                </div>
-                <div id="fileToast" class="toast" role="status" aria-live="assertive" hidden></div>
-              </div>
-
-              <div class="mapper-pane" data-requires-role="submit">
-                <div class="card mapper-card">
-                  <div class="mapper-heading">
-                    <h2>Mapping canvas</h2>
-                    <p class="muted">Files open directly into the XML-style preview — use the palette to append additional segments for reference.</p>
-                  </div>
-                  <div class="mapper-columns">
-                    <div class="card mapper-column">
-                      <h3>Segment palette</h3>
-                      <p class="muted">Drag segment identifiers into the canvas or click to append.</p>
-                      <ul id="segments" class="segment-list"></ul>
-                    </div>
-                    <div class="card mapper-column">
-                      <div class="canvas-toolbar" role="group" aria-label="Canvas tools">
-                        <h3>HEDI Canvas preview</h3>
-                        <button type="button" class="pill-button ghost" id="nextCanvasIssue" data-requires-role="submit">
-                          Next highlighted row <span class="shortcut-hint">(Alt+Shift+E)</span>
-                        </button>
-                      </div>
-                      <div id="canvas" class="canvas-grid" aria-live="polite">
-                        <p id="canvasEmpty" class="canvas-empty">Drop segments here to build your flow…</p>
-                      </div>
-                      <div class="canvas-action-bar" data-requires-role="submit">
-                        <button type="button" class="pill-button" id="canvasSaveFile" data-requires-role="submit">Save edited file</button>
-                        <button type="button" class="pill-button ghost" id="canvasSubmitFile" data-requires-role="submit">Submit to API</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
+        <!-- Studio Header -->
+        <header class="studio-header">
+          <div class="studio-title-row">
+            <h1 class="studio-title">Edits Studio</h1>
+            <span class="studio-subtitle">Search, repair, and resubmit X12 payloads halted by syntax or formatting issues.</span>
           </div>
-        </section>
+          <div class="studio-actions-row" data-requires-role="submit">
+            <button type="button" class="pill-button" id="saveFile" data-requires-role="submit">Save version</button>
+            <button type="button" class="pill-button ghost" id="submitFile" data-requires-role="submit">Submit to API</button>
+            <button type="button" class="pill-button ghost" id="resubmitFile" data-requires-role="submit">Resubmit</button>
+          </div>
+        </header>
+
+        <div id="fileToast" class="toast" role="status" aria-live="assertive" hidden></div>
+
+        <!-- Three-column Studio Layout -->
+        <div class="studio-layout" data-requires-role="submit">
+
+          <!-- Panel 1: File Browser -->
+          <aside class="studio-panel studio-panel--files">
+            <div class="panel-header">
+              <h2 class="panel-title">Files</h2>
+              <button type="button" class="panel-action-btn" id="newFileButton" title="New file" data-requires-role="submit">+</button>
+            </div>
+
+            <div class="field-group">
+              <input type="search" id="fileSearch" class="studio-input" placeholder="Search files..." autocomplete="off" data-requires-role="submit"/>
+            </div>
+
+            <div class="file-results" id="fileResults" role="list" aria-live="polite"></div>
+
+            <form id="newFileForm" class="new-file-form" hidden>
+              <fieldset>
+                <legend class="panel-section-title">New correction file</legend>
+                <label class="field-label" for="newFileName">Name</label>
+                <input type="text" id="newFileName" name="newFileName" class="studio-input" placeholder="e.g. 837P-FollowUp" required data-requires-role="submit"/>
+                <label class="field-label" for="newFileTemplate">Template</label>
+                <select id="newFileTemplate" name="newFileTemplate" class="studio-input" data-requires-role="submit">
+                  <option value="837p">837 Professional</option>
+                  <option value="837i">837 Institutional</option>
+                  <option value="837d">837 Dental</option>
+                  <option value="835">835 Remittance</option>
+                </select>
+                <label class="field-label" for="newFileNotes">Notes</label>
+                <textarea id="newFileNotes" name="newFileNotes" class="studio-input" rows="2" placeholder="Correction goal" data-requires-role="submit"></textarea>
+              </fieldset>
+              <div class="form-actions">
+                <button type="submit" class="pill-button pill-button--sm" id="createFile" data-requires-role="submit">Create</button>
+                <button type="button" class="pill-button pill-button--sm ghost" id="cancelCreate" data-requires-role="submit">Cancel</button>
+              </div>
+            </form>
+          </aside>
+
+          <!-- Panel 2: Raw X12 Editor -->
+          <section class="studio-panel studio-panel--editor">
+            <div class="panel-header">
+              <div class="editor-file-info">
+                <input type="text" id="fileNameInput" class="editor-filename" placeholder="Select a file" autocomplete="off" data-requires-role="submit"/>
+                <span id="fileStatus" class="status-pill" aria-live="polite">No file</span>
+                <small id="fileUpdated" class="muted"></small>
+              </div>
+              <div class="editor-file-actions">
+                <input type="file" id="localFileInput" accept=".edi,.x12,.txt,.xml" hidden data-requires-role="submit"/>
+                <button type="button" class="pill-button pill-button--sm ghost" id="browseLocalFile" data-requires-role="submit">Upload</button>
+                <span id="fileSelectionLabel" class="muted file-selector__label" aria-live="polite"></span>
+              </div>
+            </div>
+            <div class="editor-pane">
+              <div class="editor-gutter" id="editorGutter" aria-hidden="true"></div>
+              <textarea id="fileEditor" class="editor-textarea" placeholder="Raw X12 content will appear here when a file is selected..." spellcheck="false" data-requires-role="submit"></textarea>
+            </div>
+          </section>
+
+          <!-- Panel 3: Visual Canvas Preview -->
+          <section class="studio-panel studio-panel--canvas">
+            <div class="panel-header">
+              <h2 class="panel-title">Visual Preview</h2>
+              <div class="canvas-nav-tools">
+                <button type="button" class="pill-button pill-button--sm ghost" id="nextCanvasIssue" data-requires-role="submit" title="Alt+Shift+E">
+                  Next issue
+                </button>
+              </div>
+            </div>
+
+            <!-- Segment Palette (collapsible) -->
+            <details class="palette-collapse">
+              <summary class="palette-toggle">Segment Palette</summary>
+              <div class="palette-groups">
+                <div class="palette-group">
+                  <span class="palette-group-label">Envelope</span>
+                  <ul id="segmentGroupEnvelope" class="segment-list segment-list--compact"></ul>
+                </div>
+                <div class="palette-group">
+                  <span class="palette-group-label">Claim</span>
+                  <ul id="segmentGroupClaim" class="segment-list segment-list--compact"></ul>
+                </div>
+                <div class="palette-group">
+                  <span class="palette-group-label">Service</span>
+                  <ul id="segmentGroupService" class="segment-list segment-list--compact"></ul>
+                </div>
+              </div>
+            </details>
+
+            <!-- Canvas Grid -->
+            <div id="canvas" class="canvas-grid" aria-live="polite">
+              <p id="canvasEmpty" class="canvas-empty">Select a file to see its segment structure visualized here.</p>
+            </div>
+
+            <div class="canvas-action-bar" data-requires-role="submit">
+              <button type="button" class="pill-button pill-button--sm" id="canvasSaveFile" data-requires-role="submit">Save</button>
+              <button type="button" class="pill-button pill-button--sm ghost" id="canvasSubmitFile" data-requires-role="submit">Submit</button>
+            </div>
+          </section>
+        </div>
       </main>
+
+      <!-- ClawFirm Footer -->
+      <footer class="site-footer">
+        <div class="footer-inner">
+          <span class="footer-brand">TurboHEDI</span>
+          <span class="footer-separator">|</span>
+          <span class="footer-powered">Built by <strong>The Claw Firm</strong></span>
+          <span class="footer-separator">|</span>
+          <span class="footer-links">
+            <a href="/about.html">About</a>
+            <a href="https://clawfactory.net" target="_blank" rel="noopener">ClawFactory</a>
+          </span>
+        </div>
+      </footer>
     </div>
   </div>
+
+  <!-- Hidden palette target for mapper.js compatibility -->
+  <ul id="segments" class="segment-list" hidden></ul>
 
   <script src="/static/js/support_config.js"></script>
   <script src="/static/js/auth_config.js"></script>
@@ -157,5 +190,6 @@
   <script src="/static/js/chatbot.js"></script>
   <script src="/static/js/mapper.js"></script>
   <script src="/static/js/edits.js"></script>
+  <script src="/static/js/studio-edits.js"></script>
 </body>
 </html>

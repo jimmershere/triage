@@ -4,61 +4,34 @@ import json
 import logging
 import os
 import re
+import tempfile
 import time
 import uuid
 from contextlib import closing
+from dataclasses import asdict
 from pathlib import Path
-from contextlib import closing
 
 import pika
 import psycopg2
 from dotenv import load_dotenv
-from psycopg2.extras import execute_batch
+from psycopg2.extras import Json, execute_batch
 
 try:  # When running as part of the package
+    from worker_py.tools_x12_cms_harness import parse_x12, run_harness
     from worker_py.translators import AckRecord, select_translator, TranslationOutcome
+    from worker_py.file_profiler import profile_file, enrich_with_harness
+    from worker_py.complexity_scorer import score_file
+    from worker_py.routing_engine import route_file, TIER_LABELS
+    from worker_py.tier_executor import execute_tier, TierResult
+    from worker_py.turbo_pipeline import run_pipeline as turbo_run_pipeline
 except ModuleNotFoundError:  # When executed from the worker directory directly
+    from tools_x12_cms_harness import parse_x12, run_harness
     from translators import AckRecord, select_translator, TranslationOutcome
-
-import pika
-import psycopg2
-from dotenv import load_dotenv
-from psycopg2.extras import execute_batch
-
-try:  # When running as part of the package
-    from worker_py.translators import AckRecord, select_translator, TranslationOutcome
-except ModuleNotFoundError:  # When executed from the worker directory directly
-    from translators import AckRecord, select_translator, TranslationOutcome
-
-import pika
-import psycopg2
-from dotenv import load_dotenv
-from psycopg2.extras import execute_batch
-
-try:  # When running as part of the package
-    from worker_py.translators import AckRecord, select_translator, TranslationOutcome
-except ModuleNotFoundError:  # When executed from the worker directory directly
-    from translators import AckRecord, select_translator, TranslationOutcome
-
-import pika
-import psycopg2
-from dotenv import load_dotenv
-from psycopg2.extras import execute_batch
-
-try:  # When running as part of the package
-    from worker_py.translators import AckRecord, select_translator, TranslationOutcome
-except ModuleNotFoundError:  # When executed from the worker directory directly
-    from translators import AckRecord, select_translator, TranslationOutcome
-
-import pika
-import psycopg2
-from dotenv import load_dotenv
-from psycopg2.extras import execute_batch
-
-try:  # When running as part of the package
-    from worker_py.translators import AckRecord, select_translator, TranslationOutcome
-except ModuleNotFoundError:  # When executed from the worker directory directly
-    from translators import AckRecord, select_translator, TranslationOutcome
+    from file_profiler import profile_file, enrich_with_harness
+    from complexity_scorer import score_file
+    from routing_engine import route_file, TIER_LABELS
+    from tier_executor import execute_tier, TierResult
+    from turbo_pipeline import run_pipeline as turbo_run_pipeline
 
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -70,6 +43,12 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://edi:edi@postgres:5432/edi?sslmode=require"
 )
 ARCHIVE_DIR = os.getenv("ARCHIVE_DIR", "/archive")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+# Toggle the Phase 1-3 turbo pipeline (validation + scrubbing) on each import.
+# Disabled defensively if a deployment hits an unexpected issue — the legacy
+# harness + routing flow above is unaffected either way.
+TURBO_PIPELINE_ENABLED = os.getenv("TURBO_PIPELINE_ENABLED", "1") not in ("0", "false", "no")
 
 def get_rmq_channel():
     """
@@ -90,7 +69,7 @@ def get_rmq_channel():
         port=rmq_port,
         virtual_host=rmq_vhost,
         credentials=creds,
-        heartbeat=30,
+        heartbeat=600,
         blocked_connection_timeout=300,
         # These two let pika retry the TCP connect step internally
         connection_attempts=12,
@@ -143,6 +122,8 @@ def ensure_core_ingest_tables(conn) -> None:
                 status TEXT NOT NULL DEFAULT 'queued',
                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 processed_at TIMESTAMP,
+                validation_status TEXT NOT NULL DEFAULT 'pending',
+                validation_report_json JSONB,
                 claims_count INTEGER,
                 order_lines_count INTEGER
             )
@@ -155,7 +136,20 @@ def ensure_core_ingest_tables(conn) -> None:
                 import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
                 claim_id TEXT,
                 amount NUMERIC(12,2),
-                raw_claim TEXT
+                raw_claim TEXT,
+                cms_projection_json JSONB,
+                claim_status_code TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                event_type TEXT NOT NULL,
+                detail_json JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
             )
             """
         )
@@ -296,12 +290,155 @@ def ensure_import_uploaded_by(conn) -> None:
         conn.commit()
 
 
+def ensure_validation_columns(conn) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT table_name, column_name
+              FROM information_schema.columns
+             WHERE table_name IN ('imports', 'claims')
+               AND column_name IN (
+                   'validation_status',
+                   'validation_report_json',
+                   'cms_projection_json',
+                   'claim_status_code'
+               )
+            """
+        )
+        existing = {(row[0], row[1]) for row in cur.fetchall()}
+
+    with conn.cursor() as cur:
+        if ('imports', 'validation_status') not in existing:
+            logger.info("Adding validation_status column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN validation_status TEXT")
+        if ('imports', 'validation_report_json') not in existing:
+            logger.info("Adding validation_report_json column to imports table")
+            cur.execute("ALTER TABLE imports ADD COLUMN validation_report_json JSONB")
+        if ('claims', 'cms_projection_json') not in existing:
+            logger.info("Adding cms_projection_json column to claims table")
+            cur.execute("ALTER TABLE claims ADD COLUMN cms_projection_json JSONB")
+        if ('claims', 'claim_status_code') not in existing:
+            logger.info("Adding claim_status_code column to claims table")
+            cur.execute("ALTER TABLE claims ADD COLUMN claim_status_code TEXT")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                event_type TEXT NOT NULL,
+                detail_json JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+
+    with conn.cursor() as cur:
+        cur.execute("UPDATE imports SET validation_status = 'pending' WHERE validation_status IS NULL")
+        cur.execute("ALTER TABLE imports ALTER COLUMN validation_status SET DEFAULT 'pending'")
+        cur.execute("ALTER TABLE imports ALTER COLUMN validation_status SET NOT NULL")
+
+    conn.commit()
+
+
+def ensure_routing_tables(conn) -> None:
+    """Create the routing_decisions and tier_executions tables."""
+    logger.info("Ensuring routing + tier execution tables exist (worker)")
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS routing_decisions (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                routing_decision_id TEXT NOT NULL,
+                file_id TEXT NOT NULL,
+                tier INTEGER NOT NULL DEFAULT 0,
+                tier_label TEXT NOT NULL DEFAULT 'deterministic_fast_path',
+                score_total NUMERIC(6,2) NOT NULL DEFAULT 0,
+                gate_triggers JSONB,
+                explanation TEXT,
+                policy_version TEXT NOT NULL DEFAULT '1.0.0',
+                scorer_version TEXT NOT NULL DEFAULT '1.0.0',
+                file_profile_json JSONB,
+                score_detail_json JSONB,
+                decided_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                decision_duration_ms NUMERIC(8,2)
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_routing_decisions_import_id ON routing_decisions(import_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_routing_decisions_tier ON routing_decisions(tier)"
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tier_executions (
+                id SERIAL PRIMARY KEY,
+                import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+                routing_decision_id TEXT,
+                tier INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                processing_ms NUMERIC(10,2),
+                flags JSONB,
+                recommendations JSONB,
+                ai_analyses JSONB,
+                swarm_task_count INTEGER DEFAULT 0,
+                supervisor_verdict TEXT,
+                error TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tier_executions_import_id ON tier_executions(import_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tier_executions_status ON tier_executions(status)"
+        )
+    conn.commit()
+
+
 def run_startup_migrations() -> None:
-    with closing(get_db()) as conn:
-        ensure_core_ingest_tables(conn)
-        ensure_import_core_columns(conn)
-        ensure_import_job_ids(conn)
-        ensure_import_uploaded_by(conn)
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            with closing(get_db()) as conn:
+                ensure_core_ingest_tables(conn)
+                ensure_import_core_columns(conn)
+                ensure_import_job_ids(conn)
+                ensure_import_uploaded_by(conn)
+                ensure_validation_columns(conn)
+                ensure_routing_tables(conn)
+            return
+        except Exception as e:
+            wait = min(3 + attempts * 2, 30)
+            logger.warning("DB not ready for migrations (%s). Retry %d in %ds...", repr(e), attempts, wait)
+            time.sleep(wait)
+
+
+def is_x12_837(text: str) -> bool:
+    try:
+        segments = parse_x12(text)
+    except Exception:
+        return False
+    return any(seg and seg[0].upper() == 'ST' and len(seg) > 1 and seg[1] == '837' for seg in segments)
+
+
+def run_x12_harness(text: str, filename: str):
+    suffix = Path(filename or 'upload.x12').suffix or '.x12'
+    with tempfile.NamedTemporaryFile('w', suffix=suffix, delete=True, encoding='utf-8') as tmp:
+        tmp.write(text)
+        tmp.flush()
+        return run_harness(Path(tmp.name))
+
+
+def persist_audit_event(cur, import_id: int, event_type: str, detail: dict | list | None) -> None:
+    cur.execute(
+        "INSERT INTO audit_events (import_id, event_type, detail_json) VALUES (%s,%s,%s)",
+        (import_id, event_type, Json(detail) if detail is not None else None),
+    )
 
 def detect_format(text: str) -> str:
     head = text.strip()[:3].upper()
@@ -446,6 +583,27 @@ def process_payload(payload: dict):
     order_lines_count: int | None = None
     ack_records: list[AckRecord] = []
     job_uuid: uuid.UUID | None = None
+    validation_status = 'pending'
+    validation_report_json = None
+    harness_report = None
+
+    # --- Complexity-Aware Routing: profile the file before processing ---
+    profile_start = time.perf_counter()
+    file_profile = profile_file(
+        text,
+        file_id=payload.get("job_id") or job_hint,
+        partner_id=payload.get("trading_partner_id"),
+        trading_partner_id=payload.get("trading_partner_id"),
+        byte_size=size,
+    )
+    logger.info(
+        "Profiled file %s: standard=%s, segments=%d, tx=%d (%.3fs)",
+        file_profile.file_id,
+        file_profile.document_standard,
+        file_profile.segment_count,
+        file_profile.transaction_count,
+        time.perf_counter() - profile_start,
+    )
 
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -462,6 +620,221 @@ def process_payload(payload: dict):
 
             translator = select_translator(ftype, text)
             translation: TranslationOutcome | None = None
+            if ftype.startswith('X12') and is_x12_837(text):
+                try:
+                    harness_report = run_x12_harness(text, filename)
+                    validation_status = 'valid' if harness_report.valid else 'invalid'
+                    validation_report_json = [asdict(issue) for issue in harness_report.issues[:5]]
+                    claims_count = harness_report.claim_count
+                    persist_audit_event(
+                        cur,
+                        import_id,
+                        'validation_completed',
+                        {
+                            'validation_status': validation_status,
+                            'claim_count': harness_report.claim_count,
+                            'issues_preview': validation_report_json,
+                        },
+                    )
+                except Exception as exc:
+                    logger.exception('X12 CMS harness failed for import %s', import_id)
+                    validation_status = 'error'
+                    validation_report_json = [
+                        {
+                            'severity': 'error',
+                            'code': 'HARNESS_ERROR',
+                            'message': str(exc),
+                        }
+                    ]
+                    persist_audit_event(
+                        cur,
+                        import_id,
+                        'validation_error',
+                        {'message': str(exc)},
+                    )
+
+            # --- Phase 1-3 turbo pipeline: SNIP 1-7 validation + CMS scrubbing ---
+            # Runs alongside the legacy 837 harness above and never blocks it.
+            # Captured as audit events so the routing/tier flow below is unaffected.
+            if TURBO_PIPELINE_ENABLED and ftype.startswith('X12'):
+                try:
+                    turbo_start = time.perf_counter()
+                    turbo = turbo_run_pipeline(text, scrub=True)
+                    persist_audit_event(
+                        cur, import_id, 'turbo_validation',
+                        {
+                            'transaction_set': turbo.transaction_set,
+                            'implementation_version': turbo.implementation_version,
+                            'valid': turbo.valid,
+                            'error_count': turbo.validation.get('error_count'),
+                            'warning_count': turbo.validation.get('warning_count'),
+                            'claim_count': turbo.validation.get('claim_count'),
+                            'snip_summary': turbo.validation.get('snip_summary'),
+                            'issues_preview': turbo.validation.get('issues', [])[:5],
+                        },
+                    )
+                    if turbo.scrubbing is not None:
+                        persist_audit_event(
+                            cur, import_id, 'turbo_scrubbing',
+                            {
+                                'clean': turbo.scrubbing.get('clean'),
+                                'finding_count': turbo.scrubbing.get('finding_count'),
+                                'deny_count': turbo.scrubbing.get('deny_count'),
+                                'review_count': turbo.scrubbing.get('review_count'),
+                                'category_summary': turbo.scrubbing.get('category_summary'),
+                                'findings_preview': turbo.scrubbing.get('findings', [])[:5],
+                            },
+                        )
+                    logger.info(
+                        "Turbo pipeline for import %s: txn=%s valid=%s scrub_clean=%s (%.3fs)",
+                        import_id,
+                        turbo.transaction_set,
+                        turbo.valid,
+                        turbo.scrubbing_clean,
+                        time.perf_counter() - turbo_start,
+                    )
+                except Exception as exc:
+                    logger.exception('Turbo pipeline failed for import %s', import_id)
+                    persist_audit_event(
+                        cur, import_id, 'turbo_pipeline_error',
+                        {'message': str(exc)},
+                    )
+
+            # --- Complexity-Aware Routing: enrich, score, and route ---
+            enrich_with_harness(file_profile, harness_report)
+            complexity_score = score_file(file_profile)
+            routing_decision = route_file(file_profile, complexity_score)
+
+            logger.info(
+                "Routing decision for job %s: tier=%d (%s), score=%.1f, gates=%s",
+                job_uuid,
+                routing_decision.tier,
+                routing_decision.tier_label,
+                routing_decision.score_total,
+                routing_decision.gate_triggers or "none",
+            )
+
+            # Persist routing decision for audit trail
+            cur.execute(
+                """
+                INSERT INTO routing_decisions (
+                    import_id, routing_decision_id, file_id,
+                    tier, tier_label, score_total,
+                    gate_triggers, explanation,
+                    policy_version, scorer_version,
+                    file_profile_json, score_detail_json,
+                    decided_at, decision_duration_ms
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    import_id,
+                    routing_decision.routing_decision_id,
+                    routing_decision.file_id,
+                    routing_decision.tier,
+                    routing_decision.tier_label,
+                    routing_decision.score_total,
+                    Json(routing_decision.gate_triggers),
+                    routing_decision.explanation,
+                    routing_decision.policy_version,
+                    routing_decision.scorer_version,
+                    Json(file_profile.to_dict()),
+                    Json(complexity_score.to_dict()),
+                    routing_decision.decided_at,
+                    routing_decision.decision_duration_ms,
+                ),
+            )
+            persist_audit_event(
+                cur,
+                import_id,
+                'routing_decision',
+                routing_decision.to_dict(),
+            )
+
+            # --- Tier Execution: run tier-specific processing ---
+            tier_result = execute_tier(
+                routing_decision.tier,
+                file_profile,
+                complexity_score,
+                routing_decision,
+                text,
+                ollama_url=OLLAMA_URL,
+                ollama_model=OLLAMA_MODEL,
+            )
+
+            # Persist tier execution result
+            cur.execute(
+                """
+                INSERT INTO tier_executions (
+                    import_id, routing_decision_id, tier, status,
+                    processing_ms, flags, recommendations,
+                    ai_analyses, swarm_task_count, supervisor_verdict, error
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    import_id,
+                    routing_decision.routing_decision_id,
+                    tier_result.tier,
+                    tier_result.status,
+                    tier_result.processing_ms,
+                    Json(tier_result.flags),
+                    Json(tier_result.recommendations),
+                    Json(tier_result.ai_analyses) if tier_result.ai_analyses else None,
+                    tier_result.swarm_task_count,
+                    tier_result.supervisor_verdict,
+                    tier_result.error,
+                ),
+            )
+            persist_audit_event(
+                cur,
+                import_id,
+                'tier_execution',
+                tier_result.to_dict(),
+            )
+
+            logger.info(
+                "Tier %d execution for job %s: status=%s, verdict=%s, flags=%s",
+                tier_result.tier, job_uuid, tier_result.status,
+                tier_result.supervisor_verdict, tier_result.flags,
+            )
+
+            # If tier execution parked the file, skip automated translation
+            if tier_result.status == "parked":
+                logger.warning(
+                    "File %s PARKED by tier %d execution — skipping auto-processing",
+                    job_uuid, tier_result.tier,
+                )
+                cur.execute(
+                    """
+                    UPDATE imports
+                       SET status = 'parked',
+                           validation_status = %s,
+                           validation_report_json = %s,
+                           processed_at = NOW()
+                     WHERE id = %s
+                    """,
+                    (
+                        validation_status,
+                        Json(validation_report_json) if validation_report_json else None,
+                        import_id,
+                    ),
+                )
+                persist_audit_event(
+                    cur, import_id, 'import_parked',
+                    {
+                        'reason': 'tier_execution_parked',
+                        'tier': tier_result.tier,
+                        'flags': tier_result.flags,
+                        'supervisor_verdict': tier_result.supervisor_verdict,
+                    },
+                )
+                conn.commit()
+                total_duration = time.perf_counter() - overall_start
+                logger.info(
+                    "PARKED job %s import %s in %.3fs — requires human review",
+                    job_uuid, import_id, total_duration,
+                )
+                return ftype, size, import_id
+
             if translator:
                 logger.info("Using translator %s for job %s", translator.name, job_uuid)
                 try:
@@ -485,6 +858,10 @@ def process_payload(payload: dict):
             claims = list(translation.claims)
             if claims:
                 parse_start = time.perf_counter()
+                projection_by_claim_id: dict[str | None, list[dict]] = {}
+                if harness_report is not None:
+                    for projection in harness_report.claims:
+                        projection_by_claim_id.setdefault(projection.claim_id, []).append(asdict(projection))
                 claim_rows = []
                 for claim in claims:
                     amount = claim.get("amount")
@@ -493,18 +870,24 @@ def process_payload(payload: dict):
                             amount = decimal.Decimal(str(amount))
                         except Exception:
                             amount = None
+                    claim_id = claim.get("claim_id")
+                    projection_json = None
+                    if claim_id in projection_by_claim_id and projection_by_claim_id[claim_id]:
+                        projection_json = projection_by_claim_id[claim_id].pop(0)
                     claim_rows.append(
                         (
                             import_id,
-                            claim.get("claim_id"),
+                            claim_id,
                             amount,
                             claim.get("raw"),
+                            Json(projection_json) if projection_json is not None else None,
+                            validation_status if harness_report is not None else None,
                         )
                     )
-                claims_count = len(claim_rows)
+                claims_count = harness_report.claim_count if harness_report is not None else len(claim_rows)
                 execute_batch(
                     cur,
-                    "INSERT INTO claims (import_id, claim_id, amount, raw_claim) VALUES (%s,%s,%s,%s)",
+                    "INSERT INTO claims (import_id, claim_id, amount, raw_claim, cms_projection_json, claim_status_code) VALUES (%s,%s,%s,%s,%s,%s)",
                     claim_rows,
                     page_size=500,
                 )
@@ -571,16 +954,35 @@ def process_payload(payload: dict):
                 UPDATE imports
                    SET claims_count = %s,
                        order_lines_count = %s,
+                       validation_status = %s,
+                       validation_report_json = %s,
                        status = 'processed',
                        processed_at = NOW()
                  WHERE id = %s
                 """,
-                (claims_count, order_lines_count, import_id),
+                (
+                    claims_count,
+                    order_lines_count,
+                    validation_status,
+                    Json(validation_report_json) if validation_report_json is not None else None,
+                    import_id,
+                ),
             )
             logger.info(
                 "Updated import %s status in %.3fs",
                 import_id,
                 time.perf_counter() - update_start,
+            )
+            persist_audit_event(
+                cur,
+                import_id,
+                'import_processed',
+                {
+                    'status': 'processed',
+                    'validation_status': validation_status,
+                    'claims_count': claims_count,
+                    'order_lines_count': order_lines_count,
+                },
             )
             persist_start = time.perf_counter()
             for ack in ack_records:

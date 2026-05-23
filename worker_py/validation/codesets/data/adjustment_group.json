@@ -1,0 +1,13 @@
+{
+  "name": "adjustment_group",
+  "description": "Claim adjustment group codes (X12 element 1033, CAS01) used in 835 remittance.",
+  "source": "X12 element 1033",
+  "complete": true,
+  "codes": {
+    "CO": "Contractual Obligations",
+    "CR": "Correction and Reversals",
+    "OA": "Other Adjustments",
+    "PI": "Payer Initiated Reductions",
+    "PR": "Patient Responsibility"
+  }
+}

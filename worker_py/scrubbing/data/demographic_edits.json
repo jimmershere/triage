@@ -1,0 +1,38 @@
+{
+  "source": "Representative CMS age/gender appropriateness edits",
+  "complete": false,
+  "gender": {
+    "procedures": {
+      "59400": "F",
+      "59409": "F",
+      "59510": "F",
+      "59425": "F",
+      "58300": "F",
+      "76801": "F",
+      "55700": "M",
+      "55250": "M",
+      "54150": "M",
+      "55866": "M"
+    },
+    "diagnosis_prefixes": {
+      "O": "F",
+      "Z34": "F",
+      "Z3A": "F",
+      "C50": "F",
+      "N40": "M",
+      "C61": "M",
+      "N52": "M"
+    }
+  },
+  "age": {
+    "procedures": {
+      "99381": {"min": 0, "max": 0, "label": "Initial preventive visit, infant (under 1 year)"},
+      "99391": {"min": 0, "max": 0, "label": "Periodic preventive visit, infant (under 1 year)"},
+      "99385": {"min": 18, "max": 39, "label": "Initial preventive visit, age 18-39"},
+      "99386": {"min": 40, "max": 64, "label": "Initial preventive visit, age 40-64"},
+      "99387": {"min": 65, "max": 130, "label": "Initial preventive visit, age 65+"},
+      "G0438": {"min": 65, "max": 130, "label": "Medicare annual wellness visit"},
+      "G0402": {"min": 65, "max": 130, "label": "Medicare initial preventive physical exam"}
+    }
+  }
+}

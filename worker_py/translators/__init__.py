@@ -1,6 +1,7 @@
 """Translator registry for worker payload processing."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Iterable, Protocol, Sequence
 
@@ -90,6 +91,10 @@ def translator_diagnostics(detected_type: str, text: str = "") -> list[dict[str,
 
 # Import built-in translators to trigger registration side effects. Order matters:
 # format-specific adapters register before generic fallbacks.
-from . import x12_pyx12  # noqa: E402,F401
-from . import edifact_bots  # noqa: E402,F401
-from . import fallback  # noqa: E402,F401
+logger = logging.getLogger(__name__)
+
+for _module in ("x12_pyx12", "edifact_bots", "fallback"):
+    try:
+        __import__(f"{__name__}.{_module}", fromlist=[_module])
+    except Exception as exc:
+        logger.warning("translator module %s unavailable: %s", _module, exc)

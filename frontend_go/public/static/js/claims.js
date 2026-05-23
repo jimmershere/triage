@@ -2,6 +2,7 @@ const API_BASE = window.HEDI_API_BASE || "";
 const INGEST_URL = window.HEDI_INGEST_URL || (API_BASE ? `${API_BASE}/ingest` : "/ingest");
 const JOBS_URL = window.HEDI_JOBS_URL || (API_BASE ? `${API_BASE}/jobs` : "/jobs");
 const JOBS_DOWNLOAD_BASE = JOBS_URL.replace(/\/$/, "");
+const CLAIMS_STATE_KEY = "turbohediClaimsFilters";
 
 const uploadForm = document.getElementById("uploadForm");
 const uploadResult = document.getElementById("result");
@@ -14,6 +15,28 @@ const searchUploadedInput = document.getElementById("searchUploadedBy");
 const searchPartnerInput = document.getElementById("searchPartnerId");
 const detailCard = document.getElementById("detailCard");
 const detailContent = document.getElementById("detailContent");
+
+function params() {
+  return new URLSearchParams(window.location.search || "");
+}
+
+function loadState() {
+  try {
+    return JSON.parse(localStorage.getItem(CLAIMS_STATE_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveState(state) {
+  try {
+    localStorage.setItem(CLAIMS_STATE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+function syncState(patch = {}) {
+  saveState({ ...loadState(), ...patch });
+}
 
 function formatBytes(size) {
   if (size === undefined || size === null) return "";
@@ -46,37 +69,41 @@ function redirectIfUnauthorized(res) {
 function showStatus(message, tone = "info") {
   if (!uploadResult) return;
   uploadResult.hidden = false;
-  uploadResult.textContent = message;
+  uploadResult.innerHTML = message;
   uploadResult.dataset.tone = tone;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function renderJobs(jobs) {
   if (!jobsBody) return;
   jobsBody.innerHTML = "";
   if (!jobs.length) {
-    jobsBody.innerHTML = '<tr><td colspan="6" class="muted">No jobs match your filters yet.</td></tr>';
+    jobsBody.innerHTML = '<tr><td colspan="8" class="muted">No jobs match your filters yet.</td></tr>';
     return;
   }
 
   for (const job of jobs) {
     const tr = document.createElement("tr");
     tr.dataset.jobId = job.job_id;
-    if (job.uploaded_by) {
-      tr.dataset.uploadedBy = job.uploaded_by;
-    }
-    if (job.trading_partner_id) {
-      tr.dataset.partnerId = job.trading_partner_id;
-    }
-    const created = job.created_at ? new Date(job.created_at).toLocaleString() : "";
     tr.innerHTML = `
       <td><code>${job.job_id}</code></td>
-      <td>${job.filename}</td>
-      <td><span class="status status-${job.status}">${job.status}</span></td>
-      <td>${created}</td>
+      <td>${escapeHtml(job.filename)}</td>
+      <td><span class="status status-${escapeHtml(job.status || "pending")}">${escapeHtml(job.status || "pending")}</span></td>
+      <td><span class="status status-${escapeHtml(job.validation_status || "pending")}">${escapeHtml(job.validation_status || "pending")}</span></td>
+      <td>${job.claims_count ?? "—"}</td>
       <td>${job.ack_count ?? 0}</td>
+      <td>${job.created_at ? new Date(job.created_at).toLocaleString() : ""}</td>
       <td class="actions">
         <button class="ghost" data-detail="${job.job_id}">Details</button>
-        <a class="ghost" href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/download" target="_blank" rel="noopener">Download</a>
+        <a class="ghost" href="/processed.html?uploaded_by=${encodeURIComponent(job.uploaded_by || "")}&trading_partner_id=${encodeURIComponent(job.trading_partner_id || "")}&job_id=${encodeURIComponent(job.job_id)}">Import Detail</a>
       </td>`;
     jobsBody.appendChild(tr);
   }
@@ -86,18 +113,16 @@ async function fetchJobs(uploadedBy, partnerId, silent = false) {
   const params = new URLSearchParams();
   if (uploadedBy) params.set("uploaded_by", uploadedBy);
   if (partnerId) params.set("trading_partner_id", partnerId);
+  syncState({ uploadedBy, tradingPartnerId: partnerId });
   try {
     const res = await fetch(`${JOBS_URL}?${params.toString()}`);
-    if (redirectIfUnauthorized(res)) {
-      return;
-    }
+    if (redirectIfUnauthorized(res)) return;
     if (!res.ok) {
       const msg = await res.text();
-      if (!silent) showStatus(`Search failed: ${msg}`, "error");
+      if (!silent) showStatus(`Search failed: ${escapeHtml(msg)}`, "error");
       return;
     }
-    const data = await res.json();
-    renderJobs(data);
+    renderJobs(await res.json());
   } catch (err) {
     console.error(err);
     if (!silent) showStatus("Unable to load jobs — please try again.", "error");
@@ -107,16 +132,12 @@ async function fetchJobs(uploadedBy, partnerId, silent = false) {
 async function fetchDetail(jobId) {
   try {
     const res = await fetch(`${JOBS_URL}/${jobId}`);
-    if (redirectIfUnauthorized(res)) {
-      return;
-    }
+    if (redirectIfUnauthorized(res)) return;
     if (!res.ok) {
-      const msg = await res.text();
-      showStatus(`Unable to load job ${jobId}: ${msg}`, "error");
+      showStatus(`Unable to load job ${escapeHtml(jobId)}: ${escapeHtml(await res.text())}`, "error");
       return;
     }
-    const job = await res.json();
-    renderDetail(job);
+    renderDetail(await res.json());
   } catch (err) {
     console.error(err);
     showStatus("Unable to load job detail — please try again.", "error");
@@ -125,24 +146,26 @@ async function fetchDetail(jobId) {
 
 function renderDetail(job) {
   if (!detailCard || !detailContent) return;
-  const created = job.created_at ? new Date(job.created_at).toLocaleString() : "";
-  const size = job.file_size ? formatBytes(job.file_size) : "";
+  const created = job.created_at ? new Date(job.created_at).toLocaleString() : "—";
+  const processed = job.processed_at ? new Date(job.processed_at).toLocaleString() : "—";
   const ackLinks = Array.isArray(job.acknowledgements) && job.acknowledgements.length
     ? job.acknowledgements
-        .map(ack => `<li><a href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/acks/${ack.file}" target="_blank" rel="noopener">${ack.label}</a></li>`)
+        .map((ack) => `<li><a href="${JOBS_DOWNLOAD_BASE}/${job.job_id}/acks/${ack.id}/download" target="_blank" rel="noopener">${escapeHtml(ack.ack_type)} acknowledgement</a></li>`)
         .join("")
-    : "<li class=\"muted\">No acknowledgements generated yet.</li>";
+    : '<li class="muted">No acknowledgements generated yet.</li>';
   detailContent.innerHTML = `
     <div class="detail-grid">
       <div>
         <h4>Summary</h4>
         <dl class="meta-grid">
           <div><dt>Job ID</dt><dd><code>${job.job_id}</code></dd></div>
-          <div><dt>Status</dt><dd><span class="status status-${job.status}">${job.status}</span></dd></div>
-          <div><dt>Submitted</dt><dd>${created}</dd></div>
-          <div><dt>Uploaded by</dt><dd>${job.uploaded_by || ""}</dd></div>
-          <div><dt>Trading partner</dt><dd>${job.trading_partner_id || ""}</dd></div>
-          <div><dt>File size</dt><dd>${size}</dd></div>
+          <div><dt>Status</dt><dd><span class="status status-${escapeHtml(job.status || "pending")}">${escapeHtml(job.status || "pending")}</span></dd></div>
+          <div><dt>Validation</dt><dd><span class="status status-${escapeHtml(job.validation_status || "pending")}">${escapeHtml(job.validation_status || "pending")}</span></dd></div>
+          <div><dt>Claims</dt><dd>${job.claims_count ?? "—"}</dd></div>
+          <div><dt>Uploaded</dt><dd>${created}</dd></div>
+          <div><dt>Processed</dt><dd>${processed}</dd></div>
+          <div><dt>Uploaded by</dt><dd>${escapeHtml(job.uploaded_by || "—")}</dd></div>
+          <div><dt>Trading partner</dt><dd>${escapeHtml(job.trading_partner_id || "—")}</dd></div>
         </dl>
       </div>
       <div>
@@ -158,21 +181,33 @@ function renderDetail(job) {
 }
 
 async function queueJobs(formData) {
-  const res = await fetch(INGEST_URL, {
-    method: "POST",
-    body: formData,
-  });
-  if (redirectIfUnauthorized(res)) {
-    return;
-  }
+  const uploadedBy = String(formData.get("uploaded_by") || "").trim();
+  const tradingPartnerId = String(formData.get("trading_partner_id") || "").trim();
+  const res = await fetch(INGEST_URL, { method: "POST", body: formData });
+  if (redirectIfUnauthorized(res)) return;
   if (!res.ok) {
-    const msg = await res.text();
-    showStatus(`Upload failed: ${msg}`, "error");
+    showStatus(`Upload failed: ${escapeHtml(await res.text())}`, "error");
     return;
   }
-  const { job_id: jobId } = await res.json();
-  showStatus(`Files accepted — tracking job ${jobId}.`, "success");
-  await fetchJobs(formData.get("uploaded_by"), formData.get("trading_partner_id"), true);
+  const { job_id: jobId, filename, queued_bytes: queuedBytes } = await res.json();
+  syncState({ uploadedBy, tradingPartnerId, lastJobId: jobId });
+  const detailHref = `/processed.html?uploaded_by=${encodeURIComponent(uploadedBy)}&trading_partner_id=${encodeURIComponent(tradingPartnerId)}&job_id=${encodeURIComponent(jobId)}`;
+  showStatus(
+    `File accepted — tracking <strong>${escapeHtml(jobId)}</strong> (${escapeHtml(filename || "upload")}, ${escapeHtml(formatBytes(queuedBytes))}). <a href="${detailHref}">Open Import Detail</a>.`,
+    "success"
+  );
+  await fetchJobs(uploadedBy, tradingPartnerId, true);
+}
+
+function hydrateInputs() {
+  const state = loadState();
+  const q = params();
+  const uploadedBy = q.get("uploaded_by") || state.uploadedBy || "";
+  const partner = q.get("trading_partner_id") || state.tradingPartnerId || "";
+  if (uploadedByInput && !uploadedByInput.value) uploadedByInput.value = uploadedBy;
+  if (partnerInput && !partnerInput.value) partnerInput.value = partner;
+  if (searchUploadedInput && !searchUploadedInput.value) searchUploadedInput.value = uploadedBy;
+  if (searchPartnerInput && !searchPartnerInput.value) searchPartnerInput.value = partner;
 }
 
 if (uploadForm) {
@@ -184,9 +219,10 @@ if (uploadForm) {
     }
     const formData = new FormData(uploadForm);
     try {
-      showStatus("Uploading files…", "info");
+      showStatus(`Uploading ${fileInput.files.length} file(s)…`, "info");
       await queueJobs(formData);
       uploadForm.reset();
+      hydrateInputs();
       if (uploadedByInput) uploadedByInput.focus();
     } catch (err) {
       console.error(err);
@@ -198,9 +234,7 @@ if (uploadForm) {
 if (searchForm) {
   searchForm.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    const uploadedBy = searchUploadedInput ? searchUploadedInput.value.trim() : "";
-    const partner = searchPartnerInput ? searchPartnerInput.value.trim() : "";
-    await fetchJobs(uploadedBy, partner);
+    await fetchJobs(searchUploadedInput ? searchUploadedInput.value.trim() : "", searchPartnerInput ? searchPartnerInput.value.trim() : "");
   });
 }
 
@@ -213,44 +247,7 @@ if (jobsBody) {
   });
 }
 
-if (jobsBody) {
-  jobsBody.addEventListener("dblclick", (ev) => {
-    const row = ev.target.closest("tr[data-job-id]");
-    if (!row) return;
-    const jobId = row.getAttribute("data-job-id");
-    if (jobId) fetchDetail(jobId);
-  });
+hydrateInputs();
+if (searchUploadedInput && searchUploadedInput.value.trim()) {
+  fetchJobs(searchUploadedInput.value.trim(), searchPartnerInput ? searchPartnerInput.value.trim() : "", true);
 }
-
-if (detailCard) {
-  detailCard.addEventListener("click", (ev) => {
-    if (ev.target.matches("button[data-close]") || ev.target.closest("[data-close]") || ev.target === detailCard) {
-      detailCard.hidden = true;
-    }
-  });
-}
-
-if (searchUploadedInput) {
-  searchUploadedInput.addEventListener("change", () => {
-    const uploadedBy = searchUploadedInput.value.trim();
-    const partner = searchPartnerInput ? searchPartnerInput.value.trim() : "";
-    if (uploadedBy) {
-      fetchJobs(uploadedBy, partner, true);
-    }
-  });
-}
-
-if (uploadedByInput && partnerInput) {
-  uploadedByInput.addEventListener("change", () => {
-    if (!uploadedByInput.value.trim()) {
-      return;
-    }
-    fetchJobs(uploadedByInput.value.trim(), partnerInput.value.trim(), true);
-  });
-}
-
-window.addEventListener("load", () => {
-  if (searchUploadedInput && searchUploadedInput.value) {
-    fetchJobs(searchUploadedInput.value.trim(), searchPartnerInput ? searchPartnerInput.value.trim() : "", true);
-  }
-});

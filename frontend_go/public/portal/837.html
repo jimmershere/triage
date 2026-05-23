@@ -4,18 +4,24 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>HEDI — 837 Claims</title>
+  <title>Triage — 837 Claims</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
   <script src="/config.js"></script>
 </head>
 <body data-requires-auth="portal">
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+        </div>
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
-          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html" aria-current="page">837 Claims</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
@@ -24,16 +30,19 @@
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
         </div>
         <div class="nav-group portal-only">
-          <span class="nav-group-label">Workspace tools</span>
+          <span class="nav-group-label">Workspace</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
-          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">HEDI Edits</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Resources</span>
-          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
-          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
         </div>
         <div class="nav-group admin-only">
           <span class="nav-group-label">Administration</span>
@@ -55,6 +64,20 @@
     <a href="/portal/276.html">276 Status</a>
     <a href="/portal/837d.html">837D Dental</a>
   </nav>
+  <section class="card demo-rail-card">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Demo rail</span>
+        <h2>Run the buyer story without hand-waving</h2>
+      </div>
+    </div>
+    <div class="demo-rail-grid">
+      <article class="demo-step-card"><span class="claim-tag">1</span><h3>Queue the intake</h3><p>Use a real 837 file with a real operator login and trading partner so the job lands in the live import ledger.</p></article>
+      <article class="demo-step-card"><span class="claim-tag">2</span><h3>Open the evidence</h3><p>Jump straight into Import Detail to show validation, parsed claims, CMS projection, acknowledgements, and the audit trail.</p></article>
+      <article class="demo-step-card"><span class="claim-tag">3</span><h3>Close with operator confidence</h3><p>Call out job IDs, status transitions, partner exceptions, and acknowledgement downloads as the control surface buyers actually need.</p></article>
+    </div>
+  </section>
+
   <section class="card upload-card">
     <figure class="card-photo">
       <img src="https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Patient reviewing claim paperwork with a medical coordinator">
@@ -62,7 +85,13 @@
     </figure>
     <div class="badge badge-loud">Upload &amp; Track</div>
     <h2>Submit 837 claim files</h2>
-    <p>Drop in institutional or professional batches from your clearinghouse. HEDI stores every upload, routes work to Python 3.12 workers, and captures the translated acknowledgements for on-demand download.</p>
+    <p>Drop in institutional or professional batches from your clearinghouse. Triage stores every upload first, assigns a durable job ID immediately, routes the file to Python workers, and captures translated acknowledgements for on-demand download.</p>
+    <div class="confidence-strip">
+      <span class="confidence-pill">Durable job IDs</span>
+      <span class="confidence-pill">Validation evidence</span>
+      <span class="confidence-pill">Ack capture</span>
+      <span class="confidence-pill">Audit trail</span>
+    </div>
     <form id="uploadForm" enctype="multipart/form-data" method="post" class="upload-form">
       <div class="row">
         <div>
@@ -79,9 +108,17 @@
       <button type="submit" data-requires-role="submit">Queue files</button>
     </form>
     <div id="result" class="status-panel" hidden></div>
+    <div id="uploadChecklist" class="demo-checklist">
+      <div><strong>Operator checklist</strong></div>
+      <ul>
+        <li>Use a real Login ID so the file is searchable in Import Detail.</li>
+        <li>Add Trading Partner when you want partner exception views to light up.</li>
+        <li>After upload, open the generated job directly from the success banner.</li>
+      </ul>
+    </div>
 
     <div class="trish-callout">
-      <img src="/img/trish-badge.svg" alt="Trish giving upload tips">
+      <img src="/img/trish-badge.svg" alt="Upload guidance">
       <div class="bubble">
         <strong>Need a hand picking files?</strong>
         Queue as many .x12 files as you like. I’ll tag each with a job ID so you can spot them in the search table below.
@@ -91,7 +128,7 @@
 
   <section class="card search-card">
     <h3>Find your submissions</h3>
-    <p>Look up queued or completed jobs by login ID, trading partner, or both. Results include original file downloads and generated acknowledgement content.</p>
+    <p>Look up queued or completed jobs by login ID, trading partner, or both. Results include original file downloads, claim counts, validation state, and direct import-detail handoff for demos or issue review.</p>
     <form id="searchForm" class="search-form">
       <div class="row">
         <div>
@@ -106,18 +143,18 @@
       <button type="submit">Search jobs</button>
     </form>
     <div class="table-wrapper">
-      <table class="jobs-table">
+      <table class="jobs-table compact-table">
         <thead>
-          <tr><th>Job</th><th>File</th><th>Status</th><th>Created</th><th>Outputs</th><th></th></tr>
+          <tr><th>Job</th><th>File</th><th>Status</th><th>Validation</th><th>Claims</th><th>Acks</th><th>Created</th><th></th></tr>
         </thead>
         <tbody id="jobsBody">
-          <tr><td colspan="6" class="muted">No jobs yet — run a search to load history.</td></tr>
+          <tr><td colspan="8" class="muted">No jobs yet — run a search to load history.</td></tr>
         </tbody>
       </table>
     </div>
 
     <div class="trish-callout trish-callout--right">
-      <img src="/img/trish-clipboard.svg" alt="Trish pointing to results">
+      <img src="/img/trish-clipboard.svg" alt="Results guidance to results">
       <div class="bubble">
         <strong>Tip:</strong>
         Click any row to jump into Processed Files. I’ll carry your login and partner filters with you and open the outputs.

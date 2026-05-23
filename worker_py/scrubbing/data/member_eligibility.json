@@ -1,0 +1,15 @@
+{
+  "source": "Demo member eligibility roster (replace with a live 270/271 eligibility feed in production)",
+  "complete": false,
+  "members": {
+    "MEM123": [
+      {"payer": "MEDICARE", "start": "20240101", "end": "20271231"}
+    ],
+    "MEM001": [
+      {"payer": "PRIMARY", "start": "20240101", "end": "20271231"}
+    ],
+    "MEMLAPSED": [
+      {"payer": "MEDICARE", "start": "20200101", "end": "20231231"}
+    ]
+  }
+}

@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS imports (
     status TEXT NOT NULL DEFAULT 'queued',
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     processed_at TIMESTAMP,
+    validation_status TEXT NOT NULL DEFAULT 'pending',
+    validation_report_json JSONB,
     claims_count INTEGER,
     order_lines_count INTEGER
 );
@@ -37,7 +39,9 @@ CREATE TABLE IF NOT EXISTS claims (
     import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
     claim_id TEXT,
     amount NUMERIC(12, 2),
-    raw_claim TEXT
+    raw_claim TEXT,
+    cms_projection_json JSONB,
+    claim_status_code TEXT
 );
 
 CREATE TABLE IF NOT EXISTS order_lines (
@@ -56,6 +60,14 @@ CREATE TABLE IF NOT EXISTS acks (
     ack_type TEXT NOT NULL,      -- e.g., '999-like' or 'CONTRL-like'
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     content TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+    id SERIAL PRIMARY KEY,
+    import_id INTEGER REFERENCES imports(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    detail_json JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
 -- Optional: app-side mapping if not using OIDC/LDAP exclusively

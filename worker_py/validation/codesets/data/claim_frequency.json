@@ -1,0 +1,17 @@
+{
+  "name": "claim_frequency",
+  "description": "NUBC claim frequency type codes (CLM05-3 on professional claims, 3rd digit of type-of-bill on institutional claims).",
+  "source": "National Uniform Billing Committee (NUBC) frequency codes",
+  "complete": true,
+  "codes": {
+    "0": "Non-Payment/Zero Claim",
+    "1": "Original (Admit through Discharge Claim)",
+    "2": "Interim - First Claim",
+    "3": "Interim - Continuing Claim",
+    "4": "Interim - Last Claim",
+    "5": "Late Charge(s) Only Claim",
+    "7": "Replacement of Prior Claim",
+    "8": "Void/Cancel of Prior Claim",
+    "9": "Final Claim for a Home Health PPS Episode"
+  }
+}

@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+.python-version
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local-only dev / runtime
+.brv/
+.runtime/
+*.log
+target/debug-logs/
+
+# Local env / secrets — keep .env.example committed, ignore actual envs
+.env
+.env.local
+.env.localhost
+*.local
+*.key
+
+# Local DB artifacts
+*.sqlite
+*.sqlite3
+db/turbohedi.db
+
+# Generated build output
+/dist
+/build
+*.egg
+
+# Local archive (worker output)
+/archive

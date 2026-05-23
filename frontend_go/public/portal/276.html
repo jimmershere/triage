@@ -4,18 +4,24 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>HEDI — 276 Status</title>
+  <title>Triage — 276 Status</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
   <script src="/config.js"></script>
 </head>
 <body data-requires-auth="portal">
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+        </div>
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
-          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
@@ -24,16 +30,19 @@
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
         </div>
         <div class="nav-group portal-only">
-          <span class="nav-group-label">Workspace tools</span>
+          <span class="nav-group-label">Workspace</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
-          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">HEDI Edits</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Resources</span>
-          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
-          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
         </div>
         <div class="nav-group admin-only">
           <span class="nav-group-label">Administration</span>
@@ -81,7 +90,7 @@
     <div id="result" class="status-panel" hidden></div>
 
     <div class="trish-callout">
-      <img src="/img/trish-badge.svg" alt="Trish monitoring claim status">
+      <img src="/img/trish-badge.svg" alt="Status review claim status">
       <div class="bubble">
         <strong>Remember:</strong>
         Include claim control numbers in your file metadata so we can match payer responses and expedite denials or appeals.
@@ -117,7 +126,7 @@
     </div>
 
     <div class="trish-callout trish-callout--right">
-      <img src="/img/trish-clipboard.svg" alt="Trish highlighting claim status results">
+      <img src="/img/trish-clipboard.svg" alt="Operational guidance claim status results">
       <div class="bubble">
         <strong>Stay proactive:</strong>
         Use the detail drawer to pull 277 files and keep teams ahead of denials, pended claims, or missing documentation.
@@ -127,10 +136,10 @@
 
   <section class="card trish-tips-card">
     <div class="tips-art">
-      <img src="/img/trish-clipboard.svg" alt="Trish highlighting status tips">
+      <img src="/img/trish-clipboard.svg" alt="Operational guidance status tips">
     </div>
     <div>
-      <h3>Trish tips for fast 276 follow-up</h3>
+      <h3>Operational guidance for fast 276 follow-up</h3>
       <ul class="tip-list">
         <li><strong>Watch aging buckets:</strong> Include the claim DOS or discharge date in filenames so I can sort by urgency.</li>
         <li><strong>Capture payer refs:</strong> Add control numbers from 277 responses into the job notes for audit trails.</li>

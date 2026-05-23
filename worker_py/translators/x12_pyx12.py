@@ -7,13 +7,13 @@ import logging
 import os
 import shutil
 import uuid
+from contextlib import suppress
 from datetime import datetime
 from dataclasses import dataclass
 from functools import wraps
+from importlib.resources import as_file, files as resource_files
 from pathlib import Path
 from xml.etree import ElementTree
-
-import pkg_resources
 
 from . import AckRecord, TranslationOutcome, Translator, register
 from ._ack_helpers import generate_simple_277ca, generate_simple_999
@@ -577,12 +577,22 @@ def _load_custom_map_definitions() -> list[_CustomMapDefinition]:
     return definitions
 
 
-def _copy_custom_maps_into_package(definitions: list[_CustomMapDefinition]) -> None:
+def _pyx12_package_map_dir() -> Path | None:
     try:
-        package_map_dir = Path(pkg_resources.resource_filename("pyx12", "map"))
+        traversable = resource_files("pyx12").joinpath("map")
     except Exception:
-        package_map_dir = None
+        return None
+    try:
+        return Path(traversable)
+    except TypeError:
+        with suppress(Exception):
+            with as_file(traversable) as extracted:
+                return Path(extracted)
+    return None
 
+
+def _copy_custom_maps_into_package(definitions: list[_CustomMapDefinition]) -> None:
+    package_map_dir = _pyx12_package_map_dir()
     if not package_map_dir:
         return
 
@@ -619,21 +629,6 @@ def _ensure_custom_maps(map_index_mod: object) -> None:
     _CUSTOM_MAP_DEFS = custom_maps
 
     _copy_custom_maps_into_package(_CUSTOM_MAP_DEFS)
-
-    if not getattr(pkg_resources, "_hedi_custom_map_stream", False):
-        original_resource_stream = pkg_resources.resource_stream
-
-        def patched_resource_stream(package_or_requirement, resource_name):  # type: ignore[override]
-            normalized = str(resource_name).replace("\\", "/")
-            package_name = str(package_or_requirement)
-            if package_name == "pyx12" or package_name.startswith("pyx12"):
-                for definition in _CUSTOM_MAP_DEFS:
-                    if normalized == f"map/{definition.filename}" and definition.path.exists():
-                        return open(definition.path, "rb")
-            return original_resource_stream(package_or_requirement, resource_name)
-
-        pkg_resources.resource_stream = patched_resource_stream  # type: ignore[assignment]
-        pkg_resources._hedi_custom_map_stream = True  # type: ignore[attr-defined]
 
     if getattr(map_index_cls, "_hedi_custom_maps", False):
         return

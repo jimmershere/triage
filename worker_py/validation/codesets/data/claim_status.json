@@ -1,0 +1,28 @@
+{
+  "name": "claim_status",
+  "description": "Health Care Claim Status Codes (STC01-2) used in 277 / 277CA. Curated common subset.",
+  "source": "X12 / Washington Publishing Company Claim Status Codes (public)",
+  "complete": false,
+  "codes": {
+    "1": "For more detailed information, see remittance advice.",
+    "2": "More detailed information in letter.",
+    "3": "Claim has been adjudicated and is awaiting payment cycle.",
+    "19": "Entity acknowledges receipt of claim/encounter.",
+    "20": "Accepted for processing.",
+    "21": "Missing or invalid information.",
+    "23": "Returned to Entity.",
+    "24": "Entity not approved as an electronic submitter.",
+    "33": "Claim/encounter not found.",
+    "35": "Claim/encounter not found.",
+    "37": "Predetermination is on file, awaiting completion of services.",
+    "39": "Charges for pregnancy deferred until delivery.",
+    "100": "Claim received by the dental plan/payer.",
+    "101": "Claim was processed as adjustment to previous claim.",
+    "107": "Processed according to plan provisions.",
+    "454": "Procedure code for services rendered.",
+    "455": "Revenue code for services rendered.",
+    "509": "An error occurred validating the claim/encounter.",
+    "562": "Entity's National Provider Identifier (NPI).",
+    "732": "Information submitted inconsistent with billing guidelines."
+  }
+}

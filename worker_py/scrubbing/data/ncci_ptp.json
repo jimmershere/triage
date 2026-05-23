@@ -1,0 +1,28 @@
+{
+  "source": "CMS National Correct Coding Initiative Procedure-to-Procedure edits — representative subset",
+  "complete": false,
+  "note": "modifier_indicator 1 = an NCCI-associated modifier (25, 59, XE/XS/XP/XU) may bypass the edit; 0 = the edit may not be bypassed.",
+  "pairs": [
+    {"column1": "27447", "column2": "99211", "modifier_indicator": "1"},
+    {"column1": "27447", "column2": "99212", "modifier_indicator": "1"},
+    {"column1": "27447", "column2": "99213", "modifier_indicator": "1"},
+    {"column1": "27447", "column2": "99214", "modifier_indicator": "1"},
+    {"column1": "27447", "column2": "99215", "modifier_indicator": "1"},
+    {"column1": "29881", "column2": "99211", "modifier_indicator": "1"},
+    {"column1": "29881", "column2": "99212", "modifier_indicator": "1"},
+    {"column1": "29881", "column2": "99213", "modifier_indicator": "1"},
+    {"column1": "29881", "column2": "99214", "modifier_indicator": "1"},
+    {"column1": "29881", "column2": "99215", "modifier_indicator": "1"},
+    {"column1": "27130", "column2": "99211", "modifier_indicator": "1"},
+    {"column1": "27130", "column2": "99212", "modifier_indicator": "1"},
+    {"column1": "27130", "column2": "99213", "modifier_indicator": "1"},
+    {"column1": "27130", "column2": "99214", "modifier_indicator": "1"},
+    {"column1": "27130", "column2": "99215", "modifier_indicator": "1"},
+    {"column1": "20610", "column2": "99213", "modifier_indicator": "1"},
+    {"column1": "11042", "column2": "97597", "modifier_indicator": "1"},
+    {"column1": "80053", "column2": "80048", "modifier_indicator": "0"},
+    {"column1": "80053", "column2": "82565", "modifier_indicator": "0"},
+    {"column1": "93000", "column2": "93005", "modifier_indicator": "0"},
+    {"column1": "93000", "column2": "93010", "modifier_indicator": "0"}
+  ]
+}

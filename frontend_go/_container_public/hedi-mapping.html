@@ -4,13 +4,15 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>HEDI — Mapping Canvas</title>
+  <title>TurboHEDI — Mapping Studio</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
+  <link rel="stylesheet" href="/static/css/studio.css"/>
+  <link rel="stylesheet" href="/static/css/turbo-validate.css"/>
 </head>
 <body data-requires-auth="portal">
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="TurboHEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="TurboHEDI logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
@@ -26,8 +28,8 @@
           <span class="nav-group-label">Workspace tools</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
           <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">HEDI Edits</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html" aria-current="page">HEDI Mapping</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html" aria-current="page">Mapping Studio</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Resources</span>
@@ -45,88 +47,149 @@
       </div>
     </aside>
     <div class="app-main">
-      <main class="container mapping-container">
-        <section class="card">
-          <div class="badge badge-loud">Mapping workspace</div>
-          <h1>HEDI Mapping Studio</h1>
-          <p class="muted">Review canonical map identifiers, preview XML-style layouts, and orchestrate updates that publish to the worker API once approved.</p>
+      <main class="container studio-container">
 
-          <div class="mapping-layout" data-requires-role="submit">
-            <aside class="mapping-sidebar">
-              <div class="field-group">
-                <label class="field-label" for="mappingSearch">Search map files</label>
-                <input type="search" id="mappingSearch" placeholder="Search by identifier or transaction set" autocomplete="off" data-requires-role="submit"/>
-              </div>
-
-              <div class="mapping-list" id="mappingList" role="list"></div>
-
-              <div class="card mapping-detail" id="mappingDetail">
-                <h2 id="mappingTitle">Select a map file</h2>
-                <p id="mappingSummary" class="muted">Choose a file identifier to view details and load its XML representation.</p>
-                <dl class="mapping-meta">
-                  <div>
-                    <dt>Identifier</dt>
-                    <dd id="mappingIdentifier">—</dd>
-                  </div>
-                  <div>
-                    <dt>Transaction</dt>
-                    <dd id="mappingTransaction">—</dd>
-                  </div>
-                  <div>
-                    <dt>Last updated</dt>
-                    <dd id="mappingUpdated">—</dd>
-                  </div>
-                </dl>
-                <div class="mapping-upload" data-requires-role="submit">
-                  <input type="file" id="mappingFileInput" accept=".edi,.x12,.txt,.xml" hidden data-requires-role="submit"/>
-                  <button type="button" class="pill-button ghost" id="browseMappingFile" data-requires-role="submit">Browse File…</button>
-                  <span id="mappingFileSelection" class="muted mapping-upload__label" aria-live="polite">No file selected</span>
-                </div>
-                <div class="mapping-actions">
-                  <button type="button" class="pill-button" id="createMapping" data-requires-role="submit">Create new map</button>
-                  <button type="button" class="pill-button ghost" id="updateMapping" data-requires-role="submit">Update map</button>
-                  <button type="button" class="pill-button ghost" id="deleteMapping" data-requires-role="submit">Delete map</button>
-                </div>
-                <div id="mappingToast" class="toast" role="status" aria-live="assertive" hidden></div>
-              </div>
-            </aside>
-
-            <section class="mapping-canvas">
-              <div class="card mapper-card">
-                <div class="mapper-heading">
-                  <h2>XML mapping canvas</h2>
-                  <p class="muted">Identifiers selected on the left populate this preview. Use drag-and-drop or click the palette to refine the transaction order.</p>
-                </div>
-                <div class="mapper-columns">
-                  <div class="card mapper-column">
-                    <h3>File identifiers</h3>
-                    <p class="muted">Click an identifier to load its map template. Use the actions on the left to create, update, or retire a definition.</p>
-                    <ul id="mappingIdentifiers" class="mapping-identifiers"></ul>
-                    <ul id="segments" class="segment-list" hidden></ul>
-                  </div>
-                  <div class="card mapper-column">
-                    <div class="canvas-toolbar" role="group" aria-label="Canvas tools">
-                      <h3>HEDI Canvas preview</h3>
-                      <button type="button" class="pill-button ghost" id="nextCanvasIssue" data-requires-role="submit">
-                        Next highlighted row <span class="shortcut-hint">(Alt+Shift+E)</span>
-                      </button>
-                    </div>
-                    <div id="canvas" class="canvas-grid" aria-live="polite">
-                      <p id="canvasEmpty" class="canvas-empty">Select a map file to load its layout or drag segments into place.</p>
-                    </div>
-                    <div class="canvas-action-bar" data-requires-role="submit">
-                      <button type="button" class="pill-button" id="canvasSaveMapping" data-requires-role="submit">Save edited file</button>
-                      <button type="button" class="pill-button ghost" id="canvasSubmitMapping" data-requires-role="submit">Submit to API</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
+        <!-- Studio Header -->
+        <header class="studio-header">
+          <div class="studio-title-row">
+            <h1 class="studio-title">Mapping Studio</h1>
+            <span class="studio-subtitle">Review, create, and publish X12 transaction maps for the worker API.</span>
           </div>
-        </section>
+        </header>
+
+        <div id="mappingToast" class="toast" role="status" aria-live="assertive" hidden></div>
+
+        <!-- Two-column Mapping Layout -->
+        <div class="studio-layout studio-layout--mapping" data-requires-role="submit">
+
+          <!-- Panel 1: Map Directory -->
+          <aside class="studio-panel studio-panel--maps">
+            <div class="panel-header">
+              <h2 class="panel-title">Map Directory</h2>
+            </div>
+
+            <div class="field-group">
+              <input type="search" id="mappingSearch" class="studio-input" placeholder="Search by identifier or transaction set..." autocomplete="off" data-requires-role="submit"/>
+            </div>
+
+            <div class="mapping-list" id="mappingList" role="list"></div>
+
+            <!-- Map Detail Card -->
+            <div class="map-detail-card" id="mappingDetail">
+              <h3 id="mappingTitle" class="map-detail-title">Select a map</h3>
+              <p id="mappingSummary" class="muted map-detail-summary">Choose a file identifier to view its structure.</p>
+              <dl class="map-meta">
+                <div class="map-meta-item">
+                  <dt>Identifier</dt>
+                  <dd id="mappingIdentifier">--</dd>
+                </div>
+                <div class="map-meta-item">
+                  <dt>Transaction</dt>
+                  <dd id="mappingTransaction">--</dd>
+                </div>
+                <div class="map-meta-item">
+                  <dt>Updated</dt>
+                  <dd id="mappingUpdated">--</dd>
+                </div>
+              </dl>
+
+              <div class="map-detail-upload" data-requires-role="submit">
+                <input type="file" id="mappingFileInput" accept=".edi,.x12,.txt,.xml" hidden data-requires-role="submit"/>
+                <button type="button" class="pill-button pill-button--sm ghost" id="browseMappingFile" data-requires-role="submit">Upload file</button>
+                <span id="mappingFileSelection" class="muted file-selector__label" aria-live="polite">No file selected</span>
+              </div>
+
+              <div class="map-detail-actions">
+                <button type="button" class="pill-button pill-button--sm" id="createMapping" data-requires-role="submit">Create</button>
+                <button type="button" class="pill-button pill-button--sm ghost" id="updateMapping" data-requires-role="submit">Update</button>
+                <button type="button" class="pill-button pill-button--sm pill-button--danger" id="deleteMapping" data-requires-role="submit">Delete</button>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Panel 2: Canvas Workspace -->
+          <section class="studio-panel studio-panel--canvas studio-panel--canvas-wide">
+            <div class="panel-header">
+              <h2 class="panel-title">Transaction Map Canvas</h2>
+              <div class="canvas-nav-tools">
+                <button type="button" class="pill-button pill-button--sm ghost" id="nextCanvasIssue" data-requires-role="submit" title="Alt+Shift+E">
+                  Next issue
+                </button>
+              </div>
+            </div>
+
+            <!-- Segment Palette (grouped, collapsible) -->
+            <details class="palette-collapse" open>
+              <summary class="palette-toggle">Segment Palette</summary>
+              <div class="palette-groups">
+                <div class="palette-group">
+                  <span class="palette-group-label">Envelope</span>
+                  <ul id="segmentGroupEnvelope" class="segment-list segment-list--compact"></ul>
+                </div>
+                <div class="palette-group">
+                  <span class="palette-group-label">Claim</span>
+                  <ul id="segmentGroupClaim" class="segment-list segment-list--compact"></ul>
+                </div>
+                <div class="palette-group">
+                  <span class="palette-group-label">Service</span>
+                  <ul id="segmentGroupService" class="segment-list segment-list--compact"></ul>
+                </div>
+              </div>
+            </details>
+
+            <!-- Identifiers List -->
+            <div class="mapping-identifiers-panel">
+              <h3 class="panel-section-title">Active Identifiers</h3>
+              <ul id="mappingIdentifiers" class="mapping-identifiers"></ul>
+            </div>
+
+            <!-- Canvas Grid -->
+            <div id="canvas" class="canvas-grid" aria-live="polite">
+              <p id="canvasEmpty" class="canvas-empty">Select a map or drag segments to build a transaction layout.</p>
+            </div>
+
+            <div class="canvas-action-bar" data-requires-role="submit">
+              <button type="button" class="pill-button" id="canvasSaveMapping" data-requires-role="submit">Save map</button>
+              <button type="button" class="pill-button ghost" id="canvasSubmitMapping" data-requires-role="submit">Publish to API</button>
+            </div>
+
+            <!-- TurboHEDI v0.3 — CMS validation panel (SNIP 1-7 + payment edits) -->
+            <section class="turbo-validate-panel" data-turbo-validate>
+              <h3 class="panel-section-title">CMS validation</h3>
+              <p class="turbo-validate-hint">
+                Paste an 837 / 835 / 27x / 278 transaction. <strong>Run validation</strong>
+                covers SNIP types 1-7; <strong>Full pipeline</strong> also runs CMS
+                payment edits (NCCI, MUE, NCD/LCD, demographics, duplicates, eligibility).
+              </p>
+              <textarea class="turbo-validate-input" placeholder="ISA*00*..."></textarea>
+              <div class="turbo-validate-actions">
+                <button type="button" class="pill-button" data-turbo-validate-run>Run validation</button>
+                <button type="button" class="pill-button ghost" data-turbo-validate-pipeline>Full pipeline</button>
+              </div>
+              <div class="turbo-validate-results" data-turbo-validate-results aria-live="polite"></div>
+            </section>
+          </section>
+        </div>
       </main>
+
+      <!-- ClawFirm Footer -->
+      <footer class="site-footer">
+        <div class="footer-inner">
+          <span class="footer-brand">TurboHEDI</span>
+          <span class="footer-separator">|</span>
+          <span class="footer-powered">Built by <strong>The Claw Firm</strong></span>
+          <span class="footer-separator">|</span>
+          <span class="footer-links">
+            <a href="/about.html">About</a>
+            <a href="https://clawfactory.net" target="_blank" rel="noopener">ClawFactory</a>
+          </span>
+        </div>
+      </footer>
     </div>
   </div>
+
+  <!-- Hidden palette target for mapper.js compatibility -->
+  <ul id="segments" class="segment-list" hidden></ul>
 
   <script src="/static/js/support_config.js"></script>
   <script src="/static/js/auth_config.js"></script>
@@ -135,5 +198,7 @@
   <script src="/static/js/chatbot.js"></script>
   <script src="/static/js/mapper.js"></script>
   <script src="/static/js/mapping-directory.js"></script>
+  <script src="/static/js/studio-mapping.js"></script>
+  <script src="/static/js/turbo_validate.js"></script>
 </body>
 </html>

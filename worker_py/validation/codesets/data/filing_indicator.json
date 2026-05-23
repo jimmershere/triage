@@ -1,0 +1,33 @@
+{
+  "name": "filing_indicator",
+  "description": "Claim filing indicator codes (X12 element 1032, SBR09).",
+  "source": "X12 element 1032",
+  "complete": true,
+  "codes": {
+    "09": "Self-pay",
+    "10": "Central Certification",
+    "11": "Other Non-Federal Programs",
+    "12": "Preferred Provider Organization (PPO)",
+    "13": "Point of Service (POS)",
+    "14": "Exclusive Provider Organization (EPO)",
+    "15": "Indemnity Insurance",
+    "16": "Health Maintenance Organization (HMO) Medicare Risk",
+    "17": "Dental Maintenance Organization",
+    "AM": "Automobile Medical",
+    "BL": "Blue Cross/Blue Shield",
+    "CH": "Champus",
+    "CI": "Commercial Insurance Co.",
+    "DS": "Disability",
+    "FI": "Federal Employees Program",
+    "HM": "Health Maintenance Organization",
+    "LM": "Liability Medical",
+    "MA": "Medicare Part A",
+    "MB": "Medicare Part B",
+    "MC": "Medicaid",
+    "OF": "Other Federal Program",
+    "TV": "Title V",
+    "VA": "Veterans Affairs Plan",
+    "WC": "Workers' Compensation Health Claim",
+    "ZZ": "Mutually Defined"
+  }
+}

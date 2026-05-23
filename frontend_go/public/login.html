@@ -4,17 +4,23 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>HEDI — Login</title>
+  <title>Triage — Login</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
 </head>
 <body>
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="HEDI home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="HEDI Frenchie mascot and logotype"></a>
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+        </div>
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
-          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
@@ -23,16 +29,19 @@
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
         </div>
         <div class="nav-group portal-only">
-          <span class="nav-group-label">Workspace tools</span>
+          <span class="nav-group-label">Workspace</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
-          <a class="nav-pill portal-link" data-tone="processed" href="/processed.html">Processed Files</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">HEDI Edits</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">HEDI Mapping</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Resources</span>
-          <a class="nav-pill" data-tone="info" href="/about.html">About Us</a>
-          <a class="nav-pill" data-tone="news" href="/edi-news.html">EDI in the News</a>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
         </div>
         <div class="nav-group admin-only">
           <span class="nav-group-label">Administration</span>
@@ -48,16 +57,10 @@
       <main class="container">
   <div class="card" style="max-width:460px;margin:40px auto;">
     <h2 style="text-align:center;">Sign in with single sign-on</h2>
-    <p>HEDI now uses Keycloak and oauth2-proxy for authentication. Continue to your organization&rsquo;s login screen to access the claims portal.</p>
+    <p>Triage now uses Keycloak and oauth2-proxy for authentication. Continue to your organization&rsquo;s login screen to access the claims portal.</p>
     <a id="hediSsoLink" class="pill-button" data-tone="portal" href="/oauth2/start">Continue to secure login</a>
     <p style="margin-top:.8rem;color:var(--muted);font-size:.92rem;">We&rsquo;ll redirect you automatically if the button doesn&rsquo;t load fast enough.</p>
-    <div class="trish-callout">
-      <img src="/img/trish-clipboard.svg" alt="Trish sharing login tips">
-      <div class="bubble">
-        <strong>Need access?</strong>
-        Ask an administrator to add you to the correct Keycloak group: hedi-view for browsing, hedi-submit for uploads, or hedi-admin for full control.
-      </div>
-    </div>
+    <p class="muted" style="margin-top:1rem;">Access is role-based. Ask an administrator to assign the appropriate Keycloak group: <code>hedi-view</code>, <code>hedi-submit</code>, or <code>hedi-admin</code>.</p>
   </div>
   <script>
     (function () {

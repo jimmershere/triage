@@ -1,6 +1,6 @@
 (function () {
-  const sidebar = document.querySelector(".edits-sidebar");
-  const editorSection = document.querySelector(".edits-editor");
+  const sidebar = document.querySelector(".edits-sidebar") || document.querySelector(".studio-panel--files");
+  const editorSection = document.querySelector(".edits-editor") || document.querySelector(".studio-panel--editor");
   if (!sidebar || !editorSection) {
     return;
   }
@@ -292,6 +292,7 @@
       setEditorEnabled(false);
       updateMapper("");
       renderResults();
+      triggerLineNumberUpdate();
       return;
     }
 
@@ -305,6 +306,14 @@
     updatedElement.textContent = `Updated ${formatDate(file.updatedAt)}`;
     updateMapper(file.content);
     renderResults();
+    triggerLineNumberUpdate();
+  }
+
+  function triggerLineNumberUpdate() {
+    // Notify studio-edits.js to refresh line numbers
+    if (editor) {
+      editor.dispatchEvent(new Event("input", { bubbles: true }));
+    }
   }
 
   function selectFile(fileId) {
