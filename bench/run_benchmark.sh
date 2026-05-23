@@ -1,15 +1,17 @@
 #!/bin/bash
-# TurboHEDI 837P Performance Benchmark
+# Triage 837P Performance Benchmark
 # Uploads progressively larger files and captures processing timing.
 
 set -euo pipefail
 
-ENDPOINT="http://localhost:8000/ingest"
-TEST_DIR="/app/giles/turbohedi/bench/test_files"
-RESULTS_FILE="/app/giles/turbohedi/bench/benchmark_results.txt"
-CONTAINER="turboedi-starter_worker_py_1"
+BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "=== TurboHEDI 837P Performance Benchmark ===" | tee "$RESULTS_FILE"
+ENDPOINT="${TRIAGE_BENCH_ENDPOINT:-http://localhost:8000/ingest}"
+TEST_DIR="${TRIAGE_BENCH_TEST_DIR:-$BENCH_DIR/test_files}"
+RESULTS_FILE="${TRIAGE_BENCH_RESULTS_FILE:-$BENCH_DIR/benchmark_results.txt}"
+CONTAINER="${TRIAGE_BENCH_CONTAINER:-turboedi-starter_worker_py_1}"
+
+echo "=== Triage 837P Performance Benchmark ===" | tee "$RESULTS_FILE"
 echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" | tee -a "$RESULTS_FILE"
 echo "" | tee -a "$RESULTS_FILE"
 

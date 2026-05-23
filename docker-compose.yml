@@ -134,11 +134,11 @@ services:
       # LDAP_USER_ATTR: uid
       # LDAP_BIND_DN: cn=readonly,dc=example,dc=org
       # LDAP_BIND_PASS: secret
-      CERT_FILE: /app/turbohedi0.1/deploy/httpd/certs/server.crt
-      KEY_FILE: /app/turbohedi0.1/deploy/httpd/certs/server.key
+      CERT_FILE: /app/triage/deploy/httpd/certs/server.crt
+      KEY_FILE: /app/triage/deploy/httpd/certs/server.key
     volumes:
       - ./frontend_go/public:/app/public:Z
-      - ./deploy/httpd/certs:/app/turbohedi0.1/deploy/httpd/certs:Z,ro
+      - ./deploy/httpd/certs:/app/triage/deploy/httpd/certs:Z,ro
     ports:
       - "8080:8080"
       - "8443:8443"
