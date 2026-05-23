@@ -37,7 +37,7 @@ def generate_simple_999(
 
     ctrl = (isa_control or _control_from_uuid(job_uuid))[:9].rjust(9, "0")
     gs_ctrl = _control_from_uuid(job_uuid, 1)
-    partner_raw = _safe_component(trading_partner_id, "HEDI-RECV").upper()
+    partner_raw = _safe_component(trading_partner_id, "TRIAGE-RECV").upper()
     partner_padded = partner_raw[:15].rjust(15)
     app_receiver = partner_raw[:12] or "RECEIVER"
     gs_code = (gs_functional_code or "HC").strip() or "HC"
@@ -46,8 +46,8 @@ def generate_simple_999(
     date_short = time.strftime("%y%m%d")
     time_short = time.strftime("%H%M")
     segments = [
-        f"ISA*00*          *00*          *ZZ*HEDI999       *ZZ*{partner_padded}*{date_short}*{time_short}*^*00501*{ctrl}*0*T*:~",
-        f"GS*FA*HEDI*{app_receiver}*20{date_short}*{time_short}*{gs_ctrl}*X*005010X231A1~",
+        f"ISA*00*          *00*          *ZZ*TRIAGE999       *ZZ*{partner_padded}*{date_short}*{time_short}*^*00501*{ctrl}*0*T*:~",
+        f"GS*FA*TRIAGE*{app_receiver}*20{date_short}*{time_short}*{gs_ctrl}*X*005010X231A1~",
         "ST*999*0001*005010X231A1~",
         f"AK1*{gs_code}*0001~",
         f"AK2*{st_value}*0001~",
@@ -69,19 +69,19 @@ def generate_simple_277ca(
 
     ctrl = _control_from_uuid(job_uuid, 2)
     gs_ctrl = _control_from_uuid(job_uuid, 3)
-    partner_raw = _safe_component(trading_partner_id, "HEDI-RECV").upper()
+    partner_raw = _safe_component(trading_partner_id, "TRIAGE-RECV").upper()
     partner_padded = partner_raw[:15].rjust(15)
     partner_short = partner_raw[:12] or "RECEIVER"
     date_full = time.strftime("%Y%m%d")
     time_short = time.strftime("%H%M")
     count = max(int(total_claims or 0), 1)
     segments = [
-        f"ISA*00*          *00*          *ZZ*HEDI277       *ZZ*{partner_padded}*{date_full[2:]}*{time_short}*^*00501*{ctrl}*0*T*:~",
-        f"GS*HN*HEDI*{partner_short}*{date_full}*{time_short}*{gs_ctrl}*X*005010X214~",
+        f"ISA*00*          *00*          *ZZ*TRIAGE277       *ZZ*{partner_padded}*{date_full[2:]}*{time_short}*^*00501*{ctrl}*0*T*:~",
+        f"GS*HN*TRIAGE*{partner_short}*{date_full}*{time_short}*{gs_ctrl}*X*005010X214~",
         "ST*277*0001*005010X214~",
         f"BHT*0085*08*{ctrl}*{date_full}*{time_short}~",
         "HL*1**20*1~",
-        "NM1*PR*2*HEDI HEALTH*****PI*HEDI277~",
+        "NM1*PR*2*TRIAGE HEALTH*****PI*TRIAGE277~",
         "HL*2*1*21*0~",
         f"NM1*41*2*{partner_short or 'RECEIVER'}*****46*{partner_short or 'RECEIVER'}~",
         f"TRN*1*{ctrl}*{partner_short or 'RECEIVER'}~",

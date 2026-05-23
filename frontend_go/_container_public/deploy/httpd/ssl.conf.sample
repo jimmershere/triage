@@ -1,8 +1,0 @@
-
-# TLS 1.2+ hardened
-SSLCipherSuite PROFILE=SYSTEM
-SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
-SSLHonorCipherOrder on
-SSLCompression off
-SSLUseStapling on
-SSLStaplingCache "shmcb:/run/httpd/ssl_stapling(32768)"

@@ -1,12 +1,12 @@
 (function () {
-  const support = window.HEDI_SUPPORT || {};
-  const scout = window.HEDI_AI_SCOUT || {};
-  const brand = support.brand || "HEDI Support";
+  const support = window.TRIAGE_SUPPORT || {};
+  const scout = window.TRIAGE_AI_SCOUT || {};
+  const brand = support.brand || "Triage Support";
   const contactEmail = support.email || null;
   const contactPhone = support.phone || null;
-  const STORAGE_KEY = "hediSupportTickets";
-  const CACHE_KEY = "hediSupportReplyCache";
-  const TICKET_EVENT = "hedi-ticket-created";
+  const STORAGE_KEY = "triageSupportTickets";
+  const CACHE_KEY = "triageSupportReplyCache";
+  const TICKET_EVENT = "triage-ticket-created";
   const promptVersion = scout.promptVersion || "turbohedi-support-v1";
   const toolOrder = Array.isArray(scout.toolOrder) ? scout.toolOrder : [];
   const SYSTEM_PLAYBOOK = [

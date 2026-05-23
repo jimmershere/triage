@@ -801,7 +801,7 @@ body[data-user-name] .requires-guest {
   color: #0f172a;
 }
 
-.news-marquee--vibrant .news-card .tag[data-tone="hedi"] {
+.news-marquee--vibrant .news-card .tag[data-tone="triage"] {
   background: rgba(251, 191, 36, 0.38);
   color: #fff;
 }
@@ -834,7 +834,7 @@ body[data-user-name] .requires-guest {
   --news-gradient: linear-gradient(135deg, rgba(236, 72, 153, 0.82), rgba(124, 58, 237, 0.6));
 }
 
-.news-card[data-tone="hedi"] {
+.news-card[data-tone="triage"] {
   --news-gradient: linear-gradient(135deg, rgba(251, 113, 133, 0.82), rgba(251, 191, 36, 0.6));
 }
 
@@ -2847,11 +2847,11 @@ button.danger:focus {
   border: 1px solid rgba(15, 23, 42, 0.1);
 }
 
-body.hedi-login-locked {
+body.triage-login-locked {
   overflow: hidden;
 }
 
-.hedi-login-overlay {
+.triage-login-overlay {
   position: fixed;
   inset: 0;
   display: none;
@@ -2863,11 +2863,11 @@ body.hedi-login-locked {
   padding: 24px;
 }
 
-.hedi-login-overlay.is-open {
+.triage-login-overlay.is-open {
   display: flex;
 }
 
-.hedi-login-card {
+.triage-login-card {
   position: relative;
   width: min(420px, 100%);
   background: var(--card);
@@ -2877,12 +2877,12 @@ body.hedi-login-locked {
   border: 1px solid rgba(15, 39, 64, 0.08);
 }
 
-.hedi-login-card h2 {
+.triage-login-card h2 {
   margin: 0 0 1rem;
   text-align: center;
 }
 
-.hedi-login-close {
+.triage-login-close {
   position: absolute;
   top: 12px;
   right: 12px;
@@ -2897,23 +2897,23 @@ body.hedi-login-locked {
   cursor: pointer;
 }
 
-.hedi-login-close:hover {
+.triage-login-close:hover {
   background: rgba(79, 70, 229, 0.2);
 }
 
-.hedi-login-form {
+.triage-login-form {
   display: grid;
   gap: 0.85rem;
 }
 
-.hedi-login-form label {
+.triage-login-form label {
   display: grid;
   gap: 0.4rem;
   font-weight: 600;
 }
 
-.hedi-login-form input[type="text"],
-.hedi-login-form input[type="password"] {
+.triage-login-form input[type="text"],
+.triage-login-form input[type="password"] {
   width: 100%;
   padding: 0.55rem 0.75rem;
   border-radius: 10px;
@@ -2922,7 +2922,7 @@ body.hedi-login-locked {
   font-size: 1rem;
 }
 
-.hedi-login-form button[type="submit"] {
+.triage-login-form button[type="submit"] {
   margin-top: 0.4rem;
   padding: 0.65rem 0.75rem;
   border-radius: 12px;
@@ -2934,11 +2934,11 @@ body.hedi-login-locked {
   box-shadow: 0 18px 34px rgba(79, 70, 229, 0.32);
 }
 
-.hedi-login-form button[type="submit"]:hover {
+.triage-login-form button[type="submit"]:hover {
   filter: brightness(1.05);
 }
 
-.hedi-login-hint {
+.triage-login-hint {
   margin-top: 1.2rem;
   text-align: center;
   color: var(--muted);

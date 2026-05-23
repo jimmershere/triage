@@ -6,9 +6,9 @@ import (
 )
 
 const (
-	RoleAdmin  = "hedi-admin"
-	RoleSubmit = "hedi-submit"
-	RoleView   = "hedi-view"
+	RoleAdmin  = "triage-admin"
+	RoleSubmit = "triage-submit"
+	RoleView   = "triage-view"
 
 	headerUserPrimary    = "X-Auth-Request-User"
 	headerUserFallback   = "X-Forwarded-User"

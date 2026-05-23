@@ -8,7 +8,7 @@ import (
 func TestIdentityFromRequestPrimaryHeaders(t *testing.T) {
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set("X-Auth-Request-User", "alice")
-	r.Header.Set("X-Auth-Request-Groups", "hedi-view,hedi-submit")
+	r.Header.Set("X-Auth-Request-Groups", "triage-view,triage-submit")
 
 	id := IdentityFromRequest(r)
 	if id.Username != "alice" {
@@ -22,7 +22,7 @@ func TestIdentityFromRequestPrimaryHeaders(t *testing.T) {
 func TestIdentityFromRequestFallbackHeaders(t *testing.T) {
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set("X-Forwarded-User", "bob")
-	r.Header.Set("X-Forwarded-Groups", "hedi-admin")
+	r.Header.Set("X-Forwarded-Groups", "triage-admin")
 
 	id := IdentityFromRequest(r)
 	if id.Username != "bob" {

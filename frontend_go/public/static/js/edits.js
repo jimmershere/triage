@@ -29,7 +29,7 @@
   const localFileInput = document.getElementById("localFileInput");
   const fileSelectionLabel = document.getElementById("fileSelectionLabel");
 
-  const mapper = window.defaultHediMapper || (window.HediMapper && window.HediMapper.create({ initializeDefaults: true }));
+  const mapper = window.defaultTriageMapper || (window.TriageMapper && window.TriageMapper.create({ initializeDefaults: true }));
 
   const STATUS_METADATA = {
     error: { label: "Needs correction", tone: "error" },
@@ -48,8 +48,8 @@
       version: 3,
       updatedAt: "2024-05-13T14:32:00Z",
       content: [
-        "ISA*00*          *00*          *ZZ*CARDIOLOGY*ZZ*HEDI*240513*1432*^*00501*000000905*0*T*:~",
-        "GS*HC*CARDIOLOGY*HEDI*20240513*1432*1*X*005010X222A1~",
+        "ISA*00*          *00*          *ZZ*CARDIOLOGY*ZZ*TRIAGE*240513*1432*^*00501*000000905*0*T*:~",
+        "GS*HC*CARDIOLOGY*TRIAGE*20240513*1432*1*X*005010X222A1~",
         "ST*837*0001*005010X222A1~",
         "BHT*0019*00*0123*20240513*1432*CH~",
         "NM1*41*2*CARDIOLOGY PRACTICE*****46*123456789~",
@@ -76,8 +76,8 @@
       version: 1,
       updatedAt: "2024-04-28T09:12:00Z",
       content: [
-        "ISA*00*          *00*          *ZZ*NEOHOSP*ZZ*HEDI*240428*0912*^*00501*000000777*0*T*:~",
-        "GS*HC*NEOHOSP*HEDI*20240428*0912*1*X*005010X223A3~",
+        "ISA*00*          *00*          *ZZ*NEOHOSP*ZZ*TRIAGE*240428*0912*^*00501*000000777*0*T*:~",
+        "GS*HC*NEOHOSP*TRIAGE*20240428*0912*1*X*005010X223A3~",
         "ST*837*1001*005010X223A3~",
         "BHT*0019*00*5555*20240428*0912*CH~",
         "NM1*41*2*NEONATAL HOSPITAL*****46*987654321~",
@@ -104,8 +104,8 @@
       version: 5,
       updatedAt: "2024-03-18T16:45:00Z",
       content: [
-        "ISA*00*          *00*          *ZZ*UNITEDPAYER*ZZ*HEDI*240318*1645*^*00501*000001234*0*T*:~",
-        "GS*HP*UNITEDPAYER*HEDI*20240318*1645*1*X*005010X221A1~",
+        "ISA*00*          *00*          *ZZ*UNITEDPAYER*ZZ*TRIAGE*240318*1645*^*00501*000001234*0*T*:~",
+        "GS*HP*UNITEDPAYER*TRIAGE*20240318*1645*1*X*005010X221A1~",
         "ST*835*0001~",
         "BPR*I*534.54*C*ACH*CCP*01*123456789*DA*987654321*1234567890**01*999999999*DA*888888888*20240318~",
         "TRN*1*1099999990*9876543210*1512345678~",
@@ -339,8 +339,8 @@
     const now = new Date().toISOString();
 
     const templates = {
-      "837p": window.HediMapper?.sampleContent?.ISA
-        ? Object.values(window.HediMapper.sampleContent).join("\n")
+      "837p": window.TriageMapper?.sampleContent?.ISA
+        ? Object.values(window.TriageMapper.sampleContent).join("\n")
         : sampleFiles[0].content,
       "837i": sampleFiles[1].content,
       "837d": sampleFiles[0].content.replace("99214", "D0120"),

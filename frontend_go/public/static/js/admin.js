@@ -1,6 +1,6 @@
 (function () {
-  const TICKET_KEY = "hediSupportTickets";
-  const PROVIDER_KEY = "hediAuthProviders";
+  const TICKET_KEY = "triageSupportTickets";
+  const PROVIDER_KEY = "triageAuthProviders";
   const ADMIN_ROLE = "administrator";
   const ROLE_ORDER = ["view", "submit", ADMIN_ROLE];
   const ROLE_ALIASES = {
@@ -18,7 +18,7 @@
     return ROLE_ALIASES[cleaned] || (ROLE_ORDER.includes(cleaned) ? cleaned : ROLE_ORDER[0]);
   }
   const resolvePath =
-    typeof window.hediResolve === "function" ? window.hediResolve : (path) => path;
+    typeof window.triageResolve === "function" ? window.triageResolve : (path) => path;
   const ADMIN_ENDPOINTS = [
     resolvePath("/admin/api/users"),
     resolvePath("/admin/users"),
@@ -53,7 +53,7 @@
   }
 
   function loadProviders() {
-    const base = (window.HEDI_AUTHZ && window.HEDI_AUTHZ.providers) || {};
+    const base = (window.TRIAGE_AUTHZ && window.TRIAGE_AUTHZ.providers) || {};
     const overrides = loadFromStorage(PROVIDER_KEY, null);
     if (!overrides) return { ...base };
     return { ...base, ...overrides };
@@ -428,7 +428,7 @@
       }
       resetForm();
       await loadUsers();
-      window.dispatchEvent(new Event("hedi-role-refresh"));
+      window.dispatchEvent(new Event("triage-role-refresh"));
     } catch (err) {
       console.error("User save failed", err);
       setStatus(err.message || "Unable to save user", "error");
@@ -458,7 +458,7 @@
           return loadUsers();
         })
         .then(() => {
-          window.dispatchEvent(new Event("hedi-role-refresh"));
+          window.dispatchEvent(new Event("triage-role-refresh"));
         })
         .catch((err) => {
           console.error("Delete failed", err);
@@ -496,7 +496,7 @@
     }
   });
 
-  window.addEventListener("hedi-ticket-created", (event) => {
+  window.addEventListener("triage-ticket-created", (event) => {
     if (!event || !event.detail) return;
     const tickets = loadTickets();
     tickets.unshift(event.detail);

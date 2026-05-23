@@ -1,7 +1,7 @@
 // at the top of go.mod
 toolchain go1.23.0
 
-module hedi/frontend_go
+module triage/frontend_go
 
 go 1.22
 

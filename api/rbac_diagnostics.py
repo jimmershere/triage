@@ -47,27 +47,27 @@ def _load_role_configuration() -> Tuple[List[str], Dict[str, str], str]:
 
 
 def build_config_from_env() -> ldap_utils.LDAPConfig:
-    bootstrap_admin = _env_value("HEDI_BOOTSTRAP_ADMIN_USER", "admin") or "admin"
+    bootstrap_admin = _env_value("TRIAGE_BOOTSTRAP_ADMIN_USER", "admin") or "admin"
     return ldap_utils.LDAPConfig(
-        uri=_env_value("HEDI_LDAP_URI", "ldap://ldap:389") or "ldap://ldap:389",
-        base_dn=_env_value("HEDI_LDAP_BASE_DN", "dc=example,dc=com") or "dc=example,dc=com",
-        root_cn=_env_value("HEDI_LDAP_ROOT_CN", "ou=HEDI") or "ou=HEDI",
-        users_ou=_env_value("HEDI_LDAP_USERS_OU", "ou=users") or "ou=users",
-        roles_ou=_env_value("HEDI_LDAP_ROLES_OU", "ou=roles") or "ou=roles",
-        trading_partners_ou=_env_value("HEDI_LDAP_TRADING_OU", "ou=trading-partners")
+        uri=_env_value("TRIAGE_LDAP_URI", "ldap://ldap:389") or "ldap://ldap:389",
+        base_dn=_env_value("TRIAGE_LDAP_BASE_DN", "dc=example,dc=com") or "dc=example,dc=com",
+        root_cn=_env_value("TRIAGE_LDAP_ROOT_CN", "ou=TRIAGE") or "ou=TRIAGE",
+        users_ou=_env_value("TRIAGE_LDAP_USERS_OU", "ou=users") or "ou=users",
+        roles_ou=_env_value("TRIAGE_LDAP_ROLES_OU", "ou=roles") or "ou=roles",
+        trading_partners_ou=_env_value("TRIAGE_LDAP_TRADING_OU", "ou=trading-partners")
         or "ou=trading-partners",
-        bind_dn=_env_value("HEDI_LDAP_BIND_DN"),
-        bind_password=_env_value("HEDI_LDAP_BIND_PASSWORD"),
-        timeout=int(_env_value("HEDI_LDAP_TIMEOUT", "10") or "10"),
-        bootstrap_username=_env_value("HEDI_LDAP_BOOTSTRAP_USERNAME", bootstrap_admin) or bootstrap_admin,
+        bind_dn=_env_value("TRIAGE_LDAP_BIND_DN"),
+        bind_password=_env_value("TRIAGE_LDAP_BIND_PASSWORD"),
+        timeout=int(_env_value("TRIAGE_LDAP_TIMEOUT", "10") or "10"),
+        bootstrap_username=_env_value("TRIAGE_LDAP_BOOTSTRAP_USERNAME", bootstrap_admin) or bootstrap_admin,
         bootstrap_password_hash=_env_value(
-            "HEDI_LDAP_BOOTSTRAP_PASSWORD_HASH", DEFAULT_BOOTSTRAP_HASH
+            "TRIAGE_LDAP_BOOTSTRAP_PASSWORD_HASH", DEFAULT_BOOTSTRAP_HASH
         )
         or DEFAULT_BOOTSTRAP_HASH,
-        bootstrap_password_plain=_env_optional("HEDI_LDAP_BOOTSTRAP_PASSWORD"),
-        admin_dn=_env_optional("HEDI_LDAP_ADMIN_DN"),
-        admin_username=_env_optional("HEDI_LDAP_ADMIN_USERNAME")
-        or _env_optional("HEDI_BOOTSTRAP_ADMIN_USER")
+        bootstrap_password_plain=_env_optional("TRIAGE_LDAP_BOOTSTRAP_PASSWORD"),
+        admin_dn=_env_optional("TRIAGE_LDAP_ADMIN_DN"),
+        admin_username=_env_optional("TRIAGE_LDAP_ADMIN_USERNAME")
+        or _env_optional("TRIAGE_BOOTSTRAP_ADMIN_USER")
         or bootstrap_admin,
     )
 

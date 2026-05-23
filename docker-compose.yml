@@ -75,7 +75,7 @@ services:
       RABBITMQ_URL: amqp://ediapp:3wm078uu@rabbitmq:5672/
       RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
       ARCHIVE_DIR: /archive
-      HEDI_SHARED_SECRET: turbohedi-shared-secret
+      TRIAGE_SHARED_SECRET: turbohedi-shared-secret
     ports:
       - "8000:8000"
     volumes:
@@ -123,12 +123,12 @@ services:
     build:
       context: ./frontend_go
     environment:
-      HEDI_API_BASE: http://api:8000
-      HEDI_SESSION_SECRET: ${HEDI_SESSION_SECRET:-HediMAsonarySCRewBitSEMINar3194}
-      HEDI_SHARED_SECRET: ${HEDI_SHARED_SECRET:-turbohedi-shared-secret}
-      HEDI_OAUTH2_PROXY_URL: ${HEDI_OAUTH2_PROXY_URL:-http://rbac:4180}
-      HEDI_OAUTH2_PROXY_INTERNAL_URL: ${HEDI_OAUTH2_PROXY_INTERNAL_URL:-http://rbac:4180}
-      HEDI_OAUTH2_START: ${HEDI_OAUTH2_START:-/oauth2/start}
+      TRIAGE_API_BASE: http://api:8000
+      TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET:-TriageMAsonarySCRewBitSEMINar3194}
+      TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-turbohedi-shared-secret}
+      TRIAGE_OAUTH2_PROXY_URL: ${TRIAGE_OAUTH2_PROXY_URL:-http://rbac:4180}
+      TRIAGE_OAUTH2_PROXY_INTERNAL_URL: ${TRIAGE_OAUTH2_PROXY_INTERNAL_URL:-http://rbac:4180}
+      TRIAGE_OAUTH2_START: ${TRIAGE_OAUTH2_START:-/oauth2/start}
       # LDAP_URL: ldap://ldap:389
       # LDAP_BASE_DN: dc=example,dc=org
       # LDAP_USER_ATTR: uid
@@ -152,8 +152,8 @@ services:
       - ./.env
     environment:
       RBAC_API_BASE: http://api:8000
-      RBAC_SHARED_SECRET: ${HEDI_SHARED_SECRET:-turbohedi-shared-secret}
-      HEDI_SESSION_SECRET: ${HEDI_SESSION_SECRET:-change-me-in-prod}
+      RBAC_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-turbohedi-shared-secret}
+      TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET:-change-me-in-prod}
     ports:
       - "4180:4180"
     depends_on:

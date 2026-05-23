@@ -13,7 +13,7 @@
 
   // ── Grouped Palette Population ────────────────────────────────────────
   function populateGroupedPalette() {
-    const definitions = window.HediMapper?.definitions || [];
+    const definitions = window.TriageMapper?.definitions || [];
     if (!definitions.length) return;
 
     const groups = {
@@ -57,7 +57,7 @@
         });
 
         chip.addEventListener("click", () => {
-          const mapper = window.defaultHediMapper;
+          const mapper = window.defaultTriageMapper;
           if (mapper && typeof mapper.appendSegmentById === "function") {
             mapper.appendSegmentById(def.id);
           }
@@ -106,9 +106,9 @@
     initDeleteConfirmation();
 
     // Watch for mapper initialization
-    if (!window.defaultHediMapper && !window.HediMapper?.definitions?.length) {
+    if (!window.defaultTriageMapper && !window.TriageMapper?.definitions?.length) {
       const check = setInterval(() => {
-        if (window.HediMapper?.definitions?.length) {
+        if (window.TriageMapper?.definitions?.length) {
           clearInterval(check);
           populateGroupedPalette();
         }

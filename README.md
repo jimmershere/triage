@@ -59,7 +59,7 @@ between the code and the patent strategy, and
    cp .env.example .env
    - `RABBITMQ_URL` should match the credentials you configure for RabbitMQ (defaults map to the compose file).
    - `RMQ_QUEUE` / `RMQ_ACKS_QUEUE` let you rename the ingest and acknowledgement queues.
-   - `HEDI_API_BASE` and `HEDI_SESSION_SECRET` drive the Go frontend's dynamic `config.js` and session signing.
+   - `TRIAGE_API_BASE` and `TRIAGE_SESSION_SECRET` drive the Go frontend's dynamic `config.js` and session signing.
    ```
 3. **Boot services**:
    ```bash
@@ -82,33 +82,33 @@ between the code and the patent strategy, and
 The frontend now expects an external identity provider (for example Keycloak) to handle
 authentication via [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/). When the proxy is
 running on your network, route the built-in `/oauth2/*` paths to it by setting
-`HEDI_OAUTH2_PROXY_URL` before starting the `frontend_go` service:
+`TRIAGE_OAUTH2_PROXY_URL` before starting the `frontend_go` service:
 
 ```bash
-HEDI_OAUTH2_PROXY_URL=https://oauth2-proxy.internal:4180 docker compose up frontend_go
+TRIAGE_OAUTH2_PROXY_URL=https://oauth2-proxy.internal:4180 docker compose up frontend_go
 ```
 
 If the upstream proxy uses a self-signed certificate, enable lenient TLS verification with
-`HEDI_OAUTH2_PROXY_INSECURE_SKIP_VERIFY=true`. The flag only affects calls to the OAuth proxy; the
+`TRIAGE_OAUTH2_PROXY_INSECURE_SKIP_VERIFY=true`. The flag only affects calls to the OAuth proxy; the
 API reverse proxy continues to enforce normal certificate validation.
 
 When the public OAuth URL differs from the network location the Go frontend can reach (for example
-when the hostname only resolves inside your cluster), set `HEDI_OAUTH2_PROXY_INTERNAL_URL` to the
+when the hostname only resolves inside your cluster), set `TRIAGE_OAUTH2_PROXY_INTERNAL_URL` to the
 reachable origin. The frontend continues to advertise the external URL via `config.js`, while the
 internal URL drives the reverse proxy connection from the container:
 
 ```bash
-HEDI_OAUTH2_PROXY_URL=https://oauth2-proxy.example.com/oauth2 \
-HEDI_OAUTH2_PROXY_INTERNAL_URL=http://rbac:4180/oauth2 \
+TRIAGE_OAUTH2_PROXY_URL=https://oauth2-proxy.example.com/oauth2 \
+TRIAGE_OAUTH2_PROXY_INTERNAL_URL=http://rbac:4180/oauth2 \
 docker compose up frontend_go
 ```
 
-The helper endpoint at `/config.js` also publishes `window.HEDI_OAUTH2_START`, so you can point the
+The helper endpoint at `/config.js` also publishes `window.TRIAGE_OAUTH2_START`, so you can point the
 UI at a different login entrypoint if your deployment uses a non-standard path:
 
 ```bash
 # Optional override if the proxy is mounted on a different prefix
-HEDI_OAUTH2_START=/sso/start
+TRIAGE_OAUTH2_START=/sso/start
 ```
 
 Once configured, the login buttons on the claims portal and admin console redirect to the proxy
@@ -118,7 +118,7 @@ For the starter stack we ship a lightweight RBAC service that emulates the oauth
 you can exercise the portal out-of-the-box. The `rbac` container listens on port `4180`, presents a
 simple login form, authenticates users against the FastAPI backend, and issues signed session
 cookies that the frontend validates on subsequent requests. Docker Compose automatically wires
-`HEDI_OAUTH2_PROXY_URL` to `http://rbac:4180`, so `docker compose up --build` exposes both the
+`TRIAGE_OAUTH2_PROXY_URL` to `http://rbac:4180`, so `docker compose up --build` exposes both the
 frontend (`8080/8443`) and the RBAC login endpoint (`4180`). Sign in with the bootstrap
 administrator (`admin` / `3wm078uu`) or any user you add from the Admin → User Management screen,
 and the portal/admin pages will render with the correct RBAC headers.
@@ -127,38 +127,38 @@ and the portal/admin pages will render with the correct RBAC headers.
 
 The web UI now ships with the “Trish” customer advocate, complete with helpful callouts and an in-app chat assistant. The chat widget can raise trouble tickets by generating unique request IDs and preparing `mailto:`/`sms:` links.
 
-- Update the default contact points in [`frontend_go/public/static/js/support_config.js`](frontend_go/public/static/js/support_config.js) (and the mirrored file under `_container_public/static/js/`) to wire in your production support mailbox or SMS gateway.
-- The same configuration is reused across every page, so a single change covers the Claims Portal, Processed Files, HEDI Mapping, Claim Entry, and the login/admin surfaces.
+- Update the default contact points in [`frontend_go/public/static/js/support_config.js`](frontend_go/public/static/js/support_config.js) to wire in your production support mailbox or SMS gateway.
+- The same configuration is reused across every page, so a single change covers the Claims Portal, Processed Files, Mapping Studio, Claim Entry, and the login/admin surfaces.
 - Messages that include words like “error” or “trouble” automatically produce a ticket reference in the chat transcript so agents can track the conversation against your downstream systems. Trish now follows up to capture the severity (1–4) before logging each ticket.
 
 ## Canvas validation helpers
 
-HEDI’s visual mapper now ships with richer instrumentation so analysts can immediately understand why rows are highlighted:
+Triage’s visual mapper now ships with richer instrumentation so analysts can immediately understand why rows are highlighted:
 
 - The XML-style wrapper row (`<transactionSet type="…">`) inspects the first `ST`/`GS` segments in the uploaded payload and updates itself to match the detected transaction variant (for example `837D` vs `837P`). This keeps the preview aligned with the real file type even when users mix dental, professional, or institutional claim templates.
 - Any row that violates the lightweight X12 rules (invalid identifiers, unrecognised segment IDs, disallowed characters, or missing `~` terminators) gains a light-blue thought bubble. Clicking the bubble toggles a friendly panel featuring `trish-laptop.svg` and bullet points that spell out the exact violation so analysts can reconcile the raw X12 text with the highlights.
 - Only one bubble is open at a time and re-clicking it closes the guidance, making it easy to step through each exception without losing your place in the canvas.
 
-These helpers live in [`frontend_go/public/static/js/mapper.js`](frontend_go/public/static/js/mapper.js) (and the mirrored `_container_public` copy) with the styles in [`frontend_go/public/static/css/styles.css`](frontend_go/public/static/css/styles.css).
+These helpers live in [`frontend_go/public/static/js/mapper.js`](frontend_go/public/static/js/mapper.js) with the styles in [`frontend_go/public/static/css/styles.css`](frontend_go/public/static/css/styles.css).
 
 ## Admin dashboard, tickets, and role wiring
 
-- The admin portal renders active tickets raised by the chat assistant. Entries are stored in-browser under the `hediSupportTickets` key and surface the ID, submission timestamp, summary, and severity ranking.
+- The admin portal renders active tickets raised by the chat assistant. Entries are stored in-browser under the `triageSupportTickets` key and surface the ID, submission timestamp, summary, and severity ranking.
 - Stage users and assign application roles (view → update → create → admin) from the Admin → “User & role management” card. Accounts are written to the `app_users` table in PostgreSQL with PBKDF2-hashed credentials and per-portal access flags.
-- A bootstrap administrator account is provisioned during API startup. By default the username is `admin` and the stored hash corresponds to the password `3wm078uu`. Override `HEDI_BOOTSTRAP_ADMIN_USER` and/or `HEDI_BOOTSTRAP_ADMIN_HASH` (a PBKDF2 string) to rotate these credentials before first run.
+- A bootstrap administrator account is provisioned during API startup. By default the username is `admin` and the stored hash corresponds to the password `3wm078uu`. Override `TRIAGE_BOOTSTRAP_ADMIN_USER` and/or `TRIAGE_BOOTSTRAP_ADMIN_HASH` (a PBKDF2 string) to rotate these credentials before first run.
 - OpenLDAP is bundled in the compose stack for directory-backed authentication. The container exposes `ldap://localhost:389` with the base DN `dc=example,dc=com` and an administrative bind account `cn=admin,dc=example,dc=com` (`3wm078uu`). On startup the API seeds a matching `uid=admin,ou=users,dc=example,dc=com` entry along with role groups under `ou=roles,dc=example,dc=com` so you can sign in immediately.
-- Secure the coordination between the Go frontend and FastAPI backend by setting the same `HEDI_SHARED_SECRET` value for both services. The shared token gates `/auth/login` and `/admin/users` calls so only the frontend can manage identities.
+- Secure the coordination between the Go frontend and FastAPI backend by setting the same `TRIAGE_SHARED_SECRET` value for both services. The shared token gates `/auth/login` and `/admin/users` calls so only the frontend can manage identities.
 - Runtime authorization is coordinated by [`static/js/auth_config.js`](frontend_go/public/static/js/auth_config.js) and [`static/js/authz.js`](frontend_go/public/static/js/authz.js). Pages mark privileged controls with `data-requires-role`, and the helper script disables them unless the signed-in user meets the threshold.
-- Toggle future identity providers (LDAP/AD and OIDC) from the admin “Authentication wiring” section. The UI persists your switches to `hediAuthProviders`, ready for wiring into a real directory or SSO integration later.
+- Toggle future identity providers (LDAP/AD and OIDC) from the admin “Authentication wiring” section. The UI persists your switches to `triageAuthProviders`, ready for wiring into a real directory or SSO integration later.
 
 ### Directory configuration quick reference
 
 - Compose brings up an `osixia/openldap` container with persistent volumes (`ldap_data`, `ldap_config`) so changes survive restarts.
-- Environment overrides in [`.env`](.env) control how the API connects and bootstraps the directory. Set `HEDI_LDAP_*` variables to point at an external LDAP server or disable the integration entirely by switching `HEDI_LDAP_ENABLED` to `false`.
+- Environment overrides in [`.env`](.env) control how the API connects and bootstraps the directory. Set `TRIAGE_LDAP_*` variables to point at an external LDAP server or disable the integration entirely by switching `TRIAGE_LDAP_ENABLED` to `false`.
 - Use `LDAP_HOST_PORT` if the host machine already consumes port 389; the container still listens on 389 internally so other services reach it via `ldap://ldap:389`.
 - The stack now reuses the HTTPS certificate for LDAP. Override `LDAP_TLS_*` entries in [`.env`](.env) to supply a different certificate/key bundle or fall back to the auto-generated self-signed pair.
 - Ensure the mapped certificate files remain writable from the container so the OpenLDAP entrypoint can adjust ownership and permissions during startup; otherwise the TLS bootstrap aborts early.
-- The bootstrap administrator password is shared between PostgreSQL and LDAP (`3wm078uu` by default) to keep the sample experience consistent. Update both `HEDI_BOOTSTRAP_ADMIN_HASH` and `HEDI_LDAP_BOOTSTRAP_PASSWORD` when rotating secrets.
+- The bootstrap administrator password is shared between PostgreSQL and LDAP (`3wm078uu` by default) to keep the sample experience consistent. Update both `TRIAGE_BOOTSTRAP_ADMIN_HASH` and `TRIAGE_LDAP_BOOTSTRAP_PASSWORD` when rotating secrets.
 
 ## Applying upstream patches
 

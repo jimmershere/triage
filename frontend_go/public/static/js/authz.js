@@ -28,8 +28,8 @@
   }
 
   const PATH_PREFIX = (() => {
-    if (typeof window.HEDI_PATH_PREFIX === "string") {
-      const configured = normalizePrefix(window.HEDI_PATH_PREFIX);
+    if (typeof window.TRIAGE_PATH_PREFIX === "string") {
+      const configured = normalizePrefix(window.TRIAGE_PATH_PREFIX);
       if (configured) {
         return configured;
       }
@@ -37,10 +37,10 @@
     return "";
   })();
 
-  window.HEDI_PATH_PREFIX = PATH_PREFIX;
+  window.TRIAGE_PATH_PREFIX = PATH_PREFIX;
 
-  if (typeof window.hediResolve !== "function") {
-    window.hediResolve = (path) => {
+  if (typeof window.triageResolve !== "function") {
+    window.triageResolve = (path) => {
       if (!path || path[0] !== "/") {
         return path;
       }
@@ -52,8 +52,8 @@
   }
 
   const OAUTH_START_BASE = (() => {
-    if (typeof window.HEDI_OAUTH2_START === "string") {
-      const trimmed = window.HEDI_OAUTH2_START.trim();
+    if (typeof window.TRIAGE_OAUTH2_START === "string") {
+      const trimmed = window.TRIAGE_OAUTH2_START.trim();
       if (trimmed) return trimmed;
     }
     return "/oauth2/start";
@@ -85,7 +85,7 @@
     return `${OAUTH_START_BASE}${separator}rd=${encodeURIComponent(target || "/")}`;
   }
 
-  window.hediLoginURL = buildLoginURL;
+  window.triageLoginURL = buildLoginURL;
 
   function redirectToLogin() {
     if (!requiresAuth || redirecting) return;
@@ -185,7 +185,7 @@
       .forEach((el) => enforceElement(el, index));
 
     window.dispatchEvent(
-      new CustomEvent("hedi-role-changed", {
+      new CustomEvent("triage-role-changed", {
         detail: {
           user: profile.username,
           role: profile.role,
@@ -199,7 +199,7 @@
 
   async function fetchProfile() {
     try {
-      const url = window.hediResolve ? window.hediResolve("/auth/me") : "/auth/me";
+      const url = window.triageResolve ? window.triageResolve("/auth/me") : "/auth/me";
       const response = await fetch(url, { credentials: "same-origin" });
       if (!response.ok) {
         profile = { ...DEFAULT_PROFILE };
@@ -229,11 +229,11 @@
         allowSubmit,
         defaultDestination: data.default_destination || "/",
       };
-      window.HEDI_AUTHZ = window.HEDI_AUTHZ || {};
-      window.HEDI_AUTHZ.currentUser = profile.username;
-      window.HEDI_AUTHZ.currentRole = profile.role;
-      window.HEDI_AUTHZ.defaultRole = window.HEDI_AUTHZ.defaultRole || "view";
-      window.HEDI_AUTHZ.defaultDestination = profile.defaultDestination;
+      window.TRIAGE_AUTHZ = window.TRIAGE_AUTHZ || {};
+      window.TRIAGE_AUTHZ.currentUser = profile.username;
+      window.TRIAGE_AUTHZ.currentRole = profile.role;
+      window.TRIAGE_AUTHZ.defaultRole = window.TRIAGE_AUTHZ.defaultRole || "view";
+      window.TRIAGE_AUTHZ.defaultDestination = profile.defaultDestination;
     } catch (err) {
       console.warn("Unable to load profile", err);
       profile = { ...DEFAULT_PROFILE };
@@ -244,7 +244,7 @@
     applyAuthz();
   }
 
-  window.refreshHediRole = fetchProfile;
+  window.refreshTriageRole = fetchProfile;
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", fetchProfile);
@@ -252,5 +252,5 @@
     fetchProfile();
   }
 
-  window.addEventListener("hedi-role-refresh", fetchProfile);
+  window.addEventListener("triage-role-refresh", fetchProfile);
 })();

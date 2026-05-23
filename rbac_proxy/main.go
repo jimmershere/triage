@@ -33,8 +33,8 @@ var (
 	listenAddr    = env("RBAC_LISTEN_ADDR", ":4180")
 	apiBase       = strings.TrimRight(env("RBAC_API_BASE", "http://api:8000"), "/")
 	sharedSecret  = strings.TrimSpace(env("RBAC_SHARED_SECRET", ""))
-	sessionSecret = []byte(env("HEDI_SESSION_SECRET", ""))
-	cookieName    = env("RBAC_COOKIE_NAME", "hedi_session")
+	sessionSecret = []byte(env("TRIAGE_SESSION_SECRET", ""))
+	cookieName    = env("RBAC_COOKIE_NAME", "triage_session")
 	cookieDomain  = strings.TrimSpace(os.Getenv("RBAC_COOKIE_DOMAIN"))
 	secureCookie  = envBool("RBAC_COOKIE_SECURE", false)
 	sessionTTL    = envDuration("RBAC_SESSION_TTL", 8*time.Hour)
@@ -103,12 +103,12 @@ func groupsForUser(user *apiUser) []string {
 	if user == nil {
 		return nil
 	}
-	groups := []string{"hedi-view"}
+	groups := []string{"triage-view"}
 	if user.AllowSubmit {
-		groups = append(groups, "hedi-submit")
+		groups = append(groups, "triage-submit")
 	}
 	if user.AllowAdmin {
-		groups = append(groups, "hedi-admin")
+		groups = append(groups, "triage-admin")
 	}
 	return groups
 }
@@ -132,7 +132,7 @@ func authenticate(ctx context.Context, username, password string) (*apiUser, err
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	if sharedSecret != "" {
-		req.Header.Set("X-HEDI-SECRET", sharedSecret)
+		req.Header.Set("X-TRIAGE-SECRET", sharedSecret)
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -347,7 +347,7 @@ const loginTemplateHTML = `<!DOCTYPE html>
 
 func main() {
 	if len(sessionSecret) == 0 {
-		log.Fatal("HEDI_SESSION_SECRET must be configured")
+		log.Fatal("TRIAGE_SESSION_SECRET must be configured")
 	}
 
 	mux := http.NewServeMux()

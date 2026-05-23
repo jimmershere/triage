@@ -74,7 +74,7 @@ def get_rmq_channel():
         # These two let pika retry the TCP connect step internally
         connection_attempts=12,
         retry_delay=5,
-        client_properties={"connection_name": "hedi-worker"},
+        client_properties={"connection_name": "triage-worker"},
     )
 
     # Robust retry loop for when broker is still starting

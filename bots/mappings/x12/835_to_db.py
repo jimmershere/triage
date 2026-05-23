@@ -6,7 +6,7 @@ from decimal import Decimal
 
 def main(inn, out):
     with psycopg.connect(
-        os.getenv("HEDI_PG_DSN", "postgresql://edi:edi@localhost:5432/edi"), autocommit=False
+        os.getenv("TRIAGE_PG_DSN", "postgresql://edi:edi@localhost:5432/edi"), autocommit=False
     ) as conn:
         with conn.cursor() as cur:
             for st in inn.getloop({'BOTSID':'ST'}):

@@ -21,15 +21,15 @@
   const canvasSaveButton = document.getElementById("canvasSaveMapping");
   const canvasSubmitButton = document.getElementById("canvasSubmitMapping");
 
-  const mapper = window.defaultHediMapper || (window.HediMapper && window.HediMapper.create({ initializeDefaults: true }));
-  const definitionMap = new Map((window.HediMapper?.definitions || []).map((def) => [def.id, def]));
+  const mapper = window.defaultTriageMapper || (window.TriageMapper && window.TriageMapper.create({ initializeDefaults: true }));
+  const definitionMap = new Map((window.TriageMapper?.definitions || []).map((def) => [def.id, def]));
 
   const sampleMaps = [
     {
       id: "837p-professional-core",
       name: "837P Professional Core",
       transaction: "837P",
-      summary: "Baseline submission map for professional claims with HEDI standard loops.",
+      summary: "Baseline submission map for professional claims with Triage standard loops.",
       identifier: "MAP-837P-CORE",
       updatedAt: "2024-05-10T10:45:00Z",
       segments: ["ISA", "GS", "ST", "BHT", "NM1", "HL", "SBR", "CLM", "DTP", "REF", "HI", "LX", "SV1", "SE", "GE", "IEA"],
@@ -268,7 +268,7 @@
     const now = new Date();
     const baseId = ensureUniqueId("custom-map");
     const name = `Custom map ${now.getMonth() + 1}/${now.getDate()}`;
-    const segments = currentMapId ? [...(mapRecords.get(currentMapId)?.segments || [])] : (window.HediMapper?.defaultSegmentIds || []);
+    const segments = currentMapId ? [...(mapRecords.get(currentMapId)?.segments || [])] : (window.TriageMapper?.defaultSegmentIds || []);
     const record = {
       id: baseId,
       name,
@@ -278,7 +278,7 @@
         : "Draft mapping created from default template.",
       identifier: baseId.toUpperCase().replace(/-/g, "_"),
       updatedAt: now.toISOString(),
-      segments: segments.length ? segments : (window.HediMapper?.defaultSegmentIds || []),
+      segments: segments.length ? segments : (window.TriageMapper?.defaultSegmentIds || []),
     };
     mapRecords.set(record.id, record);
     selectMap(record.id);

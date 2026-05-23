@@ -42,7 +42,7 @@
     SV1: "SV1*HC:99213*100*UN*1***1~",
     BPR: "BPR*I*534.54*C*ACH*CCP*01*123456789*DA*987654321*1234567890**01*999999999*DA*888888888*20230101~",
     TRN: "TRN*1*1099999990*9876543210*1512345678~",
-    N1: "N1*PR*HEDI HEALTH PLAN*FI*999999999~",
+    N1: "N1*PR*TRIAGE HEALTH PLAN*FI*999999999~",
     SE: "SE*23*0001~",
     GE: "GE*1*1~",
     IEA: "IEA*1*000000905~",
@@ -134,7 +134,7 @@
     }
     if (entry.issues.unknownSegment) {
       messages.push(
-        `"${identifier}" is not a recognised segment for this transaction set in HEDI's palette, so the mapper cannot validate it.`,
+        `"${identifier}" is not a recognised segment for this transaction set in Triage's palette, so the mapper cannot validate it.`,
       );
     }
     if (entry.issues.invalidCharacters) {
@@ -563,7 +563,7 @@
     const emptyStateEl = resolveElement(options.emptyState || "#canvasEmpty");
 
     if (!paletteEl || !canvasEl || !emptyStateEl) {
-      console.warn("HEDI mapping interface not initialised — elements missing");
+      console.warn("Triage mapping interface not initialised — elements missing");
       return null;
     }
 
@@ -791,20 +791,20 @@
   }
 
   function autoInit() {
-    if (window.HediMapper && window.HediMapper.autoInitialised) {
+    if (window.TriageMapper && window.TriageMapper.autoInitialised) {
       return;
     }
     const mapper = createMapper();
     if (mapper) {
-      window.defaultHediMapper = mapper;
+      window.defaultTriageMapper = mapper;
     }
-    if (!window.HediMapper) {
-      window.HediMapper = {};
+    if (!window.TriageMapper) {
+      window.TriageMapper = {};
     }
-    window.HediMapper.autoInitialised = true;
+    window.TriageMapper.autoInitialised = true;
   }
 
-  window.HediMapper = Object.assign(window.HediMapper || {}, {
+  window.TriageMapper = Object.assign(window.TriageMapper || {}, {
     create: createMapper,
     definitions: SEGMENT_DEFINITIONS.slice(),
     defaultSegmentIds: DEFAULT_SEGMENTS.slice(),

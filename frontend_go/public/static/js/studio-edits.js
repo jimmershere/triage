@@ -38,7 +38,7 @@
 
   // ── Grouped Palette Population ────────────────────────────────────────
   function populateGroupedPalette() {
-    const definitions = window.HediMapper?.definitions || [];
+    const definitions = window.TriageMapper?.definitions || [];
     if (!definitions.length) return;
 
     const groups = {
@@ -83,7 +83,7 @@
 
         // Click to append
         chip.addEventListener("click", () => {
-          const mapper = window.defaultHediMapper;
+          const mapper = window.defaultTriageMapper;
           if (mapper && typeof mapper.appendSegmentById === "function") {
             mapper.appendSegmentById(def.id);
           }
@@ -99,7 +99,7 @@
   // ── Editor ↔ Canvas Sync ──────────────────────────────────────────────
   function syncEditorToCanvas() {
     if (!editorTextarea) return;
-    const mapper = window.defaultHediMapper;
+    const mapper = window.defaultTriageMapper;
     if (!mapper || typeof mapper.updateFromContent !== "function") return;
     mapper.updateFromContent(editorTextarea.value);
   }
@@ -127,9 +127,9 @@
     populateGroupedPalette();
 
     // Watch for mapper initialization
-    if (!window.defaultHediMapper) {
+    if (!window.defaultTriageMapper) {
       const check = setInterval(() => {
-        if (window.defaultHediMapper) {
+        if (window.defaultTriageMapper) {
           clearInterval(check);
           populateGroupedPalette();
         }

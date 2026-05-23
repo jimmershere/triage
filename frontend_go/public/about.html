@@ -11,7 +11,7 @@
 <body data-requires-auth="portal">
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/triage-logo.svg" width="256" height="256" alt="Triage logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
         <div class="nav-group">
           <span class="nav-group-label">Command Center</span>
@@ -32,8 +32,8 @@
         <div class="nav-group portal-only">
           <span class="nav-group-label">Workspace</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/edits.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/mapping.html">Mapping Studio</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Operations</span>
@@ -57,38 +57,168 @@
     <div class="app-main">
       <main class="container about-page">
   <section class="card hero-card">
-    <div class="badge badge-loud">Our story</div>
-    <h1>The Triage collaboration journey</h1>
-    <p>Triage started as a skunkworks project between revenue cycle analysts and Golang engineers who were frustrated with slow EDI turnarounds. We began by automating a single 837 claims feed for a Medicare Advantage pilot and quickly expanded into eligibility, status, and remittance flows.</p>
-    <p>Today Triage blends Python-powered translation, Go-based orchestration, and a PostgreSQL event backbone to shorten every feedback loop between clearinghouses, payers, and front-line staff.</p>
+    <div class="badge badge-loud">About us</div>
+    <h1>Built by operators, engineers, and systems problem-solvers</h1>
+    <p>Triage was built to solve a real operational problem: healthcare EDI systems are often brittle, opaque, difficult to troubleshoot, and overloaded with manual exception handling.</p>
+    <p>Instead of treating claims processing like a black-box transaction pipe, we approached it as a systems-engineering problem.</p>
   </section>
 
   <section class="card" style="margin-top:24px;">
-    <h2>Milestones that shaped us</h2>
+    <h2>Who built it</h2>
+    <p>The platform was designed and implemented by engineers with deep experience in:</p>
     <ul>
-      <li><strong>2018:</strong> Partnered with a CMS ZPIC contractor to harden our first Medicare claims intake gateway.</li>
-      <li><strong>2020:</strong> Introduced RabbitMQ-driven job queues so acknowledgement traffic could be tracked in near real time.</li>
-      <li><strong>2022:</strong> Open-sourced our claim entry prototypes to help state Medicaid agencies modernize their X12 tooling.</li>
-      <li><strong>2024:</strong> Rolled out the portal experience you use today—role aware, analytics friendly, and tuned for rapid onboarding.</li>
+      <li>enterprise infrastructure</li>
+      <li>systems integration</li>
+      <li>workflow automation</li>
+      <li>distributed processing</li>
+      <li>healthcare EDI operations</li>
+      <li>AI-assisted orchestration</li>
+      <li>production troubleshooting at scale</li>
+    </ul>
+    <p>A large portion of the platform architecture, processing engine, validation framework, and AI workflow integration was designed and developed by <strong>Jim Kelley</strong> and his engineering collaborators.</p>
+    <p>Jim&rsquo;s background spans infrastructure engineering, automation engineering, backend systems, workflow orchestration, and operational recovery in complex production environments. That experience heavily shaped the direction of Triage: practical systems first, observable behavior second, AI only where it adds measurable value.</p>
+  </section>
+
+  <section class="card" style="margin-top:24px;">
+    <h2>What we built</h2>
+    <p>Triage evolved from a traditional EDI workflow engine into a modern intelligent claims-processing platform capable of:</p>
+    <ul>
+      <li>multi-tier healthcare claim routing</li>
+      <li>AI-assisted exception handling</li>
+      <li>X12 validation and transformation</li>
+      <li>real-time operational dashboards</li>
+      <li>CMS-grade transaction validation</li>
+      <li>FHIR interoperability</li>
+      <li>swarm-based supervised AI workloads</li>
+      <li>visual transaction mapping and debugging</li>
+    </ul>
+    <p>The architecture combines:</p>
+    <ul>
+      <li>Python processing pipelines</li>
+      <li>Go frontend systems</li>
+      <li>PostgreSQL operational storage</li>
+      <li>RabbitMQ workflow orchestration</li>
+      <li>X12 transaction engines</li>
+      <li>supervised AI agent workflows</li>
+      <li>structured auditability and replay systems</li>
     </ul>
   </section>
 
   <section class="card" style="margin-top:24px;">
-    <h2>Why teams choose Triage</h2>
-    <div class="row" style="gap:1.5rem;align-items:flex-start;">
-      <div style="flex:1;min-width:220px;">
-        <h3>People-centered workflows</h3>
-        <p>We design every page so operations teams can spot status changes instantly and share context with clinical or finance staff without leaving the portal.</p>
+    <h2>Major platform components completed</h2>
+
+    <h3>Tiered AI claim routing engine</h3>
+    <p>One of the platform&rsquo;s core systems is a multi-tier intelligent routing architecture that dynamically classifies healthcare claims based on complexity, risk, anomaly detection, and confidence scoring.</p>
+    <p>The routing system supports:</p>
+    <ul>
+      <li>deterministic low-cost processing paths</li>
+      <li>escalation workflows</li>
+      <li>supervised AI review</li>
+      <li>human exception handling</li>
+      <li>persistent routing audit trails</li>
+    </ul>
+    <p>The platform currently supports Tier 0 through Tier 3 processing workflows, including supervised swarm-based AI review pipelines.</p>
+
+    <h3 style="margin-top:1.5rem;">CMS-grade validation framework</h3>
+    <p>We implemented a healthcare validation engine covering:</p>
+    <ul>
+      <li>WEDI SNIP 1&ndash;7 validation</li>
+      <li>HIPAA transaction compliance</li>
+      <li>837P / 837I / 837D support</li>
+      <li>835 / 270 / 271 / 276 / 277 / 278 transaction support</li>
+      <li>TA1, 999, and 277CA acknowledgment generation</li>
+    </ul>
+    <p>The engine includes:</p>
+    <ul>
+      <li>positioned segment-aware parsing</li>
+      <li>rule-driven validation</li>
+      <li>issue anchoring</li>
+      <li>standards-aware transaction analysis</li>
+    </ul>
+    <p>The roadmap and implementation now include over 200 automated tests validating platform behavior.</p>
+
+    <h3 style="margin-top:1.5rem;">Visual X12 mapping and canvas system</h3>
+    <p>We designed and implemented a canvas-based visual transaction mapper capable of:</p>
+    <ul>
+      <li>interactive X12 segment visualization</li>
+      <li>contextual issue highlighting</li>
+      <li>schema-aware transaction rendering</li>
+      <li>guided troubleshooting overlays</li>
+      <li>positioned validation issue reporting</li>
+    </ul>
+    <p>This dramatically improves observability and troubleshooting compared to legacy EDI tooling.</p>
+
+    <h3 style="margin-top:1.5rem;">Real-time exception command center</h3>
+    <p>Triage includes a command-center architecture designed for operational teams managing claim exceptions at scale.</p>
+    <p>The system aggregates:</p>
+    <ul>
+      <li>denial severity</li>
+      <li>financial exposure</li>
+      <li>category breakdowns</li>
+      <li>queue prioritization</li>
+      <li>operational risk metrics</li>
+    </ul>
+    <p>The dashboard architecture supports operator, analyst, and executive-level workflows simultaneously from a unified data model.</p>
+
+    <h3 style="margin-top:1.5rem;">AI-guided remediation and supervised swarms</h3>
+    <p>A major focus of the platform has been supervised AI orchestration rather than unsupervised automation.</p>
+    <p>We implemented:</p>
+    <ul>
+      <li>denial-resolution swarms</li>
+      <li>remediation suggestion systems</li>
+      <li>supervised verdict workflows</li>
+      <li>structured audit trails</li>
+      <li>confidence-scored escalation</li>
+      <li>retry-safe orchestration frameworks</li>
+    </ul>
+    <p>The swarm framework records prompts, responses, retries, timing, and decision audit history for compliance replay and operational transparency.</p>
+  </section>
+
+  <section class="card" style="margin-top:24px;">
+    <h2>Engineering philosophy</h2>
+    <div class="row" style="gap:1.5rem;align-items:flex-start;flex-wrap:wrap;">
+      <div style="flex:1;min-width:240px;">
+        <h3>Reliability over hype</h3>
+        <p>AI is used selectively where it improves operational outcomes, not as a replacement for deterministic systems.</p>
       </div>
-      <div style="flex:1;min-width:220px;">
-        <h3>Cloud-ready architecture</h3>
-        <p>Our Go services stream data through PostgreSQL and RabbitMQ, while Python parsers keep pace with CMS and commercial payer updates.</p>
+      <div style="flex:1;min-width:240px;">
+        <h3>Observability first</h3>
+        <p>Operators should be able to understand why a claim failed, where a transaction broke, why a routing decision occurred, what the AI concluded, and how remediation was suggested.</p>
       </div>
-      <div style="flex:1;min-width:220px;">
-        <h3>Community roots</h3>
-        <p>From Linux Mint workstations to open specification mapping, we listen to implementers and publish improvements back to the healthcare data community.</p>
+      <div style="flex:1;min-width:240px;">
+        <h3>Human-supervised AI</h3>
+        <p>The system is designed around escalation, auditability, replay, and controlled workflows&mdash;not black-box automation.</p>
+      </div>
+      <div style="flex:1;min-width:240px;">
+        <h3>Practical interoperability</h3>
+        <p>FHIR and X12 interoperability were treated as operational requirements, not marketing features.</p>
       </div>
     </div>
+  </section>
+
+  <section class="card" style="margin-top:24px;">
+    <h2>Where we&rsquo;re going</h2>
+    <p>The next phase of Triage focuses on scaling the platform into a fully operational intelligent healthcare workflow ecosystem.</p>
+    <p>Current and future initiatives include:</p>
+    <ul>
+      <li>expanded FHIR interoperability</li>
+      <li>production-grade payer integrations</li>
+      <li>live eligibility and claim-status orchestration</li>
+      <li>advanced denial-prediction workflows</li>
+      <li>enhanced operational dashboards</li>
+      <li>large-scale workflow automation</li>
+      <li>compliance-aware AI orchestration</li>
+      <li>real-time financial risk analysis</li>
+      <li>advanced healthcare workflow intelligence</li>
+    </ul>
+    <p>Long-term, the goal is to build a modern healthcare operations platform that combines deterministic processing, AI-assisted orchestration, human-guided decision systems, transparent operational intelligence, and scalable workflow infrastructure&mdash;without sacrificing reliability, auditability, or operator control.</p>
+  </section>
+
+  <section class="card" style="margin-top:24px;">
+    <h2>Our perspective</h2>
+    <p>Healthcare EDI infrastructure has historically been dominated by opaque systems, brittle integrations, and difficult operational workflows.</p>
+    <p>Triage was built differently.</p>
+    <p>The goal was never simply to process transactions. The goal was to build a platform that helps operators understand, manage, prioritize, repair, route, and improve healthcare workflow systems in real time&mdash;using modern engineering practices, observable architecture, and carefully supervised AI systems.</p>
   </section>
 </main>
     </div>

@@ -67,19 +67,19 @@ fi
 # --- start the four services --------------------------------------------
 nohup env \
   PUBLIC_DIR="$ROOT/frontend_go/public" \
-  HEDI_API_BASE="$HEDI_API_BASE" \
-  HEDI_OAUTH2_PROXY_URL="${HEDI_OAUTH2_PROXY_URL:-http://127.0.0.1:4180}" \
-  HEDI_OAUTH2_PROXY_INTERNAL_URL="${HEDI_OAUTH2_PROXY_INTERNAL_URL:-http://127.0.0.1:4180}" \
-  HEDI_SHARED_SECRET="$HEDI_SHARED_SECRET" \
-  HEDI_SESSION_SECRET="$HEDI_SESSION_SECRET" \
+  TRIAGE_API_BASE="$TRIAGE_API_BASE" \
+  TRIAGE_OAUTH2_PROXY_URL="${TRIAGE_OAUTH2_PROXY_URL:-http://127.0.0.1:4180}" \
+  TRIAGE_OAUTH2_PROXY_INTERNAL_URL="${TRIAGE_OAUTH2_PROXY_INTERNAL_URL:-http://127.0.0.1:4180}" \
+  TRIAGE_SHARED_SECRET="$TRIAGE_SHARED_SECRET" \
+  TRIAGE_SESSION_SECRET="$TRIAGE_SESSION_SECRET" \
   ./.runtime/frontend_go >"$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
 nohup env \
   RBAC_LISTEN_ADDR=":4180" \
-  RBAC_API_BASE="$HEDI_API_BASE" \
-  RBAC_SHARED_SECRET="$HEDI_SHARED_SECRET" \
-  HEDI_SESSION_SECRET="$HEDI_SESSION_SECRET" \
+  RBAC_API_BASE="$TRIAGE_API_BASE" \
+  RBAC_SHARED_SECRET="$TRIAGE_SHARED_SECRET" \
+  TRIAGE_SESSION_SECRET="$TRIAGE_SESSION_SECRET" \
   ./.runtime/rbac_proxy >"$RBAC_LOG" 2>&1 &
 RBAC_PID=$!
 
@@ -101,7 +101,7 @@ echo "worker log:   $WORKER_LOG  (pid $WORKER_PID)"
 echo
 echo "TurboHEDI local stack started:"
 echo "  Frontend UI:        http://127.0.0.1:8080         (sign in: admin / 3wm078uu)"
-echo "  Mapping canvas:     http://127.0.0.1:8080/hedi-mapping.html"
+echo "  Mapping canvas:     http://127.0.0.1:8080/mapping.html"
 echo "  API (Swagger):      http://127.0.0.1:8000/docs"
 echo "  Turbo capability:   http://127.0.0.1:8000/turbo/capability"
 echo "  Ops summary:        http://127.0.0.1:8000/ops/summary"

@@ -1,4 +1,4 @@
--- db/hedi_partner_profiles.sql
+-- db/triage_partner_profiles.sql
 CREATE TABLE IF NOT EXISTS partner_profiles (
   partner_key text PRIMARY KEY,
   -- Payer / Provider identifiers used inside NM1 segments

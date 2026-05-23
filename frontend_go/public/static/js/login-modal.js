@@ -12,10 +12,10 @@
   }
 
   function resolveLoginURL(nextPath) {
-    if (typeof window.hediLoginURL === "function") {
-      return window.hediLoginURL(nextPath);
+    if (typeof window.triageLoginURL === "function") {
+      return window.triageLoginURL(nextPath);
     }
-    const base = (typeof window.HEDI_OAUTH2_START === "string" && window.HEDI_OAUTH2_START.trim()) || "/oauth2/start";
+    const base = (typeof window.TRIAGE_OAUTH2_START === "string" && window.TRIAGE_OAUTH2_START.trim()) || "/oauth2/start";
     const separator = base.includes("?") ? "&" : "?";
     return `${base}${separator}rd=${encodeURIComponent(nextPath || "/")}`;
   }
@@ -65,5 +65,5 @@
     applyNavGuards();
   }
 
-  window.addEventListener("hedi-role-changed", applyNavGuards);
+  window.addEventListener("triage-role-changed", applyNavGuards);
 })();

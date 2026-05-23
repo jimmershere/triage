@@ -37,7 +37,7 @@ def manager_factory(monkeypatch):
         params = dict(
             uri="ldap://example.com",
             base_dn="dc=example,dc=com",
-            root_cn="ou=HEDI",
+            root_cn="ou=TRIAGE",
             users_ou="ou=users",
             roles_ou="ou=roles",
             trading_partners_ou="ou=trading-partners",
@@ -73,7 +73,7 @@ def test_user_highest_role_defaults_to_view(manager_factory):
             return False
 
     result = manager._user_highest_role(
-        NoGroupsConn(), "uid=jim.doe,ou=users,ou=HEDI,dc=example,dc=com"
+        NoGroupsConn(), "uid=jim.doe,ou=users,ou=TRIAGE,dc=example,dc=com"
     )
     assert result == "view"
 

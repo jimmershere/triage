@@ -388,14 +388,14 @@ class _PyX12Support:
             return None
 
         now = datetime.utcnow()
-        ack_sender = (isa_receiver or "HEDIRECEIVER")[:15].ljust(15)
-        ack_receiver = (isa_sender or "HEDISENDER")[:15].ljust(15)
+        ack_sender = (isa_receiver or "TRIAGERECEIVER")[:15].ljust(15)
+        ack_receiver = (isa_sender or "TRIAGESENDER")[:15].ljust(15)
         ack_isa_ctrl = f"{abs(hash((job_uuid, isa_ctrl))) % 1_000_000_000:09d}"
         ack_gs_ctrl = f"{abs(hash((job_uuid, gs_ctrl))) % 1_000_000 + 1:06d}".lstrip("0") or "1"
         ack_st_ctrl = f"{abs(hash((job_uuid, st_ctrl))) % 10_000:04d}" or "0001"
 
-        gs_sender_out = (gs_receiver or ack_sender.strip() or "HEDIACK").strip() or "HEDIACK"
-        gs_receiver_out = (gs_sender or ack_receiver.strip() or "HEDICLIENT").strip() or "HEDICLIENT"
+        gs_sender_out = (gs_receiver or ack_sender.strip() or "TRIAGEACK").strip() or "TRIAGEACK"
+        gs_receiver_out = (gs_sender or ack_receiver.strip() or "TRIAGECLIENT").strip() or "TRIAGECLIENT"
 
         ack_lines = [
             "ISA*00*          *00*          *ZZ*{}*ZZ*{}*{}*{}*^*00501*{}*0*T*:~".format(
@@ -466,7 +466,7 @@ def _ensure_pyx12_ak2_patch() -> None:
     if visit_st_pre is None:
         return
 
-    if getattr(visit_st_pre, "_hedi_patched", False):
+    if getattr(visit_st_pre, "_triage_patched", False):
         return
 
     @wraps(visit_st_pre)
@@ -488,7 +488,7 @@ def _ensure_pyx12_ak2_patch() -> None:
                 pass
         return visit_st_pre(self, err_st)
 
-    patched_visit_st_pre._hedi_patched = True  # type: ignore[attr-defined]
+    patched_visit_st_pre._triage_patched = True  # type: ignore[attr-defined]
     error_999_visitor.visit_st_pre = patched_visit_st_pre
 
 
@@ -615,7 +615,7 @@ def _copy_custom_maps_into_package(definitions: list[_CustomMapDefinition]) -> N
 
 
 def _ensure_custom_maps(map_index_mod: object) -> None:
-    """Expose HEDI-supplied pyx12 maps and register them with the map index."""
+    """Expose Triage-supplied pyx12 maps and register them with the map index."""
 
     map_index_cls = getattr(map_index_mod, "map_index", None)
     if map_index_cls is None:
@@ -630,7 +630,7 @@ def _ensure_custom_maps(map_index_mod: object) -> None:
 
     _copy_custom_maps_into_package(_CUSTOM_MAP_DEFS)
 
-    if getattr(map_index_cls, "_hedi_custom_maps", False):
+    if getattr(map_index_cls, "_triage_custom_maps", False):
         return
 
     original_init = map_index_cls.__init__
@@ -658,7 +658,7 @@ def _ensure_custom_maps(map_index_mod: object) -> None:
                 logger.warning("failed to register pyx12 custom map %s: %s", definition.filename, exc)
 
     map_index_cls.__init__ = patched_init  # type: ignore[assignment]
-    map_index_cls._hedi_custom_maps = True  # type: ignore[attr-defined]
+    map_index_cls._triage_custom_maps = True  # type: ignore[attr-defined]
 
 def _load_support() -> _PyX12Support | None:
     global _SUPPORT_ERROR

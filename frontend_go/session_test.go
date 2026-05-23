@@ -33,7 +33,7 @@ func TestIdentityFromSessionCookie(t *testing.T) {
 
 	claims := sessionClaims{
 		Username: "alice",
-		Groups:   []string{"hedi-view", "hedi-submit"},
+		Groups:   []string{"triage-view", "triage-submit"},
 		Expires:  time.Now().Add(time.Hour).Unix(),
 	}
 	token := signTestSession(t, claims, sessionSecret)
@@ -57,7 +57,7 @@ func TestIdentityFromExpiredSession(t *testing.T) {
 
 	claims := sessionClaims{
 		Username: "alice",
-		Groups:   []string{"hedi-view"},
+		Groups:   []string{"triage-view"},
 		Expires:  time.Now().Add(-time.Hour).Unix(),
 	}
 	token := signTestSession(t, claims, sessionSecret)
@@ -83,9 +83,9 @@ func TestProfileFromRequestAllowSubmit(t *testing.T) {
 		wantSubmit bool
 		wantAdmin  bool
 	}{
-		{name: "admin", groups: []string{"hedi-admin"}, wantRole: "administrator", wantSubmit: true, wantAdmin: true},
-		{name: "submitter", groups: []string{"hedi-submit"}, wantRole: "submit", wantSubmit: true, wantAdmin: false},
-		{name: "viewer", groups: []string{"hedi-view"}, wantRole: "view", wantSubmit: false, wantAdmin: false},
+		{name: "admin", groups: []string{"triage-admin"}, wantRole: "administrator", wantSubmit: true, wantAdmin: true},
+		{name: "submitter", groups: []string{"triage-submit"}, wantRole: "submit", wantSubmit: true, wantAdmin: false},
+		{name: "viewer", groups: []string{"triage-view"}, wantRole: "view", wantSubmit: false, wantAdmin: false},
 	}
 
 	for _, tc := range cases {

@@ -191,7 +191,7 @@
 <body>
   <div class="app-shell">
     <aside class="site-sidebar">
-      <a href="/" class="brand" aria-label="Triage home"><img src="/img/hedi-logo.svg" width="256" height="256" alt="Triage logo"></a>
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/triage-logo.svg" width="256" height="256" alt="Triage logo"></a>
       <nav class="sidebar-nav" aria-label="Primary navigation">
         <div class="nav-group">
           <span class="nav-group-label">Command Center</span>
@@ -212,8 +212,8 @@
         <div class="nav-group portal-only">
           <span class="nav-group-label">Workspace</span>
           <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-edit.html">Edits Studio</a>
-          <a class="nav-pill portal-link" data-tone="mapping" href="/hedi-mapping.html">Mapping Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/edits.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/mapping.html">Mapping Studio</a>
         </div>
         <div class="nav-group">
           <span class="nav-group-label">Operations</span>
@@ -389,7 +389,7 @@
   <script src="/static/js/authz.js"></script>
   <script src="/static/js/login-modal.js"></script>
   <script>
-    const API_BASE = window.HEDI_API_BASE || "";
+    const API_BASE = window.TRIAGE_API_BASE || "";
     const CC_URL     = API_BASE ? `${API_BASE}/ops/command-center` : "/ops/command-center";
     const ALERTS_URL = API_BASE ? `${API_BASE}/ops/alerts`         : "/ops/alerts";
 

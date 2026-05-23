@@ -12,10 +12,10 @@ This bundle drops into `turbohedi-0.2/` and adds:
 2. Merge `bots/config/routes_x12_addons.ini` into your main `bots.ini` (or include it).
 3. Create tables:
    ```sh
-   psql "$HEDI_PG_DSN" -f db/hedi_x12_addons.sql
-   psql "$HEDI_PG_DSN" -f db/hedi_partner_profiles.sql
+   psql "$TRIAGE_PG_DSN" -f db/triage_x12_addons.sql
+   psql "$TRIAGE_PG_DSN" -f db/triage_partner_profiles.sql
    ```
-4. Ensure env var `HEDI_PG_DSN` points at your DB (defaults to `postgresql://edi:edi@localhost:5432/edi`).
+4. Ensure env var `TRIAGE_PG_DSN` points at your DB (defaults to `postgresql://edi:edi@localhost:5432/edi`).
 
 ## Queues expected
 
@@ -37,6 +37,6 @@ This bundle drops into `turbohedi-0.2/` and adds:
 ## Notes
 - These grammars are lean and pragmatic; extend `recorddefs` and `structure` if your payers use optional segments.
 - Mappings use lightweight inserts; swap to UPSERT/MERGE patterns or staging tables as needed for high throughput.
-- Partner defaults come from the `partner_profiles` table (see `db/hedi_partner_profiles.sql`); payload fields override any defaults.
+- Partner defaults come from the `partner_profiles` table (see `db/triage_partner_profiles.sql`); payload fields override any defaults.
 - Envelope/partners are handled by bots via your partner settings; GS08/versions already match the common HIPAA guides.
 - Python 3.12 tested in our pipeline; make sure `psycopg` (v3) is installed in the bots runtime.

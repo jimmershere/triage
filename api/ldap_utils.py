@@ -111,9 +111,9 @@ class LDAPManager:
             raise ValueError("administrator role must be in hierarchy")
         self.base_dn = (config.base_dn or "").strip()
         self.root_attribute, self.root_value, self.root_dn = self._normalize_container(
-            config.root_cn or "ou=HEDI",
+            config.root_cn or "ou=TRIAGE",
             parent=self.base_dn,
-            fallback_value="HEDI",
+            fallback_value="TRIAGE",
             default_attr="ou",
         )
         self.users_attribute, self.users_value, self.users_dn = self._normalize_container(
@@ -290,7 +290,7 @@ class LDAPManager:
             "cn": ["Bootstrap Administrator"],
             "sn": ["Administrator"],
             "givenName": ["Bootstrap"],
-            "displayName": ["HEDI Administrator"],
+            "displayName": ["Triage Administrator"],
             "userPassword": [password_hash],
         }
         exists = conn.search(self.bootstrap_dn, "(objectClass=*)", search_scope=BASE, attributes=["uid", "userPassword"])
@@ -318,7 +318,7 @@ class LDAPManager:
         }
         for role in self.role_hierarchy:
             dn = self._role_group_dn(role)
-            desc = descriptions.get(role, f"HEDI {role} role")
+            desc = descriptions.get(role, f"Triage {role} role")
             attrs = {
                 "cn": [role],
                 "description": [desc],

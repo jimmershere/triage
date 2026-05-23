@@ -9,7 +9,7 @@ func TestSessionRoundTrip(t *testing.T) {
 	secret := []byte("super-secret")
 	claims := sessionClaims{
 		Username: "alice",
-		Groups:   []string{"hedi-view", "hedi-submit"},
+		Groups:   []string{"triage-view", "triage-submit"},
 		Expires:  time.Now().Add(time.Hour).Unix(),
 	}
 	token, err := signSession(claims, secret)

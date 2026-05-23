@@ -1,6 +1,6 @@
-const API_BASE = window.HEDI_API_BASE || "";
-const INGEST_URL = window.HEDI_INGEST_URL || (API_BASE ? `${API_BASE}/ingest` : "/ingest");
-const JOBS_URL = window.HEDI_JOBS_URL || (API_BASE ? `${API_BASE}/jobs` : "/jobs");
+const API_BASE = window.TRIAGE_API_BASE || "";
+const INGEST_URL = window.TRIAGE_INGEST_URL || (API_BASE ? `${API_BASE}/ingest` : "/ingest");
+const JOBS_URL = window.TRIAGE_JOBS_URL || (API_BASE ? `${API_BASE}/jobs` : "/jobs");
 const JOBS_DOWNLOAD_BASE = JOBS_URL.replace(/\/$/, "");
 const CLAIMS_STATE_KEY = "turbohediClaimsFilters";
 
@@ -49,11 +49,11 @@ function formatBytes(size) {
 
 function sendToLogin() {
   const next = `${window.location.pathname}${window.location.search || ""}`;
-  if (typeof window.hediLoginURL === "function") {
-    window.location.href = window.hediLoginURL(next);
+  if (typeof window.triageLoginURL === "function") {
+    window.location.href = window.triageLoginURL(next);
     return;
   }
-  const base = (typeof window.HEDI_OAUTH2_START === "string" && window.HEDI_OAUTH2_START.trim()) || "/oauth2/start";
+  const base = (typeof window.TRIAGE_OAUTH2_START === "string" && window.TRIAGE_OAUTH2_START.trim()) || "/oauth2/start";
   const separator = base.includes("?") ? "&" : "?";
   window.location.href = `${base}${separator}rd=${encodeURIComponent(next || "/")}`;
 }

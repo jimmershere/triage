@@ -22,20 +22,20 @@ import (
 	"strings"
 	"time"
 
-	"hedi/frontend_go/rbac"
+	"triage/frontend_go/rbac"
 )
 
 var (
 	publicDir = env("PUBLIC_DIR", "/app/public") // bind-mounted in the container
 
-	rawAPIBase               = strings.TrimRight(env("HEDI_API_BASE", ""), "/")
-	rawOAuthProxyURL         = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_URL", ""))
-	rawOAuthProxyInternalURL = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_INTERNAL_URL", ""))
-	rawOAuthProxyInsecure    = strings.TrimSpace(env("HEDI_OAUTH2_PROXY_INSECURE_SKIP_VERIFY", ""))
-	sessionSecretRaw         = strings.TrimSpace(env("HEDI_SESSION_SECRET", ""))
+	rawAPIBase               = strings.TrimRight(env("TRIAGE_API_BASE", ""), "/")
+	rawOAuthProxyURL         = strings.TrimSpace(env("TRIAGE_OAUTH2_PROXY_URL", ""))
+	rawOAuthProxyInternalURL = strings.TrimSpace(env("TRIAGE_OAUTH2_PROXY_INTERNAL_URL", ""))
+	rawOAuthProxyInsecure    = strings.TrimSpace(env("TRIAGE_OAUTH2_PROXY_INSECURE_SKIP_VERIFY", ""))
+	sessionSecretRaw         = strings.TrimSpace(env("TRIAGE_SESSION_SECRET", ""))
 	sessionSecret            = []byte(sessionSecretRaw)
 	backendAPIBase           string
-	sharedSecret             = env("HEDI_SHARED_SECRET", "change-me")
+	sharedSecret             = env("TRIAGE_SHARED_SECRET", "change-me")
 	oauthProxyInsecureConfig bool
 
 	apiProxyTarget     *url.URL
@@ -46,7 +46,7 @@ var (
 	httpClient = &http.Client{Timeout: 10 * time.Second}
 )
 
-const sessionCookieName = "hedi_session"
+const sessionCookieName = "triage_session"
 
 func init() {
 	backendAPIBase = rawAPIBase
@@ -57,7 +57,7 @@ func init() {
 		if v, err := strconv.ParseBool(rawOAuthProxyInsecure); err == nil {
 			oauthProxyInsecureConfig = v
 		} else {
-			fmt.Printf("Invalid HEDI_OAUTH2_PROXY_INSECURE_SKIP_VERIFY %q: %v\n", rawOAuthProxyInsecure, err)
+			fmt.Printf("Invalid TRIAGE_OAUTH2_PROXY_INSECURE_SKIP_VERIFY %q: %v\n", rawOAuthProxyInsecure, err)
 		}
 	}
 	mime.AddExtensionType(".svg", "image/svg+xml")
@@ -367,11 +367,17 @@ func adminUserDetailAPIRouter(w http.ResponseWriter, r *http.Request) {
 	handleAdminUserDetail(w, r, suffix)
 }
 
+func redirectTo(target string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target, http.StatusMovedPermanently)
+	}
+}
+
 func configHandler(w http.ResponseWriter, r *http.Request) {
 	apiBase := rawAPIBase
-	ingest := env("HEDI_INGEST_URL", "")
-	jobs := env("HEDI_JOBS_URL", "")
-	oauthStart := env("HEDI_OAUTH2_START", "/oauth2/start")
+	ingest := env("TRIAGE_INGEST_URL", "")
+	jobs := env("TRIAGE_JOBS_URL", "")
+	oauthStart := env("TRIAGE_OAUTH2_START", "/oauth2/start")
 	useProxy := apiProxyEnabled
 	if ingest == "" {
 		if useProxy || apiBase == "" {
@@ -389,7 +395,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprintf(w, "window.HEDI_API_BASE = %q;\nwindow.HEDI_INGEST_URL = %q;\nwindow.HEDI_JOBS_URL = %q;\nwindow.HEDI_OAUTH2_START = %q;\nwindow.HEDI_SHARED_SECRET = %q;\n", apiBase, ingest, jobs, oauthStart, sharedSecret)
+	fmt.Fprintf(w, "window.TRIAGE_API_BASE = %q;\nwindow.TRIAGE_INGEST_URL = %q;\nwindow.TRIAGE_JOBS_URL = %q;\nwindow.TRIAGE_OAUTH2_START = %q;\nwindow.TRIAGE_SHARED_SECRET = %q;\n", apiBase, ingest, jobs, oauthStart, sharedSecret)
 }
 
 func isSafeUsername(v string) bool {
@@ -507,7 +513,7 @@ type apiError struct {
 
 func callBackend(ctx context.Context, method, path string, payload interface{}, out interface{}) (int, error) {
 	if backendAPIBase == "" {
-		return 0, errors.New("HEDI_API_BASE not configured")
+		return 0, errors.New("TRIAGE_API_BASE not configured")
 	}
 	var body io.Reader
 	if payload != nil {
@@ -526,7 +532,7 @@ func callBackend(ctx context.Context, method, path string, payload interface{}, 
 	}
 	req.Header.Set("Accept", "application/json")
 	if sharedSecret != "" {
-		req.Header.Set("X-HEDI-SECRET", sharedSecret)
+		req.Header.Set("X-TRIAGE-SECRET", sharedSecret)
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -659,21 +665,21 @@ func main() {
 		if u, err := url.Parse(rawAPIBase); err == nil {
 			apiProxyTarget = u
 		} else {
-			fmt.Printf("Invalid HEDI_API_BASE %q: %v\n", rawAPIBase, err)
+			fmt.Printf("Invalid TRIAGE_API_BASE %q: %v\n", rawAPIBase, err)
 		}
 	}
 	if rawOAuthProxyURL != "" {
 		if u, err := url.Parse(rawOAuthProxyURL); err == nil {
 			oauthProxyTarget = u
 		} else {
-			fmt.Printf("Invalid HEDI_OAUTH2_PROXY_URL %q: %v\n", rawOAuthProxyURL, err)
+			fmt.Printf("Invalid TRIAGE_OAUTH2_PROXY_URL %q: %v\n", rawOAuthProxyURL, err)
 		}
 	}
 	if rawOAuthProxyInternalURL != "" {
 		if u, err := url.Parse(rawOAuthProxyInternalURL); err == nil {
 			oauthProxyInternal = u
 		} else {
-			fmt.Printf("Invalid HEDI_OAUTH2_PROXY_INTERNAL_URL %q: %v\n", rawOAuthProxyInternalURL, err)
+			fmt.Printf("Invalid TRIAGE_OAUTH2_PROXY_INTERNAL_URL %q: %v\n", rawOAuthProxyInternalURL, err)
 		}
 	} else {
 		oauthProxyInternal = oauthProxyTarget
@@ -691,6 +697,11 @@ func main() {
 	mux.HandleFunc("/admin/api/users/", adminUserDetailAPIRouter)
 	mux.HandleFunc("/admin/users", adminUsersAPIRouter)
 	mux.HandleFunc("/admin/users/", adminUserDetailAPIRouter)
+
+	// Legacy route redirects (HEDI → Triage rebrand).
+	mux.HandleFunc("/hedi-edit.html", redirectTo("/edits.html"))
+	mux.HandleFunc("/hedi-mapping.html", redirectTo("/mapping.html"))
+	mux.HandleFunc("/img/hedi-logo.svg", redirectTo("/img/triage-logo.svg"))
 
 	// everything else
 	mux.HandleFunc("/", staticHandler)

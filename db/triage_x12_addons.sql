@@ -1,4 +1,4 @@
--- db/hedi_x12_addons.sql
+-- db/triage_x12_addons.sql
 -- Tables for 835 ERA, 271 Eligibility, 277 Claim Status
 
 CREATE TABLE IF NOT EXISTS era_835_header (

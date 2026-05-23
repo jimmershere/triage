@@ -48,7 +48,7 @@ and to keep architectural intent visible to future contributors.
 ### Implementing modules
 | Layer | File | Role |
 |---|---|---|
-| Canvas UI | `frontend_go/public/static/js/mapper.js` (+ mirror under `_container_public/`) | Renders segments as a coloured tree; XML-style transaction-set header auto-adjusts on `ST*837P`/`837I`/`837D`. Lightweight rules flag identifiers, segment-IDs and missing `~` terminators. |
+| Canvas UI | `frontend_go/public/static/js/mapper.js` | Renders segments as a coloured tree; XML-style transaction-set header auto-adjusts on `ST*837P`/`837I`/`837D`. Lightweight rules flag identifiers, segment-IDs and missing `~` terminators. |
 | Thought-bubble guidance | `frontend_go/public/static/js/mapper.js` + `frontend_go/public/static/css/styles.css` | Light-blue inline bubbles toggle a contextual explanation (uses `trish-laptop.svg`). One-at-a-time interaction model. |
 | Backend issue location | `worker_py/validation/model.py` (`ValidationIssue.segment_position`, `element_position`, `component_position`, `loop_id`) | Every validator issue carries the exact (segment, element, component, loop) anchor so the canvas can highlight precisely. |
 | Issue stream | `worker_py/validation/engine.py` (`ValidationReport.issues`) | Single ordered list with stable rule codes (`REQ.*`, `BAL.*`, `SIT.*`, `CODE.*`, `GUIDE.*`). |

@@ -1,10 +1,10 @@
-window.HEDI_SUPPORT = window.HEDI_SUPPORT || {
+window.TRIAGE_SUPPORT = window.TRIAGE_SUPPORT || {
   email: "jimmershere@gmail.com",
   phone: "+14342426591",
-  brand: "Team HEDI Support"
+  brand: "Team Triage Support"
 };
 
-window.HEDI_AI_SCOUT = window.HEDI_AI_SCOUT || {
+window.TRIAGE_AI_SCOUT = window.TRIAGE_AI_SCOUT || {
   promptVersion: "turbohedi-support-v1",
   lightContext: true,
   toolOrder: ["upload-playbook", "job-review", "ack-guide", "ticket-intake"],

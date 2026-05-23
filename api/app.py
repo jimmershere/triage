@@ -36,15 +36,15 @@ RMQ_QUEUE = os.getenv("RMQ_QUEUE", "edi_files")
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://edi:edi@postgres:5432/edi?sslmode=require"
 )
-ALLOWED_ORIGINS_RAW = os.getenv("HEDI_CORS_ORIGINS", "*")
+ALLOWED_ORIGINS_RAW = os.getenv("TRIAGE_CORS_ORIGINS", "*")
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
-SHARED_SECRET = os.getenv("HEDI_SHARED_SECRET", "change-me")
-PASSWORD_ITERATIONS = int(os.getenv("HEDI_PASSWORD_ITERATIONS", "180000"))
+SHARED_SECRET = os.getenv("TRIAGE_SHARED_SECRET", "change-me")
+PASSWORD_ITERATIONS = int(os.getenv("TRIAGE_PASSWORD_ITERATIONS", "180000"))
 PASSWORD_SCHEME = "pbkdf2_sha256"
-MIN_PASSWORD_LENGTH = int(os.getenv("HEDI_MIN_PASSWORD_LENGTH", "8"))
-BOOTSTRAP_ADMIN_USER = os.getenv("HEDI_BOOTSTRAP_ADMIN_USER", "admin").strip()
+MIN_PASSWORD_LENGTH = int(os.getenv("TRIAGE_MIN_PASSWORD_LENGTH", "8"))
+BOOTSTRAP_ADMIN_USER = os.getenv("TRIAGE_BOOTSTRAP_ADMIN_USER", "admin").strip()
 BOOTSTRAP_ADMIN_HASH = os.getenv(
-    "HEDI_BOOTSTRAP_ADMIN_HASH",
+    "TRIAGE_BOOTSTRAP_ADMIN_HASH",
     "pbkdf2_sha256$180000$j3pt+dTfwUgP6VwHPPDNKA==$zojEXizGhZe8fEeCD655ThS8PIfIyz3jwgwWlUkS5hA=",
 ).strip()
 
@@ -64,30 +64,30 @@ ROLE_ALIASES = {
 VALID_ROLES = {ROLE_VIEW, ROLE_SUBMIT, ROLE_ADMINISTRATOR}
 ROLE_HIERARCHY = [ROLE_VIEW, ROLE_SUBMIT, ROLE_ADMINISTRATOR]
 
-LDAP_ENABLED = os.getenv("HEDI_LDAP_ENABLED", "false").strip().lower() in {
+LDAP_ENABLED = os.getenv("TRIAGE_LDAP_ENABLED", "false").strip().lower() in {
     "1",
     "true",
     "yes",
     "on",
 }
-LDAP_URI = os.getenv("HEDI_LDAP_URI", "ldap://ldap:389").strip()
-LDAP_BASE_DN = os.getenv("HEDI_LDAP_BASE_DN", "dc=example,dc=com").strip()
-LDAP_ROOT_CN = os.getenv("HEDI_LDAP_ROOT_CN", "ou=HEDI").strip()
-LDAP_USERS_OU = os.getenv("HEDI_LDAP_USERS_OU", "ou=users").strip()
-LDAP_ROLES_OU = os.getenv("HEDI_LDAP_ROLES_OU", "ou=roles").strip()
-LDAP_TRADING_OU = os.getenv("HEDI_LDAP_TRADING_OU", "ou=trading-partners").strip()
-LDAP_BIND_DN = os.getenv("HEDI_LDAP_BIND_DN", "").strip()
-LDAP_BIND_PASSWORD = os.getenv("HEDI_LDAP_BIND_PASSWORD", "").strip()
-LDAP_TIMEOUT = int(os.getenv("HEDI_LDAP_TIMEOUT", "10"))
-LDAP_ADMIN_DN = os.getenv("HEDI_LDAP_ADMIN_DN", "").strip()
-LDAP_ADMIN_USERNAME = os.getenv("HEDI_LDAP_ADMIN_USERNAME", BOOTSTRAP_ADMIN_USER).strip()
+LDAP_URI = os.getenv("TRIAGE_LDAP_URI", "ldap://ldap:389").strip()
+LDAP_BASE_DN = os.getenv("TRIAGE_LDAP_BASE_DN", "dc=example,dc=com").strip()
+LDAP_ROOT_CN = os.getenv("TRIAGE_LDAP_ROOT_CN", "ou=TRIAGE").strip()
+LDAP_USERS_OU = os.getenv("TRIAGE_LDAP_USERS_OU", "ou=users").strip()
+LDAP_ROLES_OU = os.getenv("TRIAGE_LDAP_ROLES_OU", "ou=roles").strip()
+LDAP_TRADING_OU = os.getenv("TRIAGE_LDAP_TRADING_OU", "ou=trading-partners").strip()
+LDAP_BIND_DN = os.getenv("TRIAGE_LDAP_BIND_DN", "").strip()
+LDAP_BIND_PASSWORD = os.getenv("TRIAGE_LDAP_BIND_PASSWORD", "").strip()
+LDAP_TIMEOUT = int(os.getenv("TRIAGE_LDAP_TIMEOUT", "10"))
+LDAP_ADMIN_DN = os.getenv("TRIAGE_LDAP_ADMIN_DN", "").strip()
+LDAP_ADMIN_USERNAME = os.getenv("TRIAGE_LDAP_ADMIN_USERNAME", BOOTSTRAP_ADMIN_USER).strip()
 DEFAULT_LDAP_BOOTSTRAP_HASH = "{SSHA}X7IBzbN9pqFRQwwPu37o7OppFD69OTUK"
 LDAP_BOOTSTRAP_PASSWORD_HASH = os.getenv(
-    "HEDI_LDAP_BOOTSTRAP_PASSWORD_HASH", DEFAULT_LDAP_BOOTSTRAP_HASH
+    "TRIAGE_LDAP_BOOTSTRAP_PASSWORD_HASH", DEFAULT_LDAP_BOOTSTRAP_HASH
 ).strip()
-LDAP_BOOTSTRAP_PASSWORD = os.getenv("HEDI_LDAP_BOOTSTRAP_PASSWORD", "").strip()
+LDAP_BOOTSTRAP_PASSWORD = os.getenv("TRIAGE_LDAP_BOOTSTRAP_PASSWORD", "").strip()
 LDAP_BOOTSTRAP_USERNAME = os.getenv(
-    "HEDI_LDAP_BOOTSTRAP_USERNAME", BOOTSTRAP_ADMIN_USER or "admin"
+    "TRIAGE_LDAP_BOOTSTRAP_USERNAME", BOOTSTRAP_ADMIN_USER or "admin"
 ).strip()
 
 ldap_manager: Optional[ldap_utils.LDAPManager] = None
@@ -280,7 +280,7 @@ def row_to_user(row) -> Optional[dict]:
     }
 
 
-def require_secret(header_value: Optional[str] = Header(None, alias="X-HEDI-SECRET")):
+def require_secret(header_value: Optional[str] = Header(None, alias="X-TRIAGE-SECRET")):
     if not SHARED_SECRET:
         return
     if header_value is None or not secrets.compare_digest(header_value, SHARED_SECRET):
