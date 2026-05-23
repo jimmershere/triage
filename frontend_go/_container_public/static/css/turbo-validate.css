@@ -1,4 +1,74 @@
-/* TurboHEDI v0.3 — CMS validation panel styles. */
+/* Triage v0.3 — Alert1 card + CMS validation panel styles. */
+
+.alert1-card {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, #fffbeb 0%, #ffffff 45%, #ecfeff 100%);
+  border: 1px solid #f4c674;
+  border-left: 4px solid #f59e0b;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(20, 30, 40, 0.04);
+}
+
+.alert1-card__logo {
+  width: 96px;
+  height: 96px;
+  flex: 0 0 96px;
+  filter: drop-shadow(0 2px 6px rgba(245, 158, 11, 0.25));
+}
+
+.alert1-card__body { flex: 1 1 auto; min-width: 0; }
+
+.alert1-card__title {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: #0f172a;
+}
+
+.alert1-card__sub {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #b45309;
+}
+
+.alert1-card__hint {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.alert1-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.alert1-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border: 1px solid transparent;
+}
+
+.alert1-chip--scrub  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.alert1-chip--denial { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.alert1-chip--fhir   { background: #cffafe; color: #155e75; border-color: #a5f3fc; }
+
+/* --- CMS validation panel styles (Phase 6 / v0.3) --- */
 
 .turbo-validate-panel {
   margin-top: 16px;

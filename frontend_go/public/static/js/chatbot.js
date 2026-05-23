@@ -179,7 +179,7 @@
           "1) Enter Login ID and Trading Partner.",
           "2) Upload the X12 file and wait for the job ID banner.",
           "3) Open Import Detail to inspect validation, claims, acknowledgements, and audit trail.",
-          buildConfidenceLine("Confidence", "TurboHEDI persists the raw payload before it publishes the worker job.")
+          buildConfidenceLine("Confidence", "Triage persists the raw payload before it publishes the worker job.")
         ].join("\n")
       );
     }

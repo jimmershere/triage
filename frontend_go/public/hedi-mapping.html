@@ -162,13 +162,33 @@
               <button type="button" class="pill-button ghost" id="canvasSubmitMapping" data-requires-role="submit">Publish to API</button>
             </div>
 
-            <!-- TurboHEDI v0.3 — CMS validation panel (SNIP 1-7 + payment edits) -->
+            <!-- Alert1 — supervised swarm escalation overview -->
+            <section class="alert1-card">
+              <img src="/img/alert1-logo.svg" alt="Alert1 — supervised swarm" class="alert1-card__logo"/>
+              <div class="alert1-card__body">
+                <h3 class="alert1-card__title">Alert1 <span class="alert1-card__sub">supervised swarm escalation</span></h3>
+                <p class="alert1-card__hint">
+                  Claims that score into Tier 2 are escalated to Alert1 — specialist
+                  agents review the claim in parallel and a supervisor consolidates
+                  them into a single APPROVE / FLAG / REJECT verdict with a complete
+                  audit trail.
+                </p>
+                <div class="alert1-card__chips">
+                  <span class="alert1-chip alert1-chip--scrub">Claim scrubbing</span>
+                  <span class="alert1-chip alert1-chip--denial">Denial resolution</span>
+                  <span class="alert1-chip alert1-chip--fhir">FHIR mapping audit</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- Triage CMS validation panel (SNIP 1-7 + CMS payment edits) -->
             <section class="turbo-validate-panel" data-turbo-validate>
               <h3 class="panel-section-title">CMS validation</h3>
               <p class="turbo-validate-hint">
                 Paste an 837 / 835 / 27x / 278 transaction. <strong>Run validation</strong>
                 covers SNIP types 1-7; <strong>Full pipeline</strong> also runs CMS
                 payment edits (NCCI, MUE, NCD/LCD, demographics, duplicates, eligibility).
+                Tier 2 hand-offs are escalated to Alert1 above.
               </p>
               <textarea class="turbo-validate-input" placeholder="ISA*00*..."></textarea>
               <div class="turbo-validate-actions">
