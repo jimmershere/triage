@@ -698,10 +698,11 @@ func main() {
 	mux.HandleFunc("/admin/users", adminUsersAPIRouter)
 	mux.HandleFunc("/admin/users/", adminUserDetailAPIRouter)
 
-	// Legacy route redirects (HEDI → Triage rebrand).
+	// Legacy route redirects (HEDI → Triage rebrand, then SVG → PNG logo).
 	mux.HandleFunc("/hedi-edit.html", redirectTo("/edits.html"))
 	mux.HandleFunc("/hedi-mapping.html", redirectTo("/mapping.html"))
-	mux.HandleFunc("/img/hedi-logo.svg", redirectTo("/img/triage-logo.svg"))
+	mux.HandleFunc("/img/hedi-logo.svg", redirectTo("/img/triage-logo.png"))
+	mux.HandleFunc("/img/triage-logo.svg", redirectTo("/img/triage-logo.png"))
 
 	// everything else
 	mux.HandleFunc("/", staticHandler)
