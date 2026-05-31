@@ -26,7 +26,7 @@ from api.turbo_routes import (  # noqa: E402
 )
 from fastapi import HTTPException  # noqa: E402
 
-from validation._fixtures import VALID_837P, VALID_835  # noqa: E402
+from validation._fixtures import VALID_278, VALID_835, VALID_837P  # noqa: E402
 
 
 class CapabilityTests(unittest.TestCase):
@@ -72,6 +72,17 @@ class FhirRouteTests(unittest.TestCase):
         types = {e["resource"]["resourceType"] for e in body["bundle"]["entry"]}
         self.assertIn("Claim", types)
 
+    def test_fhir_from_x12_bundles_pas_claim_for_278(self) -> None:
+        body = fhir_from_x12(X12Body(x12=VALID_278))
+        self.assertEqual(body["validation"]["transaction_set"], "278")
+        self.assertEqual(body["bundle"]["resourceType"], "Bundle")
+        claim = next(
+            e["resource"] for e in body["bundle"]["entry"]
+            if e["resource"]["resourceType"] == "Claim"
+        )
+        self.assertEqual(claim["use"], "preauthorization")
+        self.assertIn("davinci-pas", claim["meta"]["profile"][0])
+
     def test_fhir_from_x12_rejects_unsupported_transaction(self) -> None:
         unsupported = VALID_835.replace("ST*835*0001", "ST*999*0001")
         with self.assertRaises(HTTPException) as exc:
@@ -87,6 +98,17 @@ class FhirRouteTests(unittest.TestCase):
         )
         self.assertIn("x12", response)
         self.assertTrue(response["validation"]["valid"])
+
+    def test_pas_claim_submit_round_trip_to_278(self) -> None:
+        # First get a PAS FHIR bundle from a clean 278 ...
+        fhir_body = fhir_from_x12(X12Body(x12=VALID_278))
+        # ... then submit it back. The resulting 278 must validate clean.
+        response = fhir_claim_submit(
+            FhirClaimRequest(resource=fhir_body["bundle"])
+        )
+        self.assertIn("ST*278*", response["x12"])
+        self.assertTrue(response["validation"]["valid"])
+        self.assertEqual(response["validation"]["transaction_set"], "278")
 
     def test_fhir_claim_submit_rejects_non_claim(self) -> None:
         with self.assertRaises(HTTPException) as exc:

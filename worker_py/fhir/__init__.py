@@ -20,8 +20,17 @@ from .mappers import (
     eligibility_request_to_fhir,
     eligibility_response_to_fhir,
     fhir_claim_to_837,
+    pas_claim_to_278_request,
     remittance_to_fhir,
     submission_to_fhir,
+    x12_278_request_to_pas_bundle,
+    x12_278_response_to_claim_response,
+)
+from .pas_resources import (
+    build_pas_attachment_bundle,
+    build_pas_claim,
+    build_pas_claim_response,
+    build_pas_request_bundle,
 )
 from .resources import (
     build_bundle,
@@ -43,11 +52,18 @@ __all__ = [
     "build_coverage_eligibility_response",
     "build_explanation_of_benefit",
     "build_organization",
+    "build_pas_attachment_bundle",
+    "build_pas_claim",
+    "build_pas_claim_response",
+    "build_pas_request_bundle",
     "build_patient",
     "build_practitioner",
     "eligibility_request_to_fhir",
     "eligibility_response_to_fhir",
     "fhir_claim_to_837",
+    "pas_claim_to_278_request",
     "remittance_to_fhir",
     "submission_to_fhir",
+    "x12_278_request_to_pas_bundle",
+    "x12_278_response_to_claim_response",
 ]

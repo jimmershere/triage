@@ -2,6 +2,7 @@
 import unittest
 
 from validation._fixtures import (
+    VALID_278,
     VALID_835,
     VALID_837P,
     with_unbalanced_claim,
@@ -48,6 +49,22 @@ class RemittancePipelineTests(unittest.TestCase):
         self.assertIsNotNone(result.fhir)
         types = {e["resource"]["resourceType"] for e in result.fhir["entry"]}
         self.assertIn("ExplanationOfBenefit", types)
+
+
+class PriorAuthorizationPipelineTests(unittest.TestCase):
+    def test_278_pipeline_maps_to_pas_bundle(self) -> None:
+        result = run_pipeline(VALID_278, to_fhir=True)
+        self.assertEqual(result.transaction_set, "278")
+        self.assertTrue(result.valid)
+        self.assertIsNotNone(result.fhir)
+        self.assertEqual(result.fhir["resourceType"], "Bundle")
+        types = {e["resource"]["resourceType"] for e in result.fhir["entry"]}
+        self.assertIn("Claim", types)
+        claim = next(
+            e["resource"] for e in result.fhir["entry"]
+            if e["resource"]["resourceType"] == "Claim"
+        )
+        self.assertEqual(claim["use"], "preauthorization")
 
 
 class ScrubbingSwitchTests(unittest.TestCase):

@@ -25,7 +25,7 @@ if _WORKER_DIR not in sys.path:
 from fastapi import APIRouter, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from fhir import fhir_claim_to_837  # noqa: E402  (after path mutation)
+from fhir import fhir_claim_to_837, pas_claim_to_278_request  # noqa: E402
 from turbo_pipeline import run_pipeline  # noqa: E402
 from validation import validate_document  # noqa: E402
 
@@ -54,7 +54,11 @@ class FhirClaimRequest(BaseModel):
     """A FHIR R4 Claim resource (or Bundle containing one)."""
 
     resource: dict[str, Any] = Field(
-        ..., description="FHIR R4 Claim resource or Bundle wrapping one."
+        ...,
+        description=(
+            "FHIR R4 Claim resource or Bundle wrapping one. "
+            "Claims with use='preauthorization' are emitted as X12 278."
+        ),
     )
     sender_id: str = "TURBOHEDI"
     receiver_id: str = "RECEIVER"
@@ -86,7 +90,7 @@ def capability() -> dict[str, Any]:
             "Patient", "Practitioner", "Organization", "Coverage",
             "Claim", "ExplanationOfBenefit",
             "CoverageEligibilityRequest", "CoverageEligibilityResponse",
-            "Bundle",
+            "ClaimResponse", "DocumentReference", "Binary", "Bundle",
         ],
         "snipLevelsValidated": list(range(1, 8)),
         "implementationGuides": [
@@ -129,7 +133,7 @@ def pipeline(body: PipelineRequest) -> dict[str, Any]:
 
 @router.post("/fhir/from-x12")
 def fhir_from_x12(body: X12Body) -> dict[str, Any]:
-    """Validate the X12, then return a FHIR Bundle (837 -> Claim, 835 -> EOB)."""
+    """Validate X12, then return a FHIR Bundle when a mapper is available."""
     result = run_pipeline(body.x12, scrub=False, to_fhir=True)
     if result.fhir is None:
         raise HTTPException(
@@ -142,19 +146,40 @@ def fhir_from_x12(body: X12Body) -> dict[str, Any]:
     return {"validation": result.validation, "bundle": result.fhir}
 
 
+def _claim_from_fhir_payload(resource: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the first Claim from a Claim resource or Bundle payload."""
+    if resource.get("resourceType") == "Claim":
+        return resource
+    if resource.get("resourceType") == "Bundle":
+        for entry in resource.get("entry", []):
+            candidate = entry.get("resource")
+            if isinstance(candidate, dict) and candidate.get("resourceType") == "Claim":
+                return candidate
+    return None
+
+
 @router.post("/fhir/Claim/$submit")
 def fhir_claim_submit(body: FhirClaimRequest) -> dict[str, Any]:
-    """Accept a FHIR Claim, convert to 837 and validate.
+    """Accept a FHIR Claim, convert to X12 and validate.
 
-    Returns the generated X12 text plus the validation report so a FHIR-first
-    client can confirm the round-trip is conformant before transmitting.
+    Standard claims are emitted as 837 transactions. PAS preauthorization Claims
+    are emitted as 278 transactions so clients can confirm the round-trip is
+    conformant before transmitting.
     """
     try:
-        x12 = fhir_claim_to_837(
-            body.resource,
-            sender_id=body.sender_id,
-            receiver_id=body.receiver_id,
-        )
+        claim = _claim_from_fhir_payload(body.resource)
+        if claim and claim.get("use") == "preauthorization":
+            x12 = pas_claim_to_278_request(
+                claim,
+                sender_id=body.sender_id,
+                receiver_id=body.receiver_id,
+            )
+        else:
+            x12 = fhir_claim_to_837(
+                body.resource,
+                sender_id=body.sender_id,
+                receiver_id=body.receiver_id,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
