@@ -18,7 +18,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from fhir import remittance_to_fhir, submission_to_fhir
+from fhir import (
+    remittance_to_fhir,
+    submission_to_fhir,
+    x12_278_request_to_pas_bundle,
+)
 from scrubbing import scrub_claims
 from validation import validate_document
 from validation.acks import generate_277ca, generate_999, generate_ta1
@@ -82,6 +86,8 @@ def run_pipeline(
             result.fhir = submission_to_fhir(text)
         elif report.transaction_set == "835":
             result.fhir = remittance_to_fhir(text)
+        elif report.transaction_set == "278":
+            result.fhir = x12_278_request_to_pas_bundle(text)
 
     if generate_acks and report.transaction_set == "837":
         result.acknowledgments = {
