@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Any, List, Optional
+from typing import Any, Callable, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from claimtrace.common.canonical import canonical_json, line_items_signature
+from claimtrace.common.canonical import line_items_signature
 from claimtrace.common.hashing import hash_payload
 from claimtrace.correlation.segments import extract_trace, stamp_trace
 from claimtrace.correlation.transport import TraceContext, to_headers
@@ -19,9 +19,15 @@ from claimtrace.lineage.projector import InMemoryGraphSink, LineageProjector
 from claimtrace.lineage.queries import claims_for_payment, lineage_835_to_837
 from claimtrace.merkle.tree import build_batch_mapping, build_merkle_tree, get_proof_path, merkle_root, verify_proof
 
+try:
+    from . import claimtrace_service
+except ImportError:  # direct script/test invocation
+    import claimtrace_service  # type: ignore
+
 
 router = APIRouter(prefix="/claimtrace", tags=["claimtrace"])
 DEMO_STORE = InMemoryJournalStore()
+GET_DB: Optional[Callable[[], Any]] = None
 
 
 class LineItemRequest(BaseModel):
@@ -65,18 +71,91 @@ class MerkleRequest(BaseModel):
     claim_hashes: dict[str, str]
 
 
+class ClaimActionRequest(BaseModel):
+    action: str
+    note: Optional[str] = None
+
+
+def _with_db(callback):
+    if GET_DB is None:
+        raise HTTPException(status_code=503, detail="Claimtrace database is not configured")
+    try:
+        with GET_DB() as conn:
+            return callback(conn)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Claimtrace database error: {exc}") from exc
+
+
 @router.get("/summary")
 def summary() -> dict[str, Any]:
+    if GET_DB is not None:
+        return _with_db(claimtrace_service.summary)
     events = DEMO_STORE.events()
     claims = {event.claim_id for event in events}
     bundles = {event.bundle_id for event in events if event.bundle_id}
     return {
+        "enabled": True,
         "components": ["identity", "correlation", "journal", "merkle", "lineage"],
         "events": len(events),
         "claims": len(claims),
+        "distinct_claims": len(claims),
         "bundles": len(bundles),
+        "repair_count": 0,
+        "delete_count": 0,
         "append_only": True,
     }
+
+
+@router.get("/claims")
+def search_claims(
+    query: Optional[str] = None,
+    trading_partner_id: Optional[str] = None,
+    submitter_id: Optional[str] = None,
+    claim_id: Optional[str] = None,
+    claim_hash_id: Optional[str] = None,
+    action_state: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict[str, Any]:
+    def run(conn):
+        claims = claimtrace_service.search_claims(
+            conn,
+            query=query,
+            trading_partner_id=trading_partner_id,
+            submitter_id=submitter_id,
+            claim_id=claim_id,
+            claim_hash_id=claim_hash_id,
+            action_state=action_state,
+            limit=limit,
+        )
+        return {"claims": claims, "count": len(claims)}
+
+    return _with_db(run)
+
+
+@router.get("/claims/{claim_key}")
+def claim_detail(claim_key: str) -> dict[str, Any]:
+    def run(conn):
+        detail = claimtrace_service.claim_detail(conn, claim_key)
+        if detail is None:
+            raise HTTPException(status_code=404, detail="claim not found")
+        return detail
+
+    return _with_db(run)
+
+
+@router.post("/claims/{claim_key}/action")
+def claim_action(claim_key: str, payload: ClaimActionRequest) -> dict[str, Any]:
+    def run(conn):
+        result = claimtrace_service.mark_claim(conn, claim_id=claim_key, action=payload.action, note=payload.note)
+        if not result.get("updated"):
+            raise HTTPException(status_code=404, detail="claim not found")
+        return result
+
+    return _with_db(run)
 
 
 @router.post("/identity/claim")
@@ -171,5 +250,7 @@ def lineage_835(trn: str) -> dict[str, Any]:
     return {"trn": trn, "origin_claim_ids": sorted(lineage_835_to_837(trn, sink))}
 
 
-def register(app) -> None:
+def register(app, get_db_func: Optional[Callable[[], Any]] = None) -> None:
+    global GET_DB
+    GET_DB = get_db_func
     app.include_router(router)

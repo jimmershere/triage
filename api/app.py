@@ -103,9 +103,11 @@ register_turbo_routes(app)
 
 try:
     from .claimtrace_routes import register as register_claimtrace_routes
+    from . import claimtrace_service
 except ImportError:  # tests / direct script invocation without package context
     from claimtrace_routes import register as register_claimtrace_routes  # type: ignore
-register_claimtrace_routes(app)
+    import claimtrace_service  # type: ignore
+register_claimtrace_routes(app, lambda: get_db())
 
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
@@ -132,6 +134,8 @@ def run_startup_migrations() -> None:
             ensure_app_users(conn)
             ensure_x12_addon_tables(conn)
             ensure_partner_configs_table(conn)
+            if claimtrace_service.claimtrace_enabled():
+                claimtrace_service.ensure_claimtrace_tables(conn)
             ensure_ldap_bootstrap(conn)
     except Exception:
         logger.exception("Failed to run startup migrations")
@@ -1389,6 +1393,16 @@ async def ingest(
                     ),
                 )
                 import_id = cur.fetchone()[0]
+            if claimtrace_service.claimtrace_enabled():
+                claimtrace_service.record_ingested_file(
+                    conn,
+                    import_id=import_id,
+                    job_id=str(job_uuid),
+                    filename=filename,
+                    content=content,
+                    uploaded_by=uploaded_by,
+                    trading_partner_id=trading_partner_id,
+                )
             conn.commit()
 
         logger.info(

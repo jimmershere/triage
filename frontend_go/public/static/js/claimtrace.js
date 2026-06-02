@@ -1,18 +1,31 @@
 (function () {
   const API_BASE = window.TRIAGE_API_BASE || "";
   const BASE = API_BASE ? `${API_BASE}/claimtrace` : "/claimtrace";
-  let lastClaimId = "CLAIM-A";
-  let lastBundleId = "";
-  let lastStateHash = "state-hash-demo";
+  let selectedClaimKey = null;
 
   function $(id) {
     return document.getElementById(id);
   }
 
-  function write(id, value) {
-    const el = $(id);
+  function text(value, fallback = "—") {
+    if (value === null || value === undefined || value === "") return fallback;
+    return String(value);
+  }
+
+  function short(value, size = 12) {
+    const v = text(value, "");
+    return v.length > size ? `${v.slice(0, size)}…` : v || "—";
+  }
+
+  function escapeHtml(value) {
+    return text(value, "").replace(/[&<>'"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[ch]));
+  }
+
+  function setStatus(el, message, state = "info") {
     if (!el) return;
-    el.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    el.hidden = false;
+    el.textContent = message;
+    el.dataset.state = state;
   }
 
   async function request(path, options) {
@@ -20,142 +33,199 @@
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       ...options,
     });
-    const text = await res.text();
-    let data = text;
-    try { data = text ? JSON.parse(text) : {}; } catch {}
+    const raw = await res.text();
+    let data = raw;
+    try { data = raw ? JSON.parse(raw) : {}; } catch {}
     if (!res.ok) throw new Error(typeof data === "string" ? data : (data.detail || "Claimtrace request failed"));
     return data;
   }
 
+  function renderSummary(data) {
+    const el = $("claimtraceSummary");
+    if (!el) return;
+    el.innerHTML = `
+      <strong>${data.claims || 0}</strong><span>tracked files</span>
+      <strong>${data.events || 0}</strong><span>trace events</span>
+      <strong>${data.repair_count || 0}</strong><span>repair marks</span>
+      <strong>${data.delete_count || 0}</strong><span>deletion marks</span>
+    `;
+  }
+
   async function loadSummary() {
     try {
-      const data = await request("/summary");
-      $("claimtraceSummary").innerHTML = `
-        <strong>${data.events}</strong><span>journal events</span>
-        <strong>${data.claims}</strong><span>claims</span>
-        <strong>${data.bundles}</strong><span>bundles</span>
-      `;
+      renderSummary(await request("/summary"));
     } catch (err) {
-      $("claimtraceSummary").textContent = err.message;
+      const el = $("claimtraceSummary");
+      if (el) el.textContent = err.message;
     }
   }
 
-  $("ctDeriveClaim")?.addEventListener("click", async () => {
+  function searchParams() {
+    const params = new URLSearchParams();
+    const values = {
+      query: $("ctQuery")?.value,
+      trading_partner_id: $("ctTradingPartner")?.value,
+      submitter_id: $("ctSubmitter")?.value,
+      claim_id: $("ctClaimId")?.value,
+      claim_hash_id: $("ctClaimHash")?.value,
+      action_state: $("ctActionState")?.value,
+    };
+    Object.entries(values).forEach(([key, value]) => {
+      if (value && value.trim()) params.set(key, value.trim());
+    });
+    params.set("limit", "100");
+    return params.toString();
+  }
+
+  function actionLabel(action) {
+    switch (action) {
+      case "repair": return "Repair";
+      case "delete": return "Delete";
+      case "reviewed": return "Reviewed";
+      default: return "Tracked";
+    }
+  }
+
+  function renderResults(data) {
+    const body = $("ctResultsBody");
+    const count = $("ctResultCount");
+    if (!body) return;
+    const claims = data.claims || [];
+    if (count) count.textContent = String(data.count || claims.length);
+    if (!claims.length) {
+      body.innerHTML = '<tr><td colspan="7" class="muted">No claims matched those keys.</td></tr>';
+      return;
+    }
+    body.innerHTML = claims.map((claim) => `
+      <tr class="claimtrace-result-row" data-claim-key="${escapeHtml(claim.claim_id)}">
+        <td><button type="button" class="claimtrace-row-button" title="${escapeHtml(claim.claim_id)}">${escapeHtml(short(claim.claim_id, 16))}</button></td>
+        <td><code title="${escapeHtml(claim.claim_hash_id)}">${escapeHtml(short(claim.claim_hash_id, 14))}</code></td>
+        <td>${escapeHtml(claim.trading_partner_id || "—")}</td>
+        <td>${escapeHtml(claim.submitter_id || "—")}</td>
+        <td><span class="claimtrace-status-pill">${escapeHtml(claim.status || "tracked")}</span></td>
+        <td><span class="claimtrace-action-state claimtrace-action-state--${escapeHtml(claim.action_state || "none")}">${escapeHtml(actionLabel(claim.action_state))}</span></td>
+        <td>${escapeHtml((claim.created_at || "").slice(0, 19).replace("T", " "))}</td>
+      </tr>
+    `).join("");
+    body.querySelectorAll("[data-claim-key]").forEach((row) => {
+      row.addEventListener("click", () => loadDetail(row.dataset.claimKey));
+    });
+  }
+
+  async function searchClaims() {
     try {
-      const data = await request("/identity/claim", {
+      const query = searchParams();
+      renderResults(await request(`/claims?${query}`));
+    } catch (err) {
+      const body = $("ctResultsBody");
+      if (body) body.innerHTML = `<tr><td colspan="7" class="muted">${escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+
+  function renderIdentity(claim) {
+    const fields = [
+      ["Claim ID", claim.claim_id],
+      ["Claim hash ID", claim.claim_hash_id],
+      ["Tracking ID", claim.tracking_id],
+      ["Job ID", claim.job_id],
+      ["Import ID", claim.import_id],
+      ["Filename", claim.filename],
+      ["Trading partner", claim.trading_partner_id],
+      ["Submitter", claim.submitter_id],
+      ["Uploaded by", claim.uploaded_by],
+      ["Trace ID", claim.trace_id],
+      ["State hash", claim.state_hash],
+      ["Updated", claim.updated_at],
+    ];
+    const grid = $("ctIdentityGrid");
+    if (!grid) return;
+    grid.innerHTML = fields.map(([label, value]) => `
+      <div><span>${escapeHtml(label)}</span><strong title="${escapeHtml(value)}">${escapeHtml(short(value, 28))}</strong></div>
+    `).join("");
+  }
+
+  function renderTimeline(events) {
+    const el = $("ctTimeline");
+    if (!el) return;
+    if (!events.length) {
+      el.innerHTML = '<li class="muted">No trace events recorded.</li>';
+      return;
+    }
+    el.innerHTML = events.map((event) => `
+      <li>
+        <div class="claimtrace-timeline-op">${escapeHtml(event.operation_type)}</div>
+        <div class="claimtrace-timeline-meta">${escapeHtml((event.ts || "").slice(0, 19).replace("T", " "))} · ${escapeHtml(event.service_name || "service")}</div>
+        <code title="${escapeHtml(event.state_hash)}">${escapeHtml(short(event.state_hash, 24))}</code>
+        <div class="muted">${escapeHtml(event.payload_location || "")}</div>
+      </li>
+    `).join("");
+  }
+
+  function renderRecommendations(analysis) {
+    const el = $("ctRecommendations");
+    if (!el) return;
+    const steps = analysis.recommended_next_steps || [];
+    el.innerHTML = steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("") || '<li>No recommendations yet.</li>';
+  }
+
+  async function loadDetail(claimKey) {
+    if (!claimKey) return;
+    selectedClaimKey = claimKey;
+    const status = $("ctActionStatus");
+    if (status) status.hidden = true;
+    try {
+      const detail = await request(`/claims/${encodeURIComponent(claimKey)}`);
+      const claim = detail.claim;
+      $("ctDetailEmpty").hidden = true;
+      $("ctDetailContent").hidden = false;
+      $("ctDetailTitle").textContent = short(claim.claim_id, 22);
+      $("ctDetailStatus").textContent = `${claim.status || "tracked"} · ${actionLabel(claim.action_state)}`;
+      renderIdentity(claim);
+      renderRecommendations(detail.analysis || {});
+      renderTimeline(detail.events || []);
+    } catch (err) {
+      setStatus(status, err.message, "error");
+    }
+  }
+
+  async function markSelected(action) {
+    if (!selectedClaimKey) {
+      setStatus($("ctActionStatus"), "Select a claim first.", "error");
+      return;
+    }
+    try {
+      const note = $("ctActionNote")?.value || "";
+      const result = await request(`/claims/${encodeURIComponent(selectedClaimKey)}/action`, {
         method: "POST",
-        body: JSON.stringify({
-          submitter_id: $("ctSubmitter").value,
-          subscriber_id: $("ctSubscriber").value,
-          patient_dob: $("ctDob").value,
-          dos_start: $("ctDos").value,
-          charge_amount_cents: Number($("ctCharge").value || 0),
-          payer_id: $("ctPayer").value,
-          line_items: [{ proc_code: "99213", dos: $("ctDos").value, units: 1, charge_amount_cents: Number($("ctCharge").value || 0) }],
-        }),
+        body: JSON.stringify({ action, note }),
       });
-      lastClaimId = data.claim_id;
-      $("ctJournalClaim").value = data.claim_id;
-      write("ctIdentityOut", data);
+      setStatus($("ctActionStatus"), `Claim marked: ${actionLabel(result.claim.action_state)}`, "success");
+      await loadDetail(result.claim.claim_id);
+      await searchClaims();
+      await loadSummary();
     } catch (err) {
-      write("ctIdentityOut", err.message);
+      setStatus($("ctActionStatus"), err.message, "error");
     }
-  });
+  }
 
-  $("ctStampX12")?.addEventListener("click", async () => {
-    try {
-      const traceContext = {
-        claim_id: lastClaimId,
-        claim_root_id: lastClaimId,
-        bundle_id: lastBundleId || null,
-        trace_id: `trace-${Date.now()}`,
-        prior_state_hash: null,
-        new_state_hash: lastStateHash,
-        correlation_ids: {},
-      };
-      const data = await request("/correlation/stamp", {
-        method: "POST",
-        body: JSON.stringify({ x12_text: $("ctX12").value, trace_context: traceContext }),
-      });
-      $("ctX12").value = data.x12_text;
-      write("ctCorrelationOut", data);
-    } catch (err) {
-      write("ctCorrelationOut", err.message);
-    }
-  });
+  function clearSearch() {
+    ["ctQuery", "ctTradingPartner", "ctSubmitter", "ctClaimId", "ctClaimHash"].forEach((id) => { const el = $(id); if (el) el.value = ""; });
+    const action = $("ctActionState");
+    if (action) action.value = "";
+    searchClaims();
+  }
 
-  $("ctExtractX12")?.addEventListener("click", async () => {
-    try {
-      const data = await request("/correlation/extract", {
-        method: "POST",
-        body: JSON.stringify({ x12_text: $("ctX12").value }),
-      });
-      write("ctCorrelationOut", data);
-    } catch (err) {
-      write("ctCorrelationOut", err.message);
-    }
+  $("ctSearchForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    searchClaims();
   });
-
-  $("ctAppendEvent")?.addEventListener("click", async () => {
-    try {
-      const payload = {
-        claim_id: $("ctJournalClaim").value || lastClaimId,
-        bundle_id: $("ctJournalBundle").value || null,
-        operation_type: $("ctJournalOp").value,
-        payload_location: $("ctPayloadLocation").value,
-        payload: JSON.stringify({ source: "claimtrace-ui", ts: new Date().toISOString() }),
-        correlation_ids: {},
-      };
-      if (payload.bundle_id) lastBundleId = payload.bundle_id;
-      if (payload.operation_type === "ADJUDICATE") {
-        payload.correlation_ids = { payment_id: $("ctPaymentId").value, trn: $("ctTrn").value };
-      }
-      const data = await request("/journal/events", { method: "POST", body: JSON.stringify(payload) });
-      lastStateHash = data.new_state_hash;
-      write("ctJournalOut", data);
-      loadSummary();
-    } catch (err) {
-      write("ctJournalOut", err.message);
-    }
-  });
-
-  $("ctLoadTrace")?.addEventListener("click", async () => {
-    try {
-      const claim = encodeURIComponent($("ctJournalClaim").value || lastClaimId);
-      const data = await request(`/journal/trace?claim_id=${claim}`);
-      write("ctJournalOut", data);
-    } catch (err) {
-      write("ctJournalOut", err.message);
-    }
-  });
-
-  $("ctBuildMerkle")?.addEventListener("click", async () => {
-    try {
-      const claim_hashes = JSON.parse($("ctMerkleInput").value || "{}");
-      const data = await request("/merkle/batch", { method: "POST", body: JSON.stringify({ claim_hashes }) });
-      write("ctMerkleOut", data);
-    } catch (err) {
-      write("ctMerkleOut", err.message);
-    }
-  });
-
-  $("ctPaymentLineage")?.addEventListener("click", async () => {
-    try {
-      const data = await request(`/lineage/payment/${encodeURIComponent($("ctPaymentId").value)}`);
-      write("ctLineageOut", data);
-    } catch (err) {
-      write("ctLineageOut", err.message);
-    }
-  });
-
-  $("ct835Lineage")?.addEventListener("click", async () => {
-    try {
-      const data = await request(`/lineage/835/${encodeURIComponent($("ctTrn").value)}`);
-      write("ctLineageOut", data);
-    } catch (err) {
-      write("ctLineageOut", err.message);
-    }
-  });
+  $("ctRefresh")?.addEventListener("click", () => { loadSummary(); searchClaims(); if (selectedClaimKey) loadDetail(selectedClaimKey); });
+  $("ctClearSearch")?.addEventListener("click", clearSearch);
+  $("ctMarkRepair")?.addEventListener("click", () => markSelected("repair"));
+  $("ctMarkDelete")?.addEventListener("click", () => markSelected("delete"));
+  $("ctMarkReviewed")?.addEventListener("click", () => markSelected("reviewed"));
+  $("ctClearMark")?.addEventListener("click", () => markSelected("clear"));
 
   loadSummary();
+  searchClaims();
 })();
