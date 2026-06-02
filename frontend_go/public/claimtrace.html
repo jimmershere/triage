@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
+  <title>Triage — Claimtrace</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+  <script src="/config.js"></script>
+</head>
+<body data-requires-auth="portal">
+  <div class="app-shell">
+    <aside class="site-sidebar">
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/triage-logo.png" width="256" height="256" alt="Triage logo"></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+          <a class="nav-pill" data-tone="mapping" href="/claimtrace.html" aria-current="page">Claimtrace</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Claims Portal</span>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/271.html">271 Responses</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/276.html">276 Status</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Workspace</span>
+          <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/edits.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Resources</span>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
+        </div>
+        <div class="nav-group admin-only">
+          <span class="nav-group-label">Administration</span>
+          <a class="nav-pill admin-link" data-tone="admin" href="/admin.html">Admin</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/claimtrace.html" data-login-trigger data-login-next="/claimtrace.html">Login</a>
+        <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
+      </div>
+    </aside>
+    <div class="app-main">
+      <main class="container claimtrace-page">
+        <section class="card claimtrace-hero">
+          <div>
+            <span class="badge">Claimtrace</span>
+            <h1>X12 claims end-to-end tracking</h1>
+            <p>Derive deterministic claim and bundle IDs, stamp X12/transport metadata, append journal events, prove batch membership, and inspect payment lineage.</p>
+          </div>
+          <div class="claimtrace-summary" id="claimtraceSummary">
+            <span>Loading tracking summary…</span>
+          </div>
+        </section>
+
+        <section class="claimtrace-grid">
+          <article class="card claimtrace-card">
+            <h2>Identity</h2>
+            <p class="muted">Generate stable claim IDs from the runbook key tuple.</p>
+            <div class="field-grid">
+              <label><span>Submitter</span><input id="ctSubmitter" value="SUBMITTER1"></label>
+              <label><span>Subscriber</span><input id="ctSubscriber" value="SUB123"></label>
+              <label><span>Patient DOB</span><input id="ctDob" type="date" value="1980-01-01"></label>
+              <label><span>DOS Start</span><input id="ctDos" type="date" value="2026-01-15"></label>
+              <label><span>Charge cents</span><input id="ctCharge" type="text" value="12500"></label>
+              <label><span>Payer</span><input id="ctPayer" value="PAYER9"></label>
+            </div>
+            <button id="ctDeriveClaim" type="button">Derive claim ID</button>
+            <pre class="claimtrace-output" id="ctIdentityOut"></pre>
+          </article>
+
+          <article class="card claimtrace-card">
+            <h2>Correlation</h2>
+            <p class="muted">Stamp or extract REF*ZZ, bundle, state hash, and TRN breadcrumbs.</p>
+            <textarea id="ctX12" class="claimtrace-textarea">ST*837*0001~BHT*0019*00*BHTREF*20260115*1200*CH~CLM*ABC123*125~SE*4*0001~</textarea>
+            <button id="ctStampX12" type="button">Stamp X12</button>
+            <button id="ctExtractX12" type="button" class="ghost">Extract trace</button>
+            <pre class="claimtrace-output" id="ctCorrelationOut"></pre>
+          </article>
+
+          <article class="card claimtrace-card">
+            <h2>Journal</h2>
+            <p class="muted">Append immutable events and replay traces by claim or bundle.</p>
+            <div class="field-grid">
+              <label><span>Claim ID</span><input id="ctJournalClaim" value="CLAIM-A"></label>
+              <label><span>Operation</span><select id="ctJournalOp"><option>INGEST</option><option>VALIDATE</option><option>SPLIT</option><option>BUNDLE</option><option>ADJUDICATE</option><option>MERKLE_ROOT</option></select></label>
+              <label><span>Bundle ID</span><input id="ctJournalBundle" placeholder="optional"></label>
+              <label><span>Payload location</span><input id="ctPayloadLocation" value="s3://claimtrace/demo/claim-a.json"></label>
+            </div>
+            <button id="ctAppendEvent" type="button">Append event</button>
+            <button id="ctLoadTrace" type="button" class="ghost">Load trace</button>
+            <pre class="claimtrace-output" id="ctJournalOut"></pre>
+          </article>
+
+          <article class="card claimtrace-card">
+            <h2>Merkle proof</h2>
+            <p class="muted">Build a batch root and verify inclusion proofs for claim state hashes.</p>
+            <textarea id="ctMerkleInput" class="claimtrace-textarea">{"CLAIM-A":"hash-a","CLAIM-B":"hash-b","CLAIM-C":"hash-c"}</textarea>
+            <button id="ctBuildMerkle" type="button">Build batch root</button>
+            <pre class="claimtrace-output" id="ctMerkleOut"></pre>
+          </article>
+
+          <article class="card claimtrace-card claimtrace-card--wide">
+            <h2>Lineage</h2>
+            <p class="muted">Trace bundled payment and 835 TRN relationships projected from the journal.</p>
+            <div class="field-grid">
+              <label><span>Payment ID</span><input id="ctPaymentId" value="PAY-1"></label>
+              <label><span>835 TRN</span><input id="ctTrn" value="TRN-1"></label>
+            </div>
+            <button id="ctPaymentLineage" type="button">Claims for payment</button>
+            <button id="ct835Lineage" type="button" class="ghost">835 → 837 lineage</button>
+            <pre class="claimtrace-output" id="ctLineageOut"></pre>
+          </article>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script src="/static/js/claimtrace.js"></script>
+</body>
+</html>

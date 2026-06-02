@@ -101,6 +101,12 @@ except ImportError:  # tests / direct script invocation without package context
     from turbo_routes import register as register_turbo_routes  # type: ignore
 register_turbo_routes(app)
 
+try:
+    from .claimtrace_routes import register as register_claimtrace_routes
+except ImportError:  # tests / direct script invocation without package context
+    from claimtrace_routes import register as register_claimtrace_routes  # type: ignore
+register_claimtrace_routes(app)
+
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
 

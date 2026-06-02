@@ -717,6 +717,8 @@ func main() {
 		mux.Handle("/ingest", handler)
 		mux.Handle("/jobs", handler)
 		mux.Handle("/jobs/", handler)
+		mux.Handle("/claimtrace", handler)
+		mux.Handle("/claimtrace/", handler)
 		// Ops endpoints are public (command center is the landing page)
 		opsProxy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Header.Del("Cookie")

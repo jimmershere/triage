@@ -2841,6 +2841,78 @@ button.danger:focus {
   border-radius: 6px;
 }
 
+/* Claimtrace dashboard */
+.claimtrace-page {
+  display: grid;
+  gap: 1.6rem;
+  margin: 2rem 0 3rem;
+}
+
+.claimtrace-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+}
+
+.claimtrace-hero > div:first-child {
+  flex: 1 1 460px;
+}
+
+.claimtrace-summary {
+  flex: 0 1 280px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.75rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(99, 102, 241, 0.08);
+  color: rgba(15, 23, 42, 0.72);
+}
+
+.claimtrace-summary strong {
+  font-size: 1.35rem;
+  color: var(--accent-strong);
+}
+
+.claimtrace-grid {
+  display: grid;
+  gap: 1.2rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.claimtrace-card {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.claimtrace-card--wide {
+  grid-column: 1 / -1;
+}
+
+.claimtrace-textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  padding: 0.8rem;
+  border: 1px solid rgba(15, 39, 64, 0.15);
+  border-radius: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.claimtrace-output {
+  min-height: 120px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+}
+
 .admin-table select {
   padding: 0.45rem 0.6rem;
   border-radius: 8px;
