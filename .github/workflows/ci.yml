@@ -1,0 +1,271 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Cancel superseded runs for the same branch / PR to save runner minutes
+# while always finishing runs on the default branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Default least-privilege token scope; individual jobs widen only when needed.
+permissions:
+  contents: read
+
+jobs:
+  lint-and-syntax:
+    name: Lint & syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            api/requirements.txt
+            worker_py/requirements.txt
+
+      - name: Install lint tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ruff==0.6.9
+
+      - name: Compile-all (Python syntax check)
+        run: python -m compileall -q api claimtrace worker_py tests
+
+      - name: Ruff lint (non-blocking advisory)
+        # Ruff is run in advisory mode because the repo has not yet adopted a
+        # ruff config; this surfaces issues without breaking the merge gate.
+        continue-on-error: true
+        run: ruff check api claimtrace worker_py tests
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: frontend_go/go.mod
+          cache-dependency-path: |
+            frontend_go/go.sum
+            rbac_proxy/go.sum
+
+      - name: Go vet frontend_go
+        working-directory: frontend_go
+        run: go vet ./...
+
+      - name: Go vet rbac_proxy
+        working-directory: rbac_proxy
+        run: go vet ./...
+
+  python-tests:
+    name: Python tests (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: lint-and-syntax
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            api/requirements.txt
+            worker_py/requirements.txt
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r api/requirements.txt -r worker_py/requirements.txt
+
+      - name: Worker & engine tests
+        env:
+          PYTHON: python
+        run: bash scripts/run-tests.sh
+
+      - name: Claimtrace end-to-end tests
+        env:
+          PYTHON: python
+        run: bash scripts/run_e2e.sh
+
+  go-tests:
+    name: Go tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint-and-syntax
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: frontend_go/go.mod
+          cache-dependency-path: |
+            frontend_go/go.sum
+            rbac_proxy/go.sum
+
+      - name: Test frontend_go
+        working-directory: frontend_go
+        run: go test ./...
+
+      - name: Test rbac_proxy
+        working-directory: rbac_proxy
+        run: go test ./...
+
+  security:
+    name: Security scans
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: lint-and-syntax
+    permissions:
+      # Required so that SARIF results can be uploaded to the
+      # repository's Security tab.
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout (full history for secret scanning)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            api/requirements.txt
+            worker_py/requirements.txt
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: frontend_go/go.mod
+          cache-dependency-path: |
+            frontend_go/go.sum
+            rbac_proxy/go.sum
+
+      - name: Install gitleaks (binary)
+        env:
+          GITLEAKS_VERSION: '8.21.2'
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -C /tmp -xzf /tmp/gitleaks.tar.gz gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Gitleaks secret scan
+        # Detects credentials accidentally committed to the repo. Uses the
+        # default ruleset; teams can drop a .gitleaks.toml override at the
+        # repo root to extend it without changing this workflow.
+        run: |
+          gitleaks detect \
+            --no-banner \
+            --redact \
+            --report-format sarif \
+            --report-path gitleaks.sarif \
+            --exit-code 1
+
+      - name: Upload gitleaks SARIF
+        if: ${{ always() && hashFiles('gitleaks.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+      - name: pip-audit (Python supply-chain)
+        # Verifies that pinned packages in requirements.txt resolve to real,
+        # non-vulnerable versions. Catches AI-fabricated package names
+        # because pip-audit will fail to resolve them.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit==2.7.3
+          pip-audit -r api/requirements.txt --strict
+          pip-audit -r worker_py/requirements.txt --strict
+
+      - name: govulncheck (Go supply-chain)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          (cd frontend_go && "$(go env GOPATH)/bin/govulncheck" ./...)
+          (cd rbac_proxy && "$(go env GOPATH)/bin/govulncheck" ./...)
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: '.'
+          format: sarif
+          output: trivy.sarif
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Upload Trivy SARIF
+        if: ${{ always() && hashFiles('trivy.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+
+  hallucination-checks:
+    name: Anti-hallucination checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint-and-syntax
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            api/requirements.txt
+            worker_py/requirements.txt
+
+      - name: Install runtime dependencies (for import probe)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r api/requirements.txt -r worker_py/requirements.txt
+
+      - name: Reject leftover merge conflict markers
+        run: bash scripts/ci/check-no-conflict-markers.sh
+
+      - name: Reject placeholder secrets in code
+        run: bash scripts/ci/check-placeholders.sh
+
+      - name: Verify Python imports resolve
+        run: python scripts/ci/check-imports.py
+
+      - name: Verify README/doc file references exist
+        run: python scripts/ci/check-doc-paths.py
