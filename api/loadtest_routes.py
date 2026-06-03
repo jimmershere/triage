@@ -539,8 +539,18 @@ def _run_swarm_loadtest(req: SwarmLoadTestStartRequest, run_id: str) -> None:
             state["completed_at"] = datetime.now(timezone.utc).isoformat()
         return
 
+    # Mirror the runner's final status (complete / stopped) onto the wrapper
+    # so the next start guard sees an idle wrapper instead of a stale
+    # "running". The snapshot merges these too, but the guard inspects the
+    # raw wrapper while holding _swarm_lock and never sees the runner state.
+    final_status = "complete"
+    try:
+        final_status = runner.state.get("status", "complete") or "complete"
+    except Exception:
+        pass
     with _swarm_lock:
         state = _get_swarm_state()
+        state["status"] = final_status
         state["completed_at"] = datetime.now(timezone.utc).isoformat()
 
 
