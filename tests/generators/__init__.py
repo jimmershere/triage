@@ -19,6 +19,67 @@ from .edi_common import (
     generate_to_size,
 )
 
+# ---------------------------------------------------------------------------
+# Unified generate_file interface for the load test runner
+# ---------------------------------------------------------------------------
+
+_GENERATORS = {
+    "837p": generate_837p,
+    "837i": generate_837i,
+    "837d": generate_837d,
+    "835": generate_835,
+    "270": generate_270,
+    "271": generate_271,
+    "276": generate_276,
+    "278": generate_278,
+}
+
+
+def generate_file(
+    tx_type: str,
+    target_bytes: int = 512 * 1024,
+    adversarial: bool = False,
+) -> bytes:
+    """Generate an X12 test file as bytes.
+
+    This is the unified entry point used by the load test runner.
+
+    Args:
+        tx_type: Transaction type key (e.g. '837p', '835', '270').
+        target_bytes: Approximate target file size in bytes.
+        adversarial: If True, generate a structurally invalid file
+                     for negative testing.
+    """
+    if adversarial:
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            files = generate_adversarial_files(td)
+            # Return a representative adversarial file
+            import os
+            # Pick a type-relevant adversarial file, defaulting to shell_injection
+            for name in ("shell_injection.x12", "truncated_mid_segment.x12", "empty_file.x12"):
+                path = os.path.join(td, name)
+                if os.path.exists(path):
+                    return open(path, "rb").read()
+            # Fallback: return first non-empty adversarial file
+            for name in sorted(files):
+                path = os.path.join(td, name)
+                if os.path.exists(path):
+                    content = open(path, "rb").read()
+                    if content:
+                        return content
+        return b""
+
+    gen = _GENERATORS.get(tx_type)
+    if gen is None:
+        raise ValueError(f"Unknown transaction type: {tx_type!r}. Valid: {sorted(_GENERATORS)}")
+
+    content = gen(target_bytes=target_bytes)
+    if isinstance(content, str):
+        content = content.encode("utf-8")
+    return content
+
+
 __all__ = [
     "generate_837p",
     "generate_837i",
@@ -28,6 +89,7 @@ __all__ = [
     "generate_271",
     "generate_276",
     "generate_278",
+    "generate_file",
     "generate_adversarial_files",
     "wrap_multi_gs",
     "build_batched_isa",

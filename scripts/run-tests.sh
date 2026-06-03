@@ -30,4 +30,16 @@ fi
 
 echo "[run-tests] python:    $PYTHON"
 echo "[run-tests] discover:  worker_py/$START_DIR"
-exec "$PYTHON" -m unittest discover -s "$START_DIR" -t . -p 'test_*.py' -v
+"$PYTHON" -m unittest discover -s "$START_DIR" -t . -p 'test_*.py' -v
+WORKER_EXIT=$?
+
+# Also run the test file generators and loadtest tests from the repo root
+echo ""
+echo "[run-tests] discover:  tests/"
+cd "$REPO_ROOT"
+"$PYTHON" -m unittest discover -s tests -t . -p 'test_*.py' -v
+TESTS_EXIT=$?
+
+if [ $WORKER_EXIT -ne 0 ] || [ $TESTS_EXIT -ne 0 ]; then
+  exit 1
+fi
