@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
+  <title>Triage — Load Testing</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+  <script src="/config.js"></script>
+  <style>
+    /* ── Load testing page styles ── */
+
+    .lt-page-header {
+      margin-bottom: 1.75rem;
+    }
+
+    .lt-page-header h1 {
+      margin: 0.4rem 0 0.35rem;
+      font-size: clamp(1.5rem, 1.2vw + 1.1rem, 2.1rem);
+      background: linear-gradient(135deg, var(--accent-strong), var(--contrast-strong));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      line-height: 1.2;
+    }
+
+    .lt-page-header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.97rem;
+    }
+
+    /* ── Configuration card ── */
+    .lt-config-card {
+      background: var(--surface-raised, var(--surface));
+      border: 1px solid rgba(99, 102, 241, 0.22);
+      border-radius: 16px;
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 1.75rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+    }
+
+    .lt-config-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin: 0 0 1.25rem;
+    }
+
+    .lt-section {
+      margin-bottom: 1.25rem;
+    }
+
+    .lt-section-label {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink);
+      display: block;
+      margin-bottom: 0.55rem;
+    }
+
+    /* ── Radio / checkbox groups ── */
+    .lt-radio-group,
+    .lt-check-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+    }
+
+    .lt-radio-item,
+    .lt-check-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.38rem;
+      font-size: 0.88rem;
+      color: var(--ink);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .lt-radio-item input[type="radio"],
+    .lt-check-item input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    /* ── Range slider ── */
+    .lt-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .lt-slider {
+      flex: 1;
+      max-width: 300px;
+      accent-color: var(--accent);
+    }
+
+    .lt-slider-value {
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: var(--accent-strong);
+      min-width: 2.5rem;
+    }
+
+    /* ── Toggle switch ── */
+    .lt-toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 0.65rem;
+    }
+
+    .lt-toggle {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .lt-toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .lt-toggle-track {
+      position: absolute;
+      inset: 0;
+      background: rgba(99, 102, 241, 0.2);
+      border-radius: 999px;
+      transition: background 0.2s ease;
+      cursor: pointer;
+    }
+
+    .lt-toggle-track::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      transition: transform 0.2s ease;
+    }
+
+    .lt-toggle input:checked + .lt-toggle-track {
+      background: var(--accent);
+    }
+
+    .lt-toggle input:checked + .lt-toggle-track::after {
+      transform: translateX(18px);
+    }
+
+    .lt-toggle-label {
+      font-size: 0.88rem;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    /* ── Control buttons ── */
+    .lt-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .lt-btn-start {
+      padding: 0.6rem 1.6rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.93rem;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 8px 22px rgba(79, 70, 229, 0.28);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    }
+
+    .lt-btn-start:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 28px rgba(79, 70, 229, 0.36);
+    }
+
+    .lt-btn-start:disabled {
+      opacity: 0.52;
+      cursor: not-allowed;
+    }
+
+    .lt-btn-stop {
+      padding: 0.55rem 1.4rem;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--err);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: 1px solid rgba(239,68,68,0.28);
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .lt-btn-stop:hover:not(:disabled) {
+      background: rgba(239,68,68,0.09);
+    }
+
+    .lt-btn-stop:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .lt-btn-export {
+      padding: 0.55rem 1.4rem;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--accent-strong);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: 1px solid rgba(99,102,241,0.3);
+      transition: background 0.15s ease;
+    }
+
+    .lt-btn-export:hover:not(:disabled) {
+      background: var(--accent-soft);
+    }
+
+    .lt-btn-export:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* ── Progress section ── */
+    .lt-progress-card {
+      background: var(--surface-raised, var(--surface));
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .lt-progress-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .lt-progress-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .lt-status-pill {
+      display: inline-block;
+      padding: 0.15rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .lt-status-pill--idle { background: rgba(0,0,0,0.07); color: var(--muted); }
+    .lt-status-pill--running { background: rgba(99,102,241,0.14); color: #4338ca; }
+    .lt-status-pill--complete { background: rgba(16,185,129,0.14); color: #047857; }
+    .lt-status-pill--stopped { background: rgba(249,115,22,0.14); color: #c2410c; }
+    .lt-status-pill--error { background: rgba(239,68,68,0.14); color: var(--err); }
+
+    .lt-progress-bar-track {
+      height: 8px;
+      background: rgba(99, 102, 241, 0.14);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 0.5rem;
+    }
+
+    .lt-progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--contrast));
+      border-radius: 999px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .lt-progress-pct {
+      font-size: 0.84rem;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    /* ── Results table ── */
+    .lt-results-wrap {
+      overflow-x: auto;
+      margin-top: 1rem;
+    }
+
+    .lt-results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .lt-results-table th {
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.82rem;
+      color: var(--muted);
+      padding: 0.5rem 0.65rem;
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+      white-space: nowrap;
+    }
+
+    .lt-results-table td {
+      padding: 0.45rem 0.65rem;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+      color: var(--ink);
+    }
+
+    .lt-results-table tr:hover td {
+      background: rgba(99,102,241,0.04);
+    }
+
+    .lt-result-status {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+
+    .lt-result-status--queued { background: rgba(0,0,0,0.07); color: var(--muted); }
+    .lt-result-status--uploading { background: rgba(99,102,241,0.14); color: #4338ca; }
+    .lt-result-status--processing { background: rgba(249,115,22,0.14); color: #c2410c; }
+    .lt-result-status--done { background: rgba(16,185,129,0.14); color: #047857; }
+    .lt-result-status--failed { background: rgba(239,68,68,0.14); color: var(--err); }
+
+    .lt-result-pass { color: #047857; font-weight: 700; }
+    .lt-result-fail { color: var(--err); font-weight: 700; }
+
+    /* ── Summary card ── */
+    .lt-summary-card {
+      background: var(--surface-raised, var(--surface));
+      border: 1px solid rgba(16,185,129,0.22);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .lt-summary-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin: 0 0 1rem;
+    }
+
+    .lt-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .lt-summary-stat {
+      text-align: center;
+      padding: 0.75rem;
+      background: rgba(99,102,241,0.04);
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .lt-summary-stat-value {
+      display: block;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--accent-strong);
+    }
+
+    .lt-summary-stat-label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    .lt-breakdown-section {
+      margin-top: 1rem;
+    }
+
+    .lt-breakdown-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .lt-breakdown-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .lt-breakdown-item {
+      padding: 0.3rem 0.7rem;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.04);
+      font-size: 0.82rem;
+      color: var(--ink);
+    }
+
+    .lt-breakdown-item strong {
+      color: var(--accent-strong);
+    }
+
+    /* ── Size checkboxes conditional visibility ── */
+    .lt-sizes-custom { display: none; }
+    .lt-sizes-custom.lt-show { display: block; }
+
+    /* ── Spinner ── */
+    .lt-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: lt-spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.35rem;
+    }
+
+    @keyframes lt-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── Error banner ── */
+    .lt-error-banner {
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: var(--err);
+      margin-bottom: 1.25rem;
+    }
+  </style>
+</head>
+<body data-requires-auth="portal">
+  <div class="app-shell">
+    <aside class="site-sidebar">
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/triage-logo.png" width="256" height="256" alt="Triage logo"></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Claims Portal</span>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/271.html">271 Responses</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/276.html">276 Status</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Workspace</span>
+          <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/edits.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
+          <a class="nav-pill" data-tone="ops" href="/loadtest.html" aria-current="page">Load Testing</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Resources</span>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
+        </div>
+        <div class="nav-group admin-only">
+          <span class="nav-group-label">Administration</span>
+          <a class="nav-pill admin-link" data-tone="admin" href="/admin.html">Admin</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/loadtest.html" data-login-trigger data-login-next="/loadtest.html">Login</a>
+        <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <main class="container">
+
+        <!-- Page header -->
+        <div class="lt-page-header">
+          <span class="badge">Operations</span>
+          <h1>Load &amp; Performance Testing</h1>
+          <p>Generate X12 EDI test files at various sizes and transaction types, upload them through the ingest pipeline, and measure throughput and correctness.</p>
+        </div>
+
+        <!-- Error banner -->
+        <div id="ltErrorBanner" class="lt-error-banner" hidden></div>
+
+        <!-- Configuration -->
+        <div class="lt-config-card">
+          <h2 class="lt-config-title">Test Configuration</h2>
+
+          <div class="lt-section">
+            <span class="lt-section-label">Test Profile</span>
+            <div class="lt-radio-group" id="ltProfileGroup">
+              <label class="lt-radio-item">
+                <input type="radio" name="lt-profile" value="smoke" checked> Smoke (512K–5MB)
+              </label>
+              <label class="lt-radio-item">
+                <input type="radio" name="lt-profile" value="standard"> Standard (512K–100MB)
+              </label>
+              <label class="lt-radio-item">
+                <input type="radio" name="lt-profile" value="full"> Full (all sizes)
+              </label>
+              <label class="lt-radio-item">
+                <input type="radio" name="lt-profile" value="custom"> Custom
+              </label>
+            </div>
+          </div>
+
+          <div class="lt-section">
+            <span class="lt-section-label">Transaction Types</span>
+            <div class="lt-check-group" id="ltTypesGroup">
+              <label class="lt-check-item"><input type="checkbox" value="837p" checked> 837P</label>
+              <label class="lt-check-item"><input type="checkbox" value="837i" checked> 837I</label>
+              <label class="lt-check-item"><input type="checkbox" value="837d" checked> 837D</label>
+              <label class="lt-check-item"><input type="checkbox" value="835" checked> 835</label>
+              <label class="lt-check-item"><input type="checkbox" value="270" checked> 270</label>
+              <label class="lt-check-item"><input type="checkbox" value="271" checked> 271</label>
+              <label class="lt-check-item"><input type="checkbox" value="276" checked> 276</label>
+              <label class="lt-check-item"><input type="checkbox" value="278" checked> 278</label>
+            </div>
+          </div>
+
+          <div class="lt-section lt-sizes-custom" id="ltSizesSection">
+            <span class="lt-section-label">Size Steps</span>
+            <div class="lt-check-group" id="ltSizesGroup">
+              <label class="lt-check-item"><input type="checkbox" value="512k" checked> 512K</label>
+              <label class="lt-check-item"><input type="checkbox" value="1mb" checked> 1MB</label>
+              <label class="lt-check-item"><input type="checkbox" value="5mb" checked> 5MB</label>
+              <label class="lt-check-item"><input type="checkbox" value="10mb"> 10MB</label>
+              <label class="lt-check-item"><input type="checkbox" value="50mb"> 50MB</label>
+              <label class="lt-check-item"><input type="checkbox" value="100mb"> 100MB</label>
+              <label class="lt-check-item"><input type="checkbox" value="1gb"> 1GB</label>
+              <label class="lt-check-item"><input type="checkbox" value="5gb"> 5GB</label>
+            </div>
+          </div>
+
+          <div class="lt-section">
+            <span class="lt-section-label">Concurrency</span>
+            <div class="lt-slider-row">
+              <input type="range" id="ltConcurrency" class="lt-slider" min="1" max="10" value="3">
+              <span class="lt-slider-value" id="ltConcurrencyValue">3</span>
+            </div>
+          </div>
+
+          <div class="lt-section">
+            <div class="lt-toggle-row">
+              <label class="lt-toggle" aria-label="Include adversarial tests">
+                <input type="checkbox" id="ltAdversarial" checked>
+                <span class="lt-toggle-track"></span>
+              </label>
+              <span class="lt-toggle-label">Include adversarial tests</span>
+            </div>
+            <div class="lt-toggle-row">
+              <label class="lt-toggle" aria-label="Include multi-part envelopes">
+                <input type="checkbox" id="ltMultiPart" checked>
+                <span class="lt-toggle-track"></span>
+              </label>
+              <span class="lt-toggle-label">Include multi-part envelopes</span>
+            </div>
+          </div>
+
+          <div class="lt-controls">
+            <button type="button" class="lt-btn-start" id="ltStartBtn">Start Test Run</button>
+            <button type="button" class="lt-btn-stop" id="ltStopBtn" disabled>Stop</button>
+            <button type="button" class="lt-btn-export" id="ltExportBtn" disabled>Export Results</button>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="lt-progress-card" id="ltProgressCard">
+          <div class="lt-progress-header">
+            <span class="lt-progress-title">Test Progress</span>
+            <span class="lt-status-pill lt-status-pill--idle" id="ltStatusPill">Idle</span>
+          </div>
+          <div class="lt-progress-bar-track">
+            <div class="lt-progress-bar-fill" id="ltProgressFill"></div>
+          </div>
+          <div class="lt-progress-pct" id="ltProgressPct">0%</div>
+
+          <div class="lt-results-wrap">
+            <table class="lt-results-table">
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Type</th>
+                  <th>Size</th>
+                  <th>Status</th>
+                  <th>Upload Time</th>
+                  <th>Processing Time</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody id="ltResultsBody">
+                <tr><td colspan="7" style="color:var(--muted);text-align:center;padding:1.5rem;">No test results yet. Configure and start a test run above.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Summary (shown after completion) -->
+        <div class="lt-summary-card" id="ltSummaryCard" hidden>
+          <h3 class="lt-summary-title">Test Summary</h3>
+          <div class="lt-summary-grid" id="ltSummaryGrid"></div>
+          <div id="ltBreakdownContainer"></div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <footer class="site-footer"><div class="footer-inner"><span class="footer-brand">Triage</span><span class="footer-separator">|</span><span class="footer-powered">Built by <strong>The Claw Firm</strong></span></div></footer>
+
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script src="/static/js/loadtest.js"></script>
+</body>
+</html>
