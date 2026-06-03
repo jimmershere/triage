@@ -101,6 +101,12 @@ except ImportError:  # tests / direct script invocation without package context
     from turbo_routes import register as register_turbo_routes  # type: ignore
 register_turbo_routes(app)
 
+try:
+    from .loadtest_routes import register as register_loadtest_routes
+except ImportError:
+    from loadtest_routes import register as register_loadtest_routes  # type: ignore
+register_loadtest_routes(app)
+
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
 
@@ -1348,8 +1354,9 @@ async def ingest(
         content = await file.read()
         if not content:
             raise HTTPException(status_code=400, detail="Empty file")
-        if len(content) > 50 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="File too large (max 50MB)")
+        max_upload_mb = int(os.getenv('TRIAGE_MAX_UPLOAD_MB', '50'))
+        if len(content) > max_upload_mb * 1024 * 1024:
+            raise HTTPException(status_code=413, detail=f"File too large (max {max_upload_mb}MB)")
 
         job_uuid = uuid.uuid4()
         filename = file.filename or "upload.dat"
