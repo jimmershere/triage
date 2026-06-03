@@ -196,7 +196,12 @@ jobs:
             --exit-code 1
 
       - name: Upload gitleaks SARIF
+        # SARIF upload requires GitHub Advanced Security / Code Scanning to be
+        # enabled on the repository. The scan above already fails the build on
+        # real findings, so we tolerate upload failures here to stay portable
+        # across repos with and without GHAS.
         if: ${{ always() && hashFiles('gitleaks.sarif') != '' }}
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: gitleaks.sarif
@@ -232,7 +237,9 @@ jobs:
           exit-code: '0'
 
       - name: Upload Trivy SARIF
+        # Same rationale as the gitleaks SARIF upload above.
         if: ${{ always() && hashFiles('trivy.sarif') != '' }}
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy.sarif
