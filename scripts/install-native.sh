@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TurboHEDI host-native installer.
+# Triage host-native installer.
 #
 # Installs and configures every host-side dependency the stack expects when
 # running outside Docker: PostgreSQL, RabbitMQ, the Go toolchain, the Python
@@ -29,7 +29,7 @@ if ! sudo -v >/dev/null 2>&1; then
   exit 1
 fi
 
-ENV_FILE="${TURBOHEDI_ENV_FILE:-.env.localhost}"
+ENV_FILE="${TRIAGE_ENV_FILE:-${TURBOHEDI_ENV_FILE:-.env.localhost}}"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "[install-native] $ENV_FILE not found. Copy .env.example to $ENV_FILE first." >&2
   exit 1
@@ -39,19 +39,26 @@ set -a
 source "$ENV_FILE"
 set +a
 
-PG_USER="edi"
-PG_DB="edi"
-PG_PASS="edi"
+PG_USER="${POSTGRES_USER:-edi}"
+PG_DB="${POSTGRES_DB:-edi}"
+PG_PASS="${POSTGRES_PASSWORD:-edi}"
+PG_HOST="${POSTGRES_HOST:-127.0.0.1}"
+PG_PORT="${POSTGRES_HOST_PORT:-5432}"
 RMQ_USER="${RMQ_USER:-ediapp}"
 RMQ_PASS="${RMQ_PASS:-3wm078uu}"
 RMQ_VHOST="${RMQ_VHOST:-/}"
+SKIP_NATIVE_PACKAGE_INSTALL="${TRIAGE_SKIP_NATIVE_PACKAGE_INSTALL:-false}"
 
 # ---------------------------------------------------------------------------
 # 1. apt packages
 # ---------------------------------------------------------------------------
-log "installing postgres, rabbitmq-server, golang-go via apt"
-sudo apt-get update -q
-sudo apt-get install -y -q postgresql rabbitmq-server golang-go
+if [[ "$SKIP_NATIVE_PACKAGE_INSTALL" != "true" ]]; then
+  log "installing postgres, rabbitmq-server, golang-go via apt"
+  sudo apt-get update -q
+  sudo apt-get install -y -q postgresql rabbitmq-server golang-go
+else
+  log "skipping apt package installation because TRIAGE_SKIP_NATIVE_PACKAGE_INSTALL=true"
+fi
 
 log "ensuring services are enabled and running"
 sudo systemctl enable --now postgresql
@@ -77,8 +84,8 @@ fi
 psql_postgres_run "GRANT ALL PRIVILEGES ON DATABASE $PG_DB TO $PG_USER;" >/dev/null
 
 log "loading db/init.sql and db/schema.sql into $PG_DB"
-PGPASSWORD="$PG_PASS" psql -h 127.0.0.1 -U "$PG_USER" -d "$PG_DB" -q -f db/init.sql
-PGPASSWORD="$PG_PASS" psql -h 127.0.0.1 -U "$PG_USER" -d "$PG_DB" -q -f db/schema.sql
+PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q -f db/init.sql
+PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q -f db/schema.sql
 
 # ---------------------------------------------------------------------------
 # 3. RabbitMQ — ediapp user + permissions + management plugin
@@ -118,7 +125,7 @@ cat <<'EOF'
 [install-native] All host dependencies are installed and configured.
                  Run the stack with:
 
-  bash scripts/run-local-stack.sh
+  TRIAGE_ENV_FILE=.env.localhost bash scripts/run-local-stack.sh
 
                  Then open http://127.0.0.1:8080 for the canvas UI.
 EOF

@@ -53,6 +53,50 @@ between the code and the patent strategy, and
 
 ## Quick Start
 
+### Guided text installer
+
+The recommended setup path is the stdlib text installer:
+
+```bash
+python3 scripts/triage-installer.py
+```
+
+Use it when you want Triage to ask simple IT-focused questions and generate the right configuration for a working base system. The installer supports:
+
+- Native/standalone installs on Ubuntu/Debian-style hosts.
+- Docker Compose installs.
+- Podman Compose installs.
+- Configuration-only planning.
+- Installing or configuring PostgreSQL, RabbitMQ, and an open source LDAP-compatible service.
+- Using existing PostgreSQL, RabbitMQ, or LDAP services instead of installing local ones.
+- Explicit supported container image tags instead of floating `latest`.
+- PostgreSQL SSL/TLS client and server options, including `sslmode`, CA files, server cert/key, client cert/key, and generated local development snippets.
+- RabbitMQ users, vhost, management UI, durable queues, and optional TLS listener settings.
+- LDAP choices for OpenLDAP, 389 Directory Server, or external LDAP, including StartTLS/LDAPS settings, base DN, OUs, bind/admin accounts, and role groups.
+- First administrator setup plus optional additional users with `view`, `submit`, or `administrator` roles.
+
+Safe preview:
+
+```bash
+python3 scripts/triage-installer.py --non-interactive --dry-run
+```
+
+Replay a saved answer file:
+
+```bash
+python3 scripts/triage-installer.py --answer-file .runtime/installer/triage-installer.answers.json --non-interactive
+```
+
+Run generated setup commands after review:
+
+```bash
+python3 scripts/triage-installer.py --answer-file .runtime/installer/triage-installer.answers.json --non-interactive --execute
+```
+
+Generated files are intentionally local-only. Typical outputs include `.env`, `.env.localhost`, `compose.override.yml`, `.runtime/installer/postgresql-ssl.conf.snippet`, `.runtime/installer/pg_hba.triage.conf.snippet`, `.runtime/installer/ldap-bootstrap.ldif`, and `.runtime/installer/post-install-summary.txt`.
+
+The answer file is permission-restricted because it contains secrets needed for repeat installs. Do not commit generated installer files.
+
 1. **Prereqs**: Docker & Docker Compose installed.
 2. Copy `.env.example` to `.env` and adjust if needed:
    ```bash

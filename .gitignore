@@ -16,6 +16,10 @@ venv/
 # Local-only dev / runtime
 .brv/
 .runtime/
+compose.override.yml
+triage-installer.answers.json
+installer-users.json
+post-install-summary.txt
 *.log
 target/debug-logs/
 
@@ -25,6 +29,8 @@ target/debug-logs/
 .env.localhost
 *.local
 *.key
+deploy/generated/
+*.pem
 
 # Local DB artifacts
 *.sqlite
