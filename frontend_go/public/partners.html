@@ -758,15 +758,9 @@
   <script src="/static/js/login-modal.js"></script>
   <script>
     // ── API configuration ──────────────────────────────────────────────────────
-    const API_BASE = window.TRIAGE_API_BASE || "";
-    const PARTNERS_URL = API_BASE ? `${API_BASE}/partners` : "/partners";
-
-    // NOTE: The shared secret below is a placeholder and must be replaced with
-    // proper authentication (e.g. bearer token, session cookie forwarding) before
-    // going to production.
+    const PARTNERS_URL = "/partners";
     const PARTNER_HEADERS = {
       "Content-Type": "application/json",
-      "X-TRIAGE-SECRET": window.TRIAGE_SHARED_SECRET || "turbohedi-shared-secret",
     };
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -1104,9 +1098,7 @@
         </div>`;
 
       try {
-        const res = await fetch(PARTNERS_URL, {
-          headers: { "X-TRIAGE-SECRET": window.TRIAGE_SHARED_SECRET || "turbohedi-shared-secret" }
-        });
+        const res = await fetch(PARTNERS_URL);
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
         allPartners = data.partners || data;
@@ -1156,7 +1148,7 @@
       try {
         const res = await fetch(PARTNERS_URL, {
           method: "POST",
-          headers: PARTNER_HEADERS, // TODO: replace X-Shared-Secret with proper auth
+          headers: PARTNER_HEADERS,
           body: JSON.stringify(body),
         });
         if (!res.ok) {
@@ -1208,7 +1200,7 @@
       try {
         const res = await fetch(`${PARTNERS_URL}/${encodeURIComponent(pid)}`, {
           method: "PUT",
-          headers: PARTNER_HEADERS, // TODO: replace X-Shared-Secret with proper auth
+          headers: PARTNER_HEADERS,
           body: JSON.stringify(body),
         });
         if (!res.ok) {
@@ -1232,8 +1224,7 @@
       pendingDeleteId = null;
       try {
         const res = await fetch(`${PARTNERS_URL}/${encodeURIComponent(pid)}`, {
-          method: "DELETE",
-          headers: { "X-TRIAGE-SECRET": window.TRIAGE_SHARED_SECRET || "turbohedi-shared-secret" }
+          method: "DELETE"
         });
         if (!res.ok && res.status !== 404) {
           const text = await res.text().catch(() => res.statusText);
@@ -1251,5 +1242,6 @@
     // ── Bootstrap ─────────────────────────────────────────────────────────────
     loadPartners();
   </script>
+  <script src="/static/js/site-enhancements.js"></script>
 </body>
 </html>

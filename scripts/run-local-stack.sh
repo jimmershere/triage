@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bring up the host-native TurboHEDI stack (frontend_go + FastAPI + worker)
+# Bring up the host-native Triage stack (frontend_go + FastAPI + worker)
 # against PostgreSQL + RabbitMQ already running on the host.
 #
 # Pre-reqs:
@@ -32,7 +32,7 @@ fi
 mkdir -p .runtime/archive .runtime/logs
 
 # --- env ------------------------------------------------------------------
-ENV_FILE="${TURBOHEDI_ENV_FILE:-.env.localhost}"
+ENV_FILE="${TRIAGE_ENV_FILE:-${TURBOHEDI_ENV_FILE:-.env.localhost}}"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "[run-local-stack] env file $ENV_FILE not found" >&2
   exit 1
@@ -99,12 +99,12 @@ echo "rbac log:     $RBAC_LOG  (pid $RBAC_PID)"
 echo "api log:      $API_LOG  (pid $API_PID)"
 echo "worker log:   $WORKER_LOG  (pid $WORKER_PID)"
 echo
-echo "TurboHEDI local stack started:"
+echo "Triage local stack started:"
 echo "  Frontend UI:        http://127.0.0.1:8080         (sign in: admin / 3wm078uu)"
 echo "  Mapping canvas:     http://127.0.0.1:8080/mapping.html"
 echo "  API (Swagger):      http://127.0.0.1:8000/docs"
 echo "  Turbo capability:   http://127.0.0.1:8000/turbo/capability"
-echo "  Ops summary:        http://127.0.0.1:8000/ops/summary"
+echo "  Command center:     http://127.0.0.1:8080/"
 echo "  RabbitMQ mgmt UI:   http://127.0.0.1:15672         (ediapp / 3wm078uu)"
 echo
 echo "Stop the stack with: bash scripts/stop-local-stack.sh"

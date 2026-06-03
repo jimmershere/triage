@@ -75,7 +75,7 @@ services:
       RABBITMQ_URL: amqp://ediapp:3wm078uu@rabbitmq:5672/
       RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
       ARCHIVE_DIR: /archive
-      TRIAGE_SHARED_SECRET: turbohedi-shared-secret
+      TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-triage-shared-secret}
     ports:
       - "8000:8000"
     volumes:
@@ -108,7 +108,7 @@ services:
       RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
       RMQ_ACKS_QUEUE: ${RMQ_ACKS_QUEUE:-acks}
       ARCHIVE_DIR: /archive
-      OLLAMA_URL: ${OLLAMA_URL:-http://192.168.1.206:11434}
+      OLLAMA_URL: ${OLLAMA_URL:-http://localhost:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
     volumes:
       - archive:/archive
@@ -125,7 +125,7 @@ services:
     environment:
       TRIAGE_API_BASE: http://api:8000
       TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET:-TriageMAsonarySCRewBitSEMINar3194}
-      TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-turbohedi-shared-secret}
+      TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-triage-shared-secret}
       TRIAGE_OAUTH2_PROXY_URL: ${TRIAGE_OAUTH2_PROXY_URL:-http://rbac:4180}
       TRIAGE_OAUTH2_PROXY_INTERNAL_URL: ${TRIAGE_OAUTH2_PROXY_INTERNAL_URL:-http://rbac:4180}
       TRIAGE_OAUTH2_START: ${TRIAGE_OAUTH2_START:-/oauth2/start}
@@ -152,7 +152,7 @@ services:
       - ./.env
     environment:
       RBAC_API_BASE: http://api:8000
-      RBAC_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-turbohedi-shared-secret}
+      RBAC_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-triage-shared-secret}
       TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET:-change-me-in-prod}
     ports:
       - "4180:4180"
@@ -165,7 +165,7 @@ services:
     image: docker.io/osixia/openldap:1.5.0
     container_name: turboedi-starter_ldap_1
     environment:
-      LDAP_ORGANISATION: "TurboHEDI"
+      LDAP_ORGANISATION: "Triage"
       LDAP_DOMAIN: example.com
       LDAP_ADMIN_PASSWORD: 3wm078uu
       LDAP_CONFIG_PASSWORD: 3wm078uu

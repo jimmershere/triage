@@ -61,7 +61,7 @@
           <div>
             <span class="badge">Claimtrace</span>
             <h1>End-to-end claim trace dashboard</h1>
-            <p>Search every ingested file by trading partner, submitter, claim ID, hash ID, filename, operator, or action state. Review trace events, analyze risk, and mark claims for repair, deletion, review, or release.</p>
+            <p>Search every ingested file by trading partner, submitter, claim ID, hash ID, or action state. Review trace events, analyze risk, and mark claims for repair, deletion, review, or release.</p>
           </div>
           <div class="claimtrace-summary claimtrace-summary--dashboard" id="claimtraceSummary">
             <span>Loading tracking summary…</span>
@@ -72,12 +72,11 @@
           <header class="card-header">
             <div>
               <h2>Search tracked claims</h2>
-              <p class="muted">Use one key or combine multiple keys for precise trace lookup.</p>
+            <p class="muted">Use one claim key or combine multiple keys for precise trace lookup.</p>
             </div>
             <button id="ctRefresh" type="button" class="ghost">Refresh</button>
           </header>
           <form id="ctSearchForm" class="claimtrace-search-form">
-            <label><span>Any key</span><input id="ctQuery" type="text" placeholder="claim ID, hash, submitter, partner, filename"></label>
             <label><span>Trading partner ID</span><input id="ctTradingPartner" type="text" placeholder="TP123456"></label>
             <label><span>Submitter ID</span><input id="ctSubmitter" type="text" placeholder="ISA/GS submitter"></label>
             <label><span>Claim ID</span><input id="ctClaimId" type="text" placeholder="deterministic claim ID"></label>
@@ -90,7 +89,7 @@
           </form>
         </section>
 
-        <section class="claimtrace-dashboard-grid">
+        <section class="claimtrace-dashboard-stack">
           <article class="card claimtrace-results-card">
             <div class="section-heading">
               <div>
@@ -150,5 +149,6 @@
   <script src="/static/js/authz.js"></script>
   <script src="/static/js/login-modal.js"></script>
   <script src="/static/js/claimtrace.js"></script>
+  <script src="/static/js/site-enhancements.js"></script>
 </body>
 </html>

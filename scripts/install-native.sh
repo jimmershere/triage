@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TurboHEDI host-native installer.
+# Triage host-native installer.
 #
 # Installs and configures every host-side dependency the stack expects when
 # running outside Docker: PostgreSQL, RabbitMQ, the Go toolchain, the Python
@@ -29,7 +29,7 @@ if ! sudo -v >/dev/null 2>&1; then
   exit 1
 fi
 
-ENV_FILE="${TURBOHEDI_ENV_FILE:-.env.localhost}"
+ENV_FILE="${TRIAGE_ENV_FILE:-${TURBOHEDI_ENV_FILE:-.env.localhost}}"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "[install-native] $ENV_FILE not found. Copy .env.example to $ENV_FILE first." >&2
   exit 1

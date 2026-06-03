@@ -1,60 +1,65 @@
+-- Claimtrace persistent schema used by api/claimtrace_service.py.
+-- This migration mirrors the application's startup migration so optional SQL
+-- bootstrap creates the same DB-backed dashboard tables the app expects.
+
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE IF NOT EXISTS claim_event (
-  event_id UUID NOT NULL,
+CREATE TABLE IF NOT EXISTS claimtrace_claim (
+  tracking_id UUID PRIMARY KEY,
   claim_id TEXT NOT NULL,
-  bundle_id TEXT NULL,
-  prior_state_hash TEXT NULL,
-  new_state_hash TEXT NOT NULL,
+  claim_hash_id TEXT NOT NULL,
+  import_id INTEGER REFERENCES imports(id) ON DELETE SET NULL,
+  job_id UUID UNIQUE,
+  filename TEXT,
+  uploaded_by TEXT,
+  trading_partner_id TEXT,
+  submitter_id TEXT,
+  trace_id TEXT,
+  state_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'tracked',
+  action_state TEXT NOT NULL DEFAULT 'none',
+  recommended_next_steps JSONB NOT NULL DEFAULT '[]',
+  raw_excerpt TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS claimtrace_claim_claim_id_idx ON claimtrace_claim (claim_id);
+CREATE INDEX IF NOT EXISTS claimtrace_claim_hash_idx ON claimtrace_claim (claim_hash_id);
+CREATE INDEX IF NOT EXISTS claimtrace_claim_partner_idx ON claimtrace_claim (trading_partner_id);
+CREATE INDEX IF NOT EXISTS claimtrace_claim_submitter_idx ON claimtrace_claim (submitter_id);
+CREATE INDEX IF NOT EXISTS claimtrace_claim_action_idx ON claimtrace_claim (action_state);
+
+CREATE TABLE IF NOT EXISTS claimtrace_event (
+  event_id UUID PRIMARY KEY,
+  tracking_id UUID REFERENCES claimtrace_claim(tracking_id) ON DELETE SET NULL,
+  claim_id TEXT NOT NULL,
+  bundle_id TEXT,
+  operation_type TEXT NOT NULL,
+  state_hash TEXT NOT NULL,
   payload_location TEXT NOT NULL,
-  operation_type TEXT NOT NULL CHECK (operation_type IN
-     ('INGEST','VALIDATE','SPLIT','BUNDLE','ROUTE','ACK','ADJUDICATE','TRANSFORM','MERKLE_ROOT')),
   service_name TEXT NOT NULL,
-  ts TIMESTAMPTZ NOT NULL DEFAULT now(),
-  correlation_ids JSONB NOT NULL DEFAULT '{}',
-  PRIMARY KEY (event_id, ts)
-) PARTITION BY RANGE (ts);
+  ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  correlation_ids JSONB NOT NULL DEFAULT '{}'
+);
 
-CREATE TABLE IF NOT EXISTS claim_event_default PARTITION OF claim_event DEFAULT;
+CREATE INDEX IF NOT EXISTS claimtrace_event_claim_ts_idx ON claimtrace_event (claim_id, ts);
+CREATE INDEX IF NOT EXISTS claimtrace_event_tracking_ts_idx ON claimtrace_event (tracking_id, ts);
+CREATE INDEX IF NOT EXISTS claimtrace_event_corr_gin_idx ON claimtrace_event USING GIN (correlation_ids);
 
-DO $$
-DECLARE
-  start_month date := date_trunc('month', now())::date;
-  end_month date := (date_trunc('month', now()) + interval '1 month')::date;
-  partition_name text := 'claim_event_' || to_char(start_month, 'YYYY_MM');
-BEGIN
-  EXECUTE format(
-    'CREATE TABLE IF NOT EXISTS %I PARTITION OF claim_event FOR VALUES FROM (%L) TO (%L)',
-    partition_name,
-    start_month,
-    end_month
-  );
-END$$;
-
-CREATE INDEX IF NOT EXISTS claim_event_claim_ts_idx ON claim_event (claim_id, ts);
-CREATE INDEX IF NOT EXISTS claim_event_bundle_ts_idx ON claim_event (bundle_id, ts);
-CREATE INDEX IF NOT EXISTS claim_event_correlation_gin_idx ON claim_event USING GIN (correlation_ids);
-
-CREATE OR REPLACE FUNCTION reject_claim_event_mutation()
+CREATE OR REPLACE FUNCTION reject_claimtrace_event_mutation()
 RETURNS trigger AS $$
 BEGIN
-  RAISE EXCEPTION 'claim_event is append-only; UPDATE and DELETE are forbidden';
+  RAISE EXCEPTION 'claimtrace_event is append-only; UPDATE and DELETE are forbidden';
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS claim_event_append_only_update ON claim_event;
-CREATE TRIGGER claim_event_append_only_update
-BEFORE UPDATE ON claim_event
-FOR EACH ROW EXECUTE FUNCTION reject_claim_event_mutation();
+DROP TRIGGER IF EXISTS claimtrace_event_append_only_update ON claimtrace_event;
+CREATE TRIGGER claimtrace_event_append_only_update
+BEFORE UPDATE ON claimtrace_event
+FOR EACH ROW EXECUTE FUNCTION reject_claimtrace_event_mutation();
 
-DROP TRIGGER IF EXISTS claim_event_append_only_delete ON claim_event;
-CREATE TRIGGER claim_event_append_only_delete
-BEFORE DELETE ON claim_event
-FOR EACH ROW EXECUTE FUNCTION reject_claim_event_mutation();
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'claim_app') THEN
-    REVOKE UPDATE, DELETE ON claim_event FROM claim_app;
-  END IF;
-END$$;
+DROP TRIGGER IF EXISTS claimtrace_event_append_only_delete ON claimtrace_event;
+CREATE TRIGGER claimtrace_event_append_only_delete
+BEFORE DELETE ON claimtrace_event
+FOR EACH ROW EXECUTE FUNCTION reject_claimtrace_event_mutation();

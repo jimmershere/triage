@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop every process the host-native TurboHEDI stack starts.
+# Stop every process the host-native Triage stack starts.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"

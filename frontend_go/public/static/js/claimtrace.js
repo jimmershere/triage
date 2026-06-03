@@ -63,7 +63,6 @@
   function searchParams() {
     const params = new URLSearchParams();
     const values = {
-      query: $("ctQuery")?.value,
       trading_partner_id: $("ctTradingPartner")?.value,
       submitter_id: $("ctSubmitter")?.value,
       claim_id: $("ctClaimId")?.value,
@@ -209,7 +208,7 @@
   }
 
   function clearSearch() {
-    ["ctQuery", "ctTradingPartner", "ctSubmitter", "ctClaimId", "ctClaimHash"].forEach((id) => { const el = $(id); if (el) el.value = ""; });
+    ["ctTradingPartner", "ctSubmitter", "ctClaimId", "ctClaimHash"].forEach((id) => { const el = $(id); if (el) el.value = ""; });
     const action = $("ctActionState");
     if (action) action.value = "";
     searchClaims();

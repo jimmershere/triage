@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Push representative X12 / EDI samples through the running TurboHEDI ingest
+# Push representative X12 / EDI samples through the running Triage ingest
 # pipeline. Use after `scripts/run-local-stack.sh` and a quick sanity check
 # that the API is reachable.
 #
@@ -10,8 +10,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-API="${TURBOHEDI_API:-http://127.0.0.1:8000}"
-PARTNER="${TURBOHEDI_PARTNER:-DEMO_PARTNER}"
+API="${TRIAGE_API:-${TURBOHEDI_API:-http://127.0.0.1:8000}}"
+PARTNER="${TRIAGE_PARTNER:-${TURBOHEDI_PARTNER:-DEMO_PARTNER}}"
+SECRET="${TRIAGE_SHARED_SECRET:-}"
+HEADER_ARGS=()
+if [[ -n "$SECRET" ]]; then
+  HEADER_ARGS=(-H "X-TRIAGE-SECRET: $SECRET")
+fi
 
 if ! curl -s -o /dev/null -w "%{http_code}" "$API/openapi.json" | grep -q 200; then
   echo "[ingest-samples] API not reachable at $API — start the stack first." >&2
@@ -45,6 +50,7 @@ for path in "${files[@]}"; do
   fi
   size=$(stat -c%s "$path")
   resp=$(curl -s -X POST "$API/ingest" \
+    "${HEADER_ARGS[@]}" \
     -F "file=@$path" \
     -F "trading_partner_id=$PARTNER")
   job=$(printf "%s" "$resp" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('job_id') or d.get('detail') or '-')" 2>/dev/null || echo "?")

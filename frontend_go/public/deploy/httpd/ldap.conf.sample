@@ -7,7 +7,7 @@ LDAPTrustedGlobalCert CA_BASE64 /etc/pki/tls/certs/ca-bundle.crt
 <Location "/">
   AuthType Basic
   AuthBasicProvider ldap
-  AuthName "Sassy Claims"
+  AuthName "Triage"
   AuthLDAPURL "ldaps://ldap.example.com/ou=people,dc=example,dc=com?uid?sub?(objectClass=person)"
   AuthLDAPBindDN "uid=binduser,ou=people,dc=example,dc=com"
   AuthLDAPBindPassword "__REPLACE_ME__"

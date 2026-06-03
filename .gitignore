@@ -18,6 +18,9 @@ venv/
 .runtime/
 *.log
 target/debug-logs/
+notes-*
+notes.html
+*.orig
 
 # Local env / secrets — keep .env.example committed, ignore actual envs
 .env
@@ -35,6 +38,10 @@ db/turbohedi.db
 /dist
 /build
 *.egg
+bench/test_files/
+bench/benchmark_results.txt
+samples/*_large.x12
+!samples/x12_837_large_valid.x12
 
 # Local archive (worker output)
 /archive

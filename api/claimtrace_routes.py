@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+import logging
 from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -28,6 +29,7 @@ except ImportError:  # direct script/test invocation
 router = APIRouter(prefix="/claimtrace", tags=["claimtrace"])
 DEMO_STORE = InMemoryJournalStore()
 GET_DB: Optional[Callable[[], Any]] = None
+logger = logging.getLogger("api.claimtrace")
 
 
 class LineItemRequest(BaseModel):
@@ -87,6 +89,7 @@ def _with_db(callback):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        logger.exception("Claimtrace database error")
         raise HTTPException(status_code=500, detail=f"Claimtrace database error: {exc}") from exc
 
 

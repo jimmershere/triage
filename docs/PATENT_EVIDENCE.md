@@ -1,8 +1,8 @@
-# TurboHEDI — Patent Evidence Map
+# Triage — Patent Evidence Map
 
-Maps each candidate invention from the
-[2026-05-16 patent strategy](../../turbohedi-patent-strategy-2026-05-16.md)
-to the concrete code, test fixtures and rule data that demonstrate it. Used to
+Maps candidate invention areas from the private patent strategy materials to
+the concrete code, test fixtures and rule data that demonstrate them. The
+strategy document itself is not committed to this repository. This map is used to
 back the technical specification of any provisional / non-provisional filing
 and to keep architectural intent visible to future contributors.
 

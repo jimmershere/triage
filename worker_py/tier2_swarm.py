@@ -1,4 +1,4 @@
-"""TurboHEDI Tier 2 — Supervised Swarm via Ollama on Xander GPUs.
+"""Triage Tier 2 — Supervised Swarm via Ollama.
 
 Spawns parallel AI analysis tasks for complex EDI files:
 1. Structural Analysis  — layout, nesting, segment flow diagnosis
@@ -61,7 +61,7 @@ def execute_swarm(
     decision: RoutingDecision,
     text: str,
     *,
-    ollama_url: str = "http://192.168.1.206:11434",
+    ollama_url: str = "http://localhost:11434",
     ollama_model: str = "qwen2.5-coder:7b",
 ) -> TierResult:
     """Run parallel AI analysis swarm and supervised merge."""
@@ -89,7 +89,7 @@ def execute_swarm(
         ),
     ]
 
-    # Run tasks in parallel on Xander GPUs
+    # Run tasks sequentially against one Ollama endpoint to avoid overloading local inference.
     logger.info(
         "Launching swarm of %d tasks for file %s on %s/%s",
         len(tasks), profile.file_id, ollama_url, ollama_model,

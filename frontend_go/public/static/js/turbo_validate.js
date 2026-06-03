@@ -1,4 +1,4 @@
-// TurboHEDI v0.3 — CMS validation panel.
+// Triage CMS validation panel.
 //
 // Self-contained, opt-in module. Find any element with `data-turbo-validate`
 // and wire its child input/buttons to POST against /turbo/validate or
