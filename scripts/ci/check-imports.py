@@ -40,14 +40,11 @@ SKIP_MODULES = {
     "worker_py.translators.edifact_bots",
 }
 
-# Sub-package prefixes whose modules are test files and therefore allowed to
-# depend on test-only frameworks (pytest, etc.) that are not part of the
-# runtime install. The dedicated test job runs these via the project's chosen
-# runner; the runtime import probe should not require those extras.
-SKIP_PREFIXES = (
-    "api.tests.",
-    "worker_py.test_",
-)
+# Sub-package prefixes that the import probe should skip. Kept empty by
+# default now that requirements-dev.txt installs pytest and the test
+# fixtures import cleanly; add prefixes here only when a module legitimately
+# cannot be imported outside of its runtime context.
+SKIP_PREFIXES: tuple[str, ...] = ()
 
 
 def _iter_python_files(base: Path) -> list[Path]:

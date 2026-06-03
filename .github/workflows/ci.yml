@@ -93,10 +93,10 @@ jobs:
             api/requirements.txt
             worker_py/requirements.txt
 
-      - name: Install runtime dependencies
+      - name: Install runtime + dev dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r api/requirements.txt -r worker_py/requirements.txt
+          python -m pip install -r api/requirements.txt -r worker_py/requirements.txt -r requirements-dev.txt
 
       - name: Worker & engine tests
         env:
@@ -216,7 +216,10 @@ jobs:
           (cd rbac_proxy && "$(go env GOPATH)/bin/govulncheck" ./...)
 
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.28.0
+        # Pinned to a real Trivy action release (0.28.0 was a typo for a
+        # version that never shipped). 0.33.1 is referenced in the official
+        # README example flows.
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: fs
           scan-ref: '.'
@@ -253,10 +256,10 @@ jobs:
             api/requirements.txt
             worker_py/requirements.txt
 
-      - name: Install runtime dependencies (for import probe)
+      - name: Install runtime + dev dependencies (for import probe)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r api/requirements.txt -r worker_py/requirements.txt
+          python -m pip install -r api/requirements.txt -r worker_py/requirements.txt -r requirements-dev.txt
 
       - name: Reject leftover merge conflict markers
         run: bash scripts/ci/check-no-conflict-markers.sh

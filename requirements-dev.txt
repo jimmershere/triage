@@ -1,0 +1,14 @@
+# Development-only Python dependencies.
+#
+# Installed in CI alongside api/requirements.txt and worker_py/requirements.txt
+# so the import probe can exercise test modules and so the supply-chain
+# scanning job pins its own tools.
+#
+# Add new test-only or local-dev tooling here. Do not let production code
+# import from anything pinned in this file.
+
+# Test runner used by api/tests/* (the rest of the repo uses stdlib unittest).
+pytest==8.3.3
+
+# Pinned to keep the CI security job reproducible without a network resolve.
+pip-audit==2.7.3

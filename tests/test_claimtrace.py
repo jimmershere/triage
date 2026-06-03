@@ -195,13 +195,16 @@ class E2ETests(unittest.TestCase):
         LineageProjector(sink).project(store.events())
         self.assertEqual(claims_for_payment("pay-golden", sink), {child1, child2, claim2})
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
 class ClaimtraceWebsiteTests(unittest.TestCase):
     def test_sidebar_exposes_claimtrace_menu(self):
         pages = [
-            Path("/app/triage/frontend_go/public/index.html"),
-            Path("/app/triage/frontend_go/public/processed.html"),
-            Path("/app/triage/frontend_go/public/admin.html"),
-            Path("/app/triage/frontend_go/public/claimtrace.html"),
+            REPO_ROOT / "frontend_go" / "public" / "index.html",
+            REPO_ROOT / "frontend_go" / "public" / "processed.html",
+            REPO_ROOT / "frontend_go" / "public" / "admin.html",
+            REPO_ROOT / "frontend_go" / "public" / "claimtrace.html",
         ]
         for page in pages:
             self.assertIn("/claimtrace.html", page.read_text(encoding="utf-8"))
