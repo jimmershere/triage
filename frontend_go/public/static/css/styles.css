@@ -2841,6 +2841,78 @@ button.danger:focus {
   border-radius: 6px;
 }
 
+/* Claimtrace dashboard */
+.claimtrace-page {
+  display: grid;
+  gap: 1.6rem;
+  margin: 2rem 0 3rem;
+}
+
+.claimtrace-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+}
+
+.claimtrace-hero > div:first-child {
+  flex: 1 1 460px;
+}
+
+.claimtrace-summary {
+  flex: 0 1 280px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.75rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(99, 102, 241, 0.08);
+  color: rgba(15, 23, 42, 0.72);
+}
+
+.claimtrace-summary strong {
+  font-size: 1.35rem;
+  color: var(--accent-strong);
+}
+
+.claimtrace-grid {
+  display: grid;
+  gap: 1.2rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.claimtrace-card {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.claimtrace-card--wide {
+  grid-column: 1 / -1;
+}
+
+.claimtrace-textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  padding: 0.8rem;
+  border: 1px solid rgba(15, 39, 64, 0.15);
+  border-radius: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.claimtrace-output {
+  min-height: 120px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+}
+
 .admin-table select {
   padding: 0.45rem 0.6rem;
   border-radius: 8px;
@@ -3953,4 +4025,394 @@ td.dollars {
   .cc-hero-secondary { flex-wrap: wrap; gap: 1rem; }
   .cc-hero-value { font-size: 2rem; }
   .cc-split { grid-template-columns: 1fr; }
+}
+
+/* Claimtrace dashboard refresh */
+.claimtrace-nav-link {
+  gap: 0.45rem;
+  justify-content: space-between;
+}
+
+.claimtrace-new-burst {
+  width: 42px;
+  height: 30px;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.85));
+}
+
+.claimtrace-new-burst polygon {
+  fill: #facc15;
+  stroke: #fb7185;
+  stroke-width: 3;
+}
+
+.claimtrace-new-burst text {
+  fill: #7c2d12;
+  font-size: 14px;
+  font-weight: 900;
+  text-anchor: middle;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.claimtrace-dashboard {
+  display: grid;
+  gap: 1.6rem;
+  margin: 2rem 0 3rem;
+}
+
+.claimtrace-dashboard-hero {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(20, 184, 166, 0.12));
+}
+
+.claimtrace-summary--dashboard {
+  grid-template-columns: auto 1fr;
+  min-width: 300px;
+}
+
+.claimtrace-search-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.claimtrace-search-form {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  align-items: end;
+}
+
+.claimtrace-search-form label span {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+  color: rgba(15, 23, 42, 0.68);
+}
+
+.claimtrace-search-actions,
+.claimtrace-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.claimtrace-dashboard-stack {
+  display: grid;
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.claimtrace-results-card,
+.claimtrace-detail-card {
+  min-width: 0;
+}
+
+.claimtrace-table {
+  min-width: 920px;
+}
+
+.claimtrace-result-row {
+  cursor: pointer;
+}
+
+.claimtrace-result-row:hover td {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.claimtrace-row-button {
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.claimtrace-row-button:hover {
+  transform: none;
+  box-shadow: none;
+  text-decoration: underline;
+}
+
+.claimtrace-status-pill,
+.claimtrace-action-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  background: rgba(99, 102, 241, 0.13);
+  color: var(--accent-strong);
+}
+
+.claimtrace-action-state--repair {
+  background: rgba(245, 158, 11, 0.18);
+  color: var(--warn);
+}
+
+.claimtrace-action-state--delete {
+  background: rgba(239, 68, 68, 0.16);
+  color: var(--err);
+}
+
+.claimtrace-action-state--reviewed {
+  background: rgba(20, 184, 166, 0.16);
+  color: var(--contrast-strong);
+}
+
+.claimtrace-identity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.claimtrace-identity-grid div {
+  padding: 0.75rem;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.claimtrace-identity-grid span {
+  display: block;
+  color: rgba(15, 23, 42, 0.55);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.2rem;
+}
+
+.claimtrace-identity-grid strong {
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.claimtrace-analysis-box {
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(250, 204, 21, 0.13);
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  margin: 1rem 0;
+}
+
+.claimtrace-analysis-box h3,
+.claimtrace-actions-panel h3,
+.claimtrace-detail-card h3 {
+  margin: 0 0 0.6rem;
+}
+
+.claimtrace-analysis-box ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.claimtrace-timeline {
+  display: grid;
+  gap: 0.65rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.claimtrace-timeline li {
+  position: relative;
+  padding: 0.75rem 0.85rem 0.75rem 1rem;
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.claimtrace-timeline-op {
+  font-weight: 900;
+  color: rgba(15, 23, 42, 0.86);
+}
+
+.claimtrace-timeline-meta {
+  font-size: 0.78rem;
+  color: rgba(15, 23, 42, 0.55);
+  margin-bottom: 0.25rem;
+}
+
+.claimtrace-note {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 39, 64, 0.15);
+  margin-bottom: 0.75rem;
+}
+
+button.danger {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  color: #fff;
+}
+
+@media (max-width: 1100px) {
+  .claimtrace-dashboard-stack {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Daily site-wide panel themes and operational content panels */
+.triage-panel-enhanced {
+  --panel-tint-a: rgba(99, 102, 241, 0.08);
+  --panel-tint-b: rgba(20, 184, 166, 0.07);
+  --panel-edge: rgba(99, 102, 241, 0.18);
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 0 0, var(--panel-tint-a), transparent 34%),
+    linear-gradient(135deg, var(--panel-tint-b), rgba(255, 255, 255, 0.94));
+  border-color: var(--panel-edge);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.triage-panel-enhanced::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.5), transparent 32%, rgba(255, 255, 255, 0.22));
+  opacity: 0.44;
+}
+
+.triage-panel-enhanced > * {
+  position: relative;
+  z-index: 1;
+}
+
+.triage-panel-enhanced[data-panel-tone="1"] {
+  --panel-tint-a: rgba(14, 165, 233, 0.1);
+  --panel-tint-b: rgba(45, 212, 191, 0.08);
+  --panel-edge: rgba(14, 165, 233, 0.2);
+}
+
+.triage-panel-enhanced[data-panel-tone="2"] {
+  --panel-tint-a: rgba(168, 85, 247, 0.1);
+  --panel-tint-b: rgba(244, 114, 182, 0.07);
+  --panel-edge: rgba(168, 85, 247, 0.2);
+}
+
+.triage-panel-enhanced[data-panel-tone="3"] {
+  --panel-tint-a: rgba(245, 158, 11, 0.11);
+  --panel-tint-b: rgba(250, 204, 21, 0.08);
+  --panel-edge: rgba(245, 158, 11, 0.22);
+}
+
+.triage-panel-enhanced[data-panel-tone="4"] {
+  --panel-tint-a: rgba(16, 185, 129, 0.1);
+  --panel-tint-b: rgba(20, 184, 166, 0.08);
+  --panel-edge: rgba(16, 185, 129, 0.2);
+}
+
+.triage-panel-enhanced[data-panel-tone="5"] {
+  --panel-tint-a: rgba(59, 130, 246, 0.1);
+  --panel-tint-b: rgba(99, 102, 241, 0.07);
+  --panel-edge: rgba(59, 130, 246, 0.2);
+}
+
+.triage-panel-enhanced:focus-within,
+.triage-panel-enhanced.triage-panel-active {
+  --panel-tint-a: rgba(249, 115, 22, 0.14);
+  --panel-tint-b: rgba(20, 184, 166, 0.13);
+  --panel-edge: rgba(249, 115, 22, 0.36);
+  box-shadow: 0 22px 46px rgba(15, 39, 64, 0.14), 0 0 0 3px rgba(249, 115, 22, 0.08);
+}
+
+.triage-daily-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  gap: 1.35rem;
+  align-items: stretch;
+}
+
+.triage-daily-visuals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.triage-daily-visuals figure {
+  display: grid;
+  gap: 0.65rem;
+  align-content: space-between;
+  min-height: 100%;
+  margin: 0;
+  padding: 0.9rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 39, 64, 0.08);
+  box-shadow: 0 12px 28px rgba(15, 39, 64, 0.08);
+}
+
+.triage-daily-visuals img {
+  display: block;
+  width: 100%;
+  min-height: 170px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 255, 0.88));
+}
+
+.triage-daily-visuals figcaption {
+  color: rgba(15, 23, 42, 0.66);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.triage-daily-content {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.triage-daily-content h2 {
+  margin: 0;
+  color: var(--accent-strong);
+}
+
+.triage-daily-content p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.triage-daily-tips {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.3rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.triage-daily-tips li {
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  color: rgba(15, 23, 42, 0.76);
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(15, 39, 64, 0.07);
+}
+
+.triage-daily-tips li.is-featured {
+  color: #0f172a;
+  font-weight: 800;
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.28), rgba(20, 184, 166, 0.16));
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+@media (max-width: 1000px) {
+  .triage-daily-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .triage-daily-visuals {
+    grid-template-columns: 1fr;
+  }
 }

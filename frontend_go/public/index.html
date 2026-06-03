@@ -202,6 +202,7 @@
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
+          <a class="nav-pill portal-link claimtrace-nav-link" data-tone="mapping" href="/claimtrace.html">Claimtrace <svg class="claimtrace-new-burst" viewBox="0 0 72 52" role="img" aria-label="New"><polygon points="36,1 43,13 58,6 55,21 71,26 55,31 58,46 43,39 36,51 29,39 14,46 17,31 1,26 17,21 14,6 29,13"/><text x="36" y="31">NEW</text></svg></a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
@@ -390,9 +391,8 @@
   <script src="/static/js/authz.js"></script>
   <script src="/static/js/login-modal.js"></script>
   <script>
-    const API_BASE = window.TRIAGE_API_BASE || "";
-    const CC_URL     = API_BASE ? `${API_BASE}/ops/command-center` : "/ops/command-center";
-    const ALERTS_URL = API_BASE ? `${API_BASE}/ops/alerts`         : "/ops/alerts";
+    const CC_URL     = "/ops/command-center";
+    const ALERTS_URL = "/ops/alerts";
 
     const TIER_COLORS = {
       0: "#22c55e", // green — fast path
@@ -419,10 +419,22 @@
       if (v < 60) return `${v.toFixed(1)}s`;
       return `${(v / 60).toFixed(1)}m`;
     }
+    function escHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function cssToken(value) {
+      return String(value ?? "unknown").replace(/[^a-zA-Z0-9_-]/g, "-");
+    }
 
     function renderStatus(value) {
       const s = value || "unknown";
-      return `<span class="status status-${s}">${s}</span>`;
+      return `<span class="status status-${cssToken(s)}">${escHtml(s)}</span>`;
     }
 
     function renderTierBadge(tier) {
@@ -433,14 +445,15 @@
     function renderVerdict(v) {
       if (!v) return '<span class="muted">—</span>';
       const cls = v === "APPROVE" ? "status-valid" : v === "REJECT" ? "status-error" : "status-warn";
-      return `<span class="status ${cls}">${v}</span>`;
+      return `<span class="status ${cls}">${escHtml(v)}</span>`;
     }
 
     function renderFlags(flags) {
       if (!flags || !flags.length) return '<span class="muted">none</span>';
       const shown = flags.slice(0, 2).map(f => {
-        const short = f.replace(/^SWARM_ISSUE:/, "").substring(0, 30);
-        return `<span class="flag-chip">${short}${f.length > 30 ? "…" : ""}</span>`;
+        const raw = String(f ?? "");
+        const short = raw.replace(/^SWARM_ISSUE:/, "").substring(0, 30);
+        return `<span class="flag-chip">${escHtml(short)}${raw.length > 30 ? "…" : ""}</span>`;
       });
       if (flags.length > 2) shown.push(`<span class="flag-chip flag-more">+${flags.length - 2}</span>`);
       return shown.join(" ");
@@ -470,19 +483,22 @@
         const order = { critical: 0, warning: 1, info: 2 };
         alerts.sort((a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9));
 
-        listEl.innerHTML = alerts.map(a => `
-          <div class="alert-item alert-item--${a.severity}" role="listitem">
-            <span class="alert-icon" aria-label="${a.severity}">${ALERT_ICONS[a.severity] || "⚪"}</span>
+        listEl.innerHTML = alerts.map(a => {
+          const severity = ["critical", "warning", "info"].includes(a.severity) ? a.severity : "info";
+          return `
+          <div class="alert-item alert-item--${severity}" role="listitem">
+            <span class="alert-icon" aria-label="${severity}">${ALERT_ICONS[severity] || "⚪"}</span>
             <div class="alert-content">
-              <div class="alert-content-title">${a.title || ""}</div>
-              <div class="alert-content-msg">${a.message || ""}</div>
+              <div class="alert-content-title">${escHtml(a.title || "")}</div>
+              <div class="alert-content-msg">${escHtml(a.message || "")}</div>
             </div>
             <div class="alert-metric">
-              <span class="alert-metric-current alert-metric-current--${a.severity}">${a.current_value != null ? Number(a.current_value).toLocaleString() : "—"}</span>
+              <span class="alert-metric-current alert-metric-current--${severity}">${a.current_value != null ? Number(a.current_value).toLocaleString() : "—"}</span>
               <span class="alert-metric-threshold">threshold: ${a.threshold != null ? Number(a.threshold).toLocaleString() : "—"}</span>
             </div>
           </div>
-        `).join("");
+        `;
+        }).join("");
       } catch (err) {
         console.error("Alerts load failed:", err);
         listEl.innerHTML = '<div class="alert-all-clear" style="color:#ef4444">Failed to load alerts.</div>';
@@ -505,7 +521,7 @@
     // ── View Switcher ────────────────────────────────────────────────
     (function initViewSwitcher() {
       const buttons  = document.querySelectorAll(".cc-view-btn");
-      const STORAGE_KEY = "turbohediView";
+      const STORAGE_KEY = "triageView";
 
       function applyView(view) {
         document.body.dataset.view = view;
@@ -562,8 +578,8 @@
         if (d.exception_queue?.length) {
           exBody.innerHTML = d.exception_queue.map(e => `
             <tr class="exception-row ${e.supervisor_verdict === 'REJECT' ? 'exception-critical' : ''}">
-              <td><a class="table-link" href="/processed.html?job_id=${encodeURIComponent(e.job_id)}&uploaded_by=&trading_partner_id=${encodeURIComponent(e.trading_partner_id || '')}"><code>${(e.filename || "").substring(0, 28)}</code></a></td>
-              <td>${e.trading_partner_id || "—"}</td>
+              <td><a class="table-link" href="/processed.html?job_id=${encodeURIComponent(e.job_id)}&uploaded_by=&trading_partner_id=${encodeURIComponent(e.trading_partner_id || '')}"><code>${escHtml((e.filename || "").substring(0, 28))}</code></a></td>
+              <td>${escHtml(e.trading_partner_id || "—")}</td>
               <td>${renderTierBadge(e.tier)}</td>
               <td><strong>${e.score_total?.toFixed(1) || "—"}</strong></td>
               <td>${e.claims_count ?? "—"}</td>
@@ -581,8 +597,8 @@
         if (d.recent_imports?.length) {
           recentBody.innerHTML = d.recent_imports.map(j => `
             <tr>
-              <td><a class="table-link" href="/processed.html?uploaded_by=${encodeURIComponent(j.uploaded_by || "")}&trading_partner_id=${encodeURIComponent(j.trading_partner_id || "")}&job_id=${encodeURIComponent(j.job_id)}"><code>${j.job_id.substring(0, 8)}</code></a></td>
-              <td>${j.filename || "—"}</td>
+              <td><a class="table-link" href="/processed.html?uploaded_by=${encodeURIComponent(j.uploaded_by || "")}&trading_partner_id=${encodeURIComponent(j.trading_partner_id || "")}&job_id=${encodeURIComponent(j.job_id)}"><code>${escHtml((j.job_id || "").substring(0, 8))}</code></a></td>
+              <td>${escHtml(j.filename || "—")}</td>
               <td>${renderStatus(j.status)}</td>
               <td>${renderStatus(j.validation_status)}</td>
               <td>${j.claims_count ?? "—"}</td>
@@ -599,7 +615,7 @@
           partnerBox.innerHTML = d.partner_exceptions.map(p => `
             <div class="partner-exception-item">
               <div>
-                <strong>${p.trading_partner_id}</strong>
+                <strong>${escHtml(p.trading_partner_id)}</strong>
                 <div class="muted">Invalid: ${p.invalid_imports} · Pending: ${p.pending_imports}</div>
               </div>
               <span class="status ${p.invalid_imports > 0 ? 'status-error' : 'status-processing'}">${p.invalid_imports + p.pending_imports}</span>
@@ -612,11 +628,11 @@
         // Executive summary
         const execText = document.getElementById("execSummaryText");
         if (execText) {
-          const exCount = d.exception_queue?.length || 0;
+          const exQueueCount = d.exception_queue?.length || 0;
           const dollars = fmtDollars(d.dollars_at_risk);
           const failures = d.validation_failures_24h ?? 0;
           execText.textContent = `${d.imports_today ?? 0} imports processed today. ` +
-            `${dollars} currently at risk across ${exCount} exception file${exCount !== 1 ? "s" : ""}. ` +
+            `${dollars} currently at risk across ${exQueueCount} exception file${exQueueCount !== 1 ? "s" : ""}. ` +
             `${failures} validation failure${failures !== 1 ? "s" : ""} in the last 24 hours.`;
         }
       } catch (err) {
@@ -633,5 +649,6 @@
     // Auto-refresh every 15 seconds
     setInterval(refreshAll, 15000);
   </script>
+  <script src="/static/js/site-enhancements.js"></script>
 </body>
 </html>

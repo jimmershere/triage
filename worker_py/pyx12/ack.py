@@ -1,13 +1,10 @@
 # Local shim to satisfy "import pyx12.ack" in our translators.
 from pathlib import Path
-from ._cli import run_x12valid  # see below
+import subprocess
 
 def generate_ack(input_path: str, outdir: str) -> str:
     """Return path to 997/999 produced by pyx12's validator."""
     return run_x12valid(input_path, outdir)
-
-# _cli.py (same folder)
-import subprocess
 
 def run_x12valid(infile: str, outdir: str) -> str:
     out = Path(outdir); out.mkdir(parents=True, exist_ok=True)

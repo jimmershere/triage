@@ -1,8 +1,8 @@
-"""TurboHEDI Tier Executor — dispatches files to tier-specific processing paths.
+"""Triage Tier Executor — dispatches files to tier-specific processing paths.
 
 Tier 0: deterministic fast path (existing translator pipeline)
 Tier 1: assisted review — extra validation rules, anomaly flagging, enriched audit
-Tier 2: supervised swarm — parallel AI analysis via Ollama on Xander GPU cluster
+Tier 2: supervised swarm — AI analysis via Ollama
 Tier 3: human exception — park file, log, notify, do NOT auto-process
 """
 from __future__ import annotations
@@ -53,7 +53,7 @@ def execute_tier(
     decision: RoutingDecision,
     text: str,
     *,
-    ollama_url: str = "http://192.168.1.206:11434",
+    ollama_url: str = "http://localhost:11434",
     ollama_model: str = "qwen2.5-coder:7b",
 ) -> TierResult:
     """Dispatch to the correct tier handler."""

@@ -2,7 +2,7 @@
 # RHEL 8 Apache httpd base (sample)
 ServerTokens Prod
 ServerSignature Off
-ServerName sassy-claims.local
+ServerName triage-portal.local
 
 # Performance
 KeepAlive On
@@ -18,8 +18,8 @@ Header always set X-XSS-Protection "1; mode=block"
 Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';"
 
 # Static site root
-DocumentRoot "/var/www/sassy-claims/public"
-<Directory "/var/www/sassy-claims/public">
+DocumentRoot "/var/www/triage-portal/public"
+<Directory "/var/www/triage-portal/public">
   Options -Indexes +FollowSymLinks
   AllowOverride None
   Require all granted

@@ -44,3 +44,13 @@ func TestInvalidSignature(t *testing.T) {
 		t.Fatalf("expected error for tampered token")
 	}
 }
+
+func TestSessionClaimsExpired(t *testing.T) {
+	claims := sessionClaims{
+		Username: "alice",
+		Expires:  time.Now().Add(-time.Minute).Unix(),
+	}
+	if claims.valid(time.Now()) {
+		t.Fatalf("expected expired claims to be invalid")
+	}
+}

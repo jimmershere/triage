@@ -1,4 +1,4 @@
-# TurboHEDI Demo Data
+# Triage Demo Data
 
 Synthetic X12 EDI files for demonstrating the Triage Command Center. All data is fictional — no real PHI.
 

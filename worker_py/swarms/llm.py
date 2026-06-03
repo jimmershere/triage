@@ -22,13 +22,13 @@ class LlmClient(Protocol):
 class OllamaClient:
     """Stream-disabled Ollama generate client.
 
-    Endpoint defaults to the Xander cluster but is overridable per instance.
+    Endpoint defaults to local Ollama but is overridable per instance.
     """
 
     def __init__(
         self,
         *,
-        url: str = "http://192.168.1.206:11434",
+        url: str = "http://localhost:11434",
         model: str = "qwen2.5-coder:7b",
         timeout: float = 90.0,
     ) -> None:

@@ -313,7 +313,7 @@ const loginTemplateHTML = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>TurboHEDI Sign In</title>
+    <title>Triage Sign In</title>
     <style>
       body { font-family: system-ui, sans-serif; margin: 0; padding: 0; background: #f2f4f8; }
       .container { max-width: 420px; margin: 64px auto; background: white; padding: 32px; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.12); }
@@ -329,7 +329,7 @@ const loginTemplateHTML = `<!DOCTYPE html>
   </head>
   <body>
     <div class="container">
-      <h1>Sign in to TurboHEDI</h1>
+      <h1>Sign in to Triage</h1>
       {{if .Error}}
         <div class="error">{{.Error}}</div>
       {{end}}
@@ -359,11 +359,21 @@ func main() {
 
 	server := &http.Server{
 		Addr:              listenAddr,
-		Handler:           mux,
+		Handler:           securityHeaders(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	log.Printf("RBAC service listening on %s (api=%s)", listenAddr, apiBase)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self';")
+		next.ServeHTTP(w, r)
+	})
 }

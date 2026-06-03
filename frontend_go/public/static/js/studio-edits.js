@@ -1,5 +1,5 @@
 /**
- * TurboHEDI Studio — Edits Enhancement Layer
+ * Triage Studio — Edits Enhancement Layer
  * Adds: line numbers, grouped palette, editor↔canvas sync, split-pane UX
  */
 (function () {

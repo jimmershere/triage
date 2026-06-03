@@ -374,28 +374,31 @@ func redirectTo(target string) http.HandlerFunc {
 }
 
 func configHandler(w http.ResponseWriter, r *http.Request) {
-	apiBase := rawAPIBase
+	publicAPIBase := rawAPIBase
 	ingest := env("TRIAGE_INGEST_URL", "")
 	jobs := env("TRIAGE_JOBS_URL", "")
 	oauthStart := env("TRIAGE_OAUTH2_START", "/oauth2/start")
 	useProxy := apiProxyEnabled
+	if useProxy {
+		publicAPIBase = ""
+	}
 	if ingest == "" {
-		if useProxy || apiBase == "" {
+		if useProxy || publicAPIBase == "" {
 			ingest = "/ingest"
 		} else {
-			ingest = apiBase + "/ingest"
+			ingest = publicAPIBase + "/ingest"
 		}
 	}
 	if jobs == "" {
-		if useProxy || apiBase == "" {
+		if useProxy || publicAPIBase == "" {
 			jobs = "/jobs"
 		} else {
-			jobs = apiBase + "/jobs"
+			jobs = publicAPIBase + "/jobs"
 		}
 	}
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprintf(w, "window.TRIAGE_API_BASE = %q;\nwindow.TRIAGE_INGEST_URL = %q;\nwindow.TRIAGE_JOBS_URL = %q;\nwindow.TRIAGE_OAUTH2_START = %q;\nwindow.TRIAGE_SHARED_SECRET = %q;\n", apiBase, ingest, jobs, oauthStart, sharedSecret)
+	fmt.Fprintf(w, "window.TRIAGE_API_BASE = %q;\nwindow.TRIAGE_INGEST_URL = %q;\nwindow.TRIAGE_JOBS_URL = %q;\nwindow.TRIAGE_OAUTH2_START = %q;\n", publicAPIBase, ingest, jobs, oauthStart)
 }
 
 func isSafeUsername(v string) bool {
@@ -641,7 +644,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	if target == "" {
 		target = "/"
 	}
-	if strings.Contains(target, "://") {
+	if strings.HasPrefix(target, "//") || strings.Contains(target, "://") {
 		target = "/"
 	}
 	http.Redirect(w, r, "/oauth2/sign_out?rd="+url.QueryEscape(target), http.StatusFound)
@@ -717,17 +720,20 @@ func main() {
 		mux.Handle("/ingest", handler)
 		mux.Handle("/jobs", handler)
 		mux.Handle("/jobs/", handler)
-		// Ops endpoints are public (command center is the landing page)
-		opsProxy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("/claimtrace", handler)
+		mux.Handle("/claimtrace/", handler)
+		protectedProxy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Header.Del("Cookie")
+			if sharedSecret != "" {
+				r.Header.Set("X-TRIAGE-SECRET", sharedSecret)
+			}
 			proxy.ServeHTTP(w, r)
 		})
-		mux.Handle("/ops/", opsProxy)
-		mux.Handle("/ops/summary", opsProxy)
-		mux.Handle("/ops/command-center", opsProxy)
-		// Partner config endpoints (public for self-service)
-		mux.Handle("/partners", opsProxy)
-		mux.Handle("/partners/", opsProxy)
+		mux.Handle("/ops/", protectedProxy)
+		mux.Handle("/ops/summary", protectedProxy)
+		mux.Handle("/ops/command-center", protectedProxy)
+		mux.Handle("/partners", protectedProxy)
+		mux.Handle("/partners/", protectedProxy)
 		// WebSocket proxy for real-time updates
 		mux.HandleFunc("/ws/", func(w http.ResponseWriter, r *http.Request) {
 			wsTarget := *apiProxyTarget
@@ -736,8 +742,15 @@ func main() {
 			} else {
 				wsTarget.Scheme = "wss"
 			}
-			wsTarget.Path = r.URL.Path
-			proxy.ServeHTTP(w, r)
+			wsProxy := httputil.NewSingleHostReverseProxy(&wsTarget)
+			wsProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+				fmt.Printf("websocket proxy error for %s: %v\n", r.URL.Path, err)
+				http.Error(w, "websocket upstream unavailable", http.StatusBadGateway)
+			}
+			if sharedSecret != "" {
+				r.Header.Set("X-TRIAGE-SECRET", sharedSecret)
+			}
+			wsProxy.ServeHTTP(w, r)
 		})
 		apiProxyEnabled = true
 	}
@@ -807,6 +820,9 @@ func apiProxyHandler(proxy *httputil.ReverseProxy) http.Handler {
 		}
 		// prevent backend from seeing frontend session cookie
 		r.Header.Del("Cookie")
+		if sharedSecret != "" {
+			r.Header.Set("X-TRIAGE-SECRET", sharedSecret)
+		}
 		proxy.ServeHTTP(w, r)
 	})
 }

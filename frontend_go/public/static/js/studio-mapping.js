@@ -1,5 +1,5 @@
 /**
- * TurboHEDI Studio — Mapping Enhancement Layer
+ * Triage Studio — Mapping Enhancement Layer
  * Adds: grouped palette, improved interactions, delete confirmation
  */
 (function () {

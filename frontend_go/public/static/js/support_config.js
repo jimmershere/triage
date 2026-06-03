@@ -1,11 +1,11 @@
 window.TRIAGE_SUPPORT = window.TRIAGE_SUPPORT || {
-  email: "jimmershere@gmail.com",
-  phone: "+14342426591",
+  email: "support@example.com",
+  phone: "+15555550100",
   brand: "Team Triage Support"
 };
 
 window.TRIAGE_AI_SCOUT = window.TRIAGE_AI_SCOUT || {
-  promptVersion: "turbohedi-support-v1",
+  promptVersion: "triage-support-v1",
   lightContext: true,
   toolOrder: ["upload-playbook", "job-review", "ack-guide", "ticket-intake"],
   routing: {

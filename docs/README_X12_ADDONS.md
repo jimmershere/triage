@@ -1,42 +1,56 @@
-# TurboHEDI-0.2 — bots-edi Add‑ons (835, 270/271, 276/277)
+# Legacy bots-edi X12 Add-ons
 
-This bundle drops into `turbohedi-0.2/` and adds:
-- **Grammars** for: 835, 270, 271, 276, 277
-- **Mappings**: 835→DB, 271→DB, 277→DB, and a 270/276 **builder** from JSON payloads
-- **Routes snippet** you can merge into your bots.ini
-- **SQL DDL** for required tables
+This document is archival. It describes the older v0.2 `bots-edi` add-on bundle for 835, 270/271, and 276/277 workflows. The current Triage repository uses the native Python validation, scrubbing, FHIR, and routing modules under `worker_py/` plus `/turbo/*` API routes. Use the root `README.md` for the supported setup path.
 
-## Install
+## What this legacy bundle contained
 
-1. Unzip at the project root so files land under `turbohedi-0.2/`.
-2. Merge `bots/config/routes_x12_addons.ini` into your main `bots.ini` (or include it).
-3. Create tables:
-   ```sh
-   psql "$TRIAGE_PG_DSN" -f db/triage_x12_addons.sql
-   psql "$TRIAGE_PG_DSN" -f db/triage_partner_profiles.sql
-   ```
-4. Ensure env var `TRIAGE_PG_DSN` points at your DB (defaults to `postgresql://edi:edi@localhost:5432/edi`).
+- `bots` grammars for 835, 270, 271, 276, and 277 transactions.
+- Lightweight mappings for 835, 271, and 277 database inserts.
+- JSON-driven 270 and 276 builder examples.
+- SQL DDL for legacy add-on tables and partner profiles.
 
-## Queues expected
+## If you still need the legacy bots path
+
+1. Install `bots` in the worker/runtime environment:
+
+```bash
+pip install "bots==3.2.0"
+```
+
+2. Merge any legacy `bots/config/routes_x12_addons.ini` content into your bots runtime configuration.
+
+3. Apply the legacy SQL only if those files are present in your deployment package:
+
+```bash
+psql "$TRIAGE_PG_DSN" -f db/triage_x12_addons.sql
+psql "$TRIAGE_PG_DSN" -f db/triage_partner_profiles.sql
+```
+
+For Docker Compose users, the host PostgreSQL port is usually `15432`, so a local DSN looks like:
+
+```bash
+export TRIAGE_PG_DSN='postgresql://edi:edi@localhost:15432/edi'
+```
+
+## Legacy queue names
 
 - Inbound: `x12.835.in`, `x12.271.in`, `x12.277.in`
 - Outbound build: `x12.270.out`, `x12.276.out`
 
 ## Example builder payloads
 
-**270** (minimum payload — partner defaults fill everything else)
+270 minimum payload:
+
 ```json
 {"target_st":"270","partner_key":"default","subscriber_id":"S12345","dos":"20250120"}
 ```
 
-**276** (optionally include `claim_id` or override payer/provider IDs)
+276 payload:
+
 ```json
 {"target_st":"276","partner_key":"default","subscriber_id":"S12345","claim_id":"C-001","dos":"20250120"}
 ```
 
-## Notes
-- These grammars are lean and pragmatic; extend `recorddefs` and `structure` if your payers use optional segments.
-- Mappings use lightweight inserts; swap to UPSERT/MERGE patterns or staging tables as needed for high throughput.
-- Partner defaults come from the `partner_profiles` table (see `db/triage_partner_profiles.sql`); payload fields override any defaults.
-- Envelope/partners are handled by bots via your partner settings; GS08/versions already match the common HIPAA guides.
-- Python 3.12 tested in our pipeline; make sure `psycopg` (v3) is installed in the bots runtime.
+## Current recommendation
+
+Prefer the native engines documented in the root README unless you specifically maintain a bots-based deployment. The native path is covered by `bash scripts/run-tests.sh` and the FastAPI `/turbo/*` routes.

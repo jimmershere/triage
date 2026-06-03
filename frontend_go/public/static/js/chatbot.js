@@ -7,7 +7,7 @@
   const STORAGE_KEY = "triageSupportTickets";
   const CACHE_KEY = "triageSupportReplyCache";
   const TICKET_EVENT = "triage-ticket-created";
-  const promptVersion = scout.promptVersion || "turbohedi-support-v1";
+  const promptVersion = scout.promptVersion || "triage-support-v1";
   const toolOrder = Array.isArray(scout.toolOrder) ? scout.toolOrder : [];
   const SYSTEM_PLAYBOOK = [
     `prompt_version=${promptVersion}`,
@@ -343,7 +343,7 @@
       `Support desk ready. ${brand} is using the frozen ${promptVersion} playbook with light context and cached replies for repeat questions.`,
       "bot"
     );
-    console.debug("TurboHEDI support playbook", { SYSTEM_PLAYBOOK, scoutRouting: scout.routing || null });
+    console.debug("Triage support playbook", { SYSTEM_PLAYBOOK, scoutRouting: scout.routing || null });
   }
 
   if (document.readyState === "loading") {

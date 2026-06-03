@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the TurboHEDI Python test suite.
+# Run the Triage Python worker/engine test suite.
 #
 # Discovers every test_*.py under worker_py/ (including sub-packages such as
 # validation/, scrubbing/, fhir/) and runs them with the stdlib unittest runner.

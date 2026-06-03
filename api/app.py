@@ -38,7 +38,9 @@ DATABASE_URL = os.getenv(
 )
 ALLOWED_ORIGINS_RAW = os.getenv("TRIAGE_CORS_ORIGINS", "*")
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
-SHARED_SECRET = os.getenv("TRIAGE_SHARED_SECRET", "change-me")
+SHARED_SECRET = os.getenv("TRIAGE_SHARED_SECRET", "").strip()
+if not SHARED_SECRET:
+    logger.warning("TRIAGE_SHARED_SECRET is not set; shared-secret protected API routes are open")
 PASSWORD_ITERATIONS = int(os.getenv("TRIAGE_PASSWORD_ITERATIONS", "180000"))
 PASSWORD_SCHEME = "pbkdf2_sha256"
 MIN_PASSWORD_LENGTH = int(os.getenv("TRIAGE_MIN_PASSWORD_LENGTH", "8"))
@@ -92,9 +94,9 @@ LDAP_BOOTSTRAP_USERNAME = os.getenv(
 
 ldap_manager: Optional[ldap_utils.LDAPManager] = None
 
-app = FastAPI(title="TurboEDI Ingest API", version="0.2.0")
+app = FastAPI(title="Triage Ingest API", version="0.2.0")
 
-# TurboHEDI engines: SNIP 1-7 validation, CMS scrubbing, FHIR, supervised swarms.
+# Turbo engines: SNIP 1-7 validation, CMS scrubbing, FHIR, supervised swarms.
 try:
     from .turbo_routes import register as register_turbo_routes
 except ImportError:  # tests / direct script invocation without package context
@@ -106,6 +108,14 @@ try:
 except ImportError:
     from loadtest_routes import register as register_loadtest_routes  # type: ignore
 register_loadtest_routes(app)
+
+try:
+    from .claimtrace_routes import register as register_claimtrace_routes
+    from . import claimtrace_service
+except ImportError:  # tests / direct script invocation without package context
+    from claimtrace_routes import register as register_claimtrace_routes  # type: ignore
+    import claimtrace_service  # type: ignore
+register_claimtrace_routes(app, lambda: get_db())
 
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
@@ -132,6 +142,8 @@ def run_startup_migrations() -> None:
             ensure_app_users(conn)
             ensure_x12_addon_tables(conn)
             ensure_partner_configs_table(conn)
+            if claimtrace_service.claimtrace_enabled():
+                claimtrace_service.ensure_claimtrace_tables(conn)
             ensure_ldap_bootstrap(conn)
     except Exception:
         logger.exception("Failed to run startup migrations")
@@ -328,6 +340,7 @@ def ensure_import_job_ids(conn) -> None:
         )
 
     conn.commit()
+
 
 def ensure_core_ingest_tables(conn) -> None:
     """Create the imports and related tables if they do not already exist."""
@@ -847,7 +860,6 @@ def ensure_import_uploaded_by(conn) -> None:
         conn.commit()
 
 
-
 def ensure_validation_columns(conn) -> None:
     with conn.cursor() as cur:
         cur.execute(
@@ -1163,6 +1175,7 @@ def list_users_impl() -> dict:
                     "username": username,
                     "role": normalized_role,
                     "allow_portal": allow_portal,
+                    "allow_submit": role_allows_submit(normalized_role),
                     "allow_admin": allow_admin,
                     "created_at": profile.get("created_at"),
                     "updated_at": profile.get("updated_at"),
@@ -1347,6 +1360,7 @@ async def ingest(
     file: UploadFile = File(...),
     uploaded_by: Optional[str] = Form(default=None),
     trading_partner_id: Optional[str] = Form(default=None),
+    _: None = Depends(require_secret),
 ):
     import_id: Optional[int] = None
     start_time = time.perf_counter()
@@ -1390,6 +1404,16 @@ async def ingest(
                     ),
                 )
                 import_id = cur.fetchone()[0]
+            if claimtrace_service.claimtrace_enabled():
+                claimtrace_service.record_ingested_file(
+                    conn,
+                    import_id=import_id,
+                    job_id=str(job_uuid),
+                    filename=filename,
+                    content=content,
+                    uploaded_by=uploaded_by,
+                    trading_partner_id=trading_partner_id,
+                )
             conn.commit()
 
         logger.info(
@@ -1650,7 +1674,7 @@ async def job_detail(job_id: str, _: None = Depends(require_secret)):
 
 
 @app.get("/ops/summary", response_model=OpsSummary)
-async def ops_summary():
+async def ops_summary(_: None = Depends(require_secret)):
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
@@ -1916,7 +1940,7 @@ class CommandCenterSummary(BaseModel):
 
 
 @app.get("/ops/command-center", response_model=CommandCenterSummary)
-async def command_center():
+async def command_center(_: None = Depends(require_secret)):
     """Exception Command Center — hero metrics, $ at risk, workqueues."""
     tier_labels = {0: "deterministic_fast_path", 1: "assisted_review", 2: "supervised_swarm", 3: "human_exception"}
     with get_db() as conn:
@@ -2315,7 +2339,7 @@ class AlertItem(BaseModel):
 
 
 @app.get("/ops/alerts")
-async def ops_alerts():
+async def ops_alerts(_: None = Depends(require_secret)):
     """Return dynamically generated active alerts based on current system state."""
     alerts: List[dict] = []
     now_iso = datetime.datetime.utcnow().isoformat() + "Z"

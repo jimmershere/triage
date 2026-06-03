@@ -1,4 +1,0 @@
-# username:password:roles:perms
-alice:alicepw:submit,reader:create,read,update
-bob:bobpw:admin:create,read,update,delete
-hedmin:3wsm078uu:admin:create,read,update,delete

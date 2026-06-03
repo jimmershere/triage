@@ -1003,8 +1003,6 @@ def process_payload(payload: dict):
         time.perf_counter() - commit_start,
     )
 
-    if job_uuid is None:
-        job_uuid = resolve_job_uuid(payload.get("job_id"))
 
     fanout_start = time.perf_counter()
     for ack in ack_records:

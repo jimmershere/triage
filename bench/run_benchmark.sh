@@ -21,6 +21,11 @@ CLAIMS=(500 1000 5000 10000 25000)
 for i in "${!FILES[@]}"; do
     FILE="${TEST_DIR}/${FILES[$i]}"
     CLAIM_COUNT="${CLAIMS[$i]}"
+    if [ ! -f "$FILE" ]; then
+        mkdir -p "$TEST_DIR"
+        echo "Generating ${CLAIM_COUNT}-claim fixture at $FILE" | tee -a "$RESULTS_FILE"
+        python3 "$BENCH_DIR/generate_837p.py" "$CLAIM_COUNT" "$FILE"
+    fi
     FILE_SIZE=$(stat -c%s "$FILE")
     FILE_SIZE_KB=$(echo "scale=1; $FILE_SIZE / 1024" | bc)
     SEG_COUNT=$(tr -cd '~' < "$FILE" | wc -c)
