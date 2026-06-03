@@ -401,6 +401,211 @@ def generate_single(req: LoadTestGenerateRequest) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Swarm pipeline load-test endpoints
+# ---------------------------------------------------------------------------
+#
+# The HTTP runner above measures the production ingest path (upload → /ingest →
+# RabbitMQ → worker). The swarm runner below measures the in-process
+# coordinator path (split_x12 → fan-out → aggregate) on the same payload
+# fixtures and size buckets, so the two can be compared in the same UI.
+# Implementation lives in ``tests.loadtest.swarm.runner.SwarmLoadRunner``;
+# this module just exposes a thin start/status/stop surface and adapts the
+# runner's state dict to the same fields the UI already consumes.
+
+SWARM_VALID_POOL_MODES = ("thread", "process", "serial")
+# The swarm coordinator only knows how to shard the X12 transaction sets
+# that have parsers wired up in ``worker_py/validation``.
+SWARM_VALID_TYPES = ("837p", "837i", "837d", "835")
+
+
+class SwarmLoadTestStartRequest(BaseModel):
+    profile: str = "smoke"
+    types: List[str] = list(SWARM_VALID_TYPES)
+    sizes: List[str] = []
+    repeats: int = 3
+    concurrency: int = 1
+    pool_mode: str = "thread"
+    max_workers: int = 4
+    claims_per_batch: int = 25
+
+
+_swarm_lock = threading.Lock()
+_swarm_run: Optional[Dict[str, Any]] = None
+_swarm_cancel = threading.Event()
+_swarm_runner: Any = None  # populated by /swarm/start; typed Any to avoid the import
+
+
+def _empty_swarm_state() -> Dict[str, Any]:
+    return {
+        "run_id": None,
+        "status": "idle",
+        "progress": {"completed": 0, "total": 0, "pct": 0.0},
+        "results": [],
+        "summary": None,
+        "started_at": None,
+        "completed_at": None,
+        "config": None,
+    }
+
+
+def _get_swarm_state() -> Dict[str, Any]:
+    global _swarm_run
+    if _swarm_run is None:
+        _swarm_run = _empty_swarm_state()
+    return _swarm_run
+
+
+def _swarm_status_snapshot() -> Dict[str, Any]:
+    """Build the snapshot returned to the UI.
+
+    Merges the SwarmLoadRunner-owned ``state`` (progress / results /
+    summary) onto the API-owned wrapper (run_id / started_at / config).
+    """
+    with _swarm_lock:
+        wrapper = dict(_get_swarm_state())
+        runner = _swarm_runner
+    if runner is not None:
+        runner_state = runner.state
+        # The runner mutates its own state under its lock — copy the
+        # top-level dict so we never expose a half-written value.
+        wrapper["status"] = runner_state.get("status", wrapper.get("status"))
+        wrapper["progress"] = dict(runner_state.get("progress") or {})
+        wrapper["results"] = list(runner_state.get("results") or [])
+        wrapper["summary"] = (
+            dict(runner_state["summary"])
+            if runner_state.get("summary") is not None
+            else None
+        )
+    return wrapper
+
+
+def _run_swarm_loadtest(req: SwarmLoadTestStartRequest, run_id: str) -> None:
+    """Background thread: drive SwarmLoadRunner.run_batch() to completion."""
+    global _swarm_runner
+    try:
+        # Imported lazily so module import doesn't pull worker_py into the
+        # API process if no one ever calls the swarm endpoints.
+        from tests.loadtest.swarm import SwarmLoadRunner
+    except ImportError as exc:  # pragma: no cover - dev environment misconfig
+        logger.exception("SwarmLoadRunner unavailable: %s", exc)
+        with _swarm_lock:
+            state = _get_swarm_state()
+            state["status"] = "error"
+            state["completed_at"] = datetime.now(timezone.utc).isoformat()
+        return
+
+    # Resolve sizes the same way the HTTP runner does so the UI gets a
+    # consistent profile contract.
+    if req.profile == "custom":
+        sizes = [s for s in req.sizes if s in SIZE_BYTES]
+    elif req.profile == "quick":
+        sizes = ["512k"]
+    else:
+        sizes = PROFILE_SIZES.get(req.profile, PROFILE_SIZES["smoke"])
+    if not sizes:
+        sizes = ["512k"]
+
+    types = [t.lower() for t in req.types if t.lower() in SWARM_VALID_TYPES]
+    if not types:
+        types = ["837p"]
+
+    try:
+        runner = SwarmLoadRunner(
+            repeats=req.repeats,
+            concurrency=req.concurrency,
+            pool_mode=req.pool_mode,
+            max_workers=req.max_workers,
+            claims_per_batch=req.claims_per_batch,
+            cancel_event=_swarm_cancel,
+        )
+    except ValueError as exc:
+        logger.warning("Invalid swarm runner config for %s: %s", run_id, exc)
+        with _swarm_lock:
+            state = _get_swarm_state()
+            state["status"] = "error"
+            state["completed_at"] = datetime.now(timezone.utc).isoformat()
+        return
+
+    with _swarm_lock:
+        _swarm_runner = runner
+
+    try:
+        runner.run_batch(types=types, sizes=sizes)
+    except Exception:
+        logger.exception("Swarm load test run %s failed", run_id)
+        with _swarm_lock:
+            state = _get_swarm_state()
+            state["status"] = "error"
+            state["completed_at"] = datetime.now(timezone.utc).isoformat()
+        return
+
+    with _swarm_lock:
+        state = _get_swarm_state()
+        state["completed_at"] = datetime.now(timezone.utc).isoformat()
+
+
+@router.post("/swarm/start")
+def start_swarm_loadtest(req: SwarmLoadTestStartRequest) -> dict:
+    """Pivot to :class:`SwarmLoadRunner` instead of the HTTP ingest runner."""
+    global _swarm_run, _swarm_runner
+
+    if req.pool_mode not in SWARM_VALID_POOL_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"pool_mode must be one of {SWARM_VALID_POOL_MODES}, got {req.pool_mode!r}",
+        )
+
+    with _swarm_lock:
+        state = _get_swarm_state()
+        if state["status"] == "running":
+            raise HTTPException(
+                status_code=409, detail="A swarm load test is already running"
+            )
+
+        run_id = str(uuid.uuid4())
+        _swarm_cancel.clear()
+        _swarm_run = _empty_swarm_state()
+        _swarm_run["run_id"] = run_id
+        _swarm_run["status"] = "running"
+        _swarm_run["started_at"] = datetime.now(timezone.utc).isoformat()
+        _swarm_run["config"] = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+        _swarm_runner = None
+
+    thread = threading.Thread(
+        target=_run_swarm_loadtest,
+        args=(req, run_id),
+        daemon=True,
+        name=f"swarm-loadtest-{run_id[:8]}",
+    )
+    thread.start()
+
+    logger.info(
+        "Started swarm load test %s (profile=%s, types=%s, pool=%s, workers=%d, repeats=%d)",
+        run_id, req.profile, req.types, req.pool_mode, req.max_workers, req.repeats,
+    )
+    return {"run_id": run_id, "status": "started", "pool_mode": req.pool_mode}
+
+
+@router.get("/swarm/status")
+def get_swarm_loadtest_status() -> dict:
+    """Return the current swarm load test state (merged with runner state)."""
+    return _swarm_status_snapshot()
+
+
+@router.post("/swarm/stop")
+def stop_swarm_loadtest() -> dict:
+    """Signal the in-flight swarm runner to cancel."""
+    with _swarm_lock:
+        state = _get_swarm_state()
+        if state["status"] != "running":
+            return {"ok": True, "message": "No swarm test running"}
+        run_id = state.get("run_id")
+    _swarm_cancel.set()
+    logger.info("Stop requested for swarm load test run %s", run_id)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 

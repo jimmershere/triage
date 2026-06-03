@@ -510,11 +510,20 @@
         <div class="lt-page-header">
           <span class="badge">Operations</span>
           <h1>Load &amp; Performance Testing</h1>
-          <p>Generate X12 EDI test files at various sizes and transaction types, upload them through the ingest pipeline, and measure throughput and correctness.</p>
+          <p>Generate X12 EDI test files at various sizes and transaction types, upload them through the ingest pipeline or the in-process swarm coordinator, and measure throughput and correctness.</p>
         </div>
 
-        <!-- Error banner -->
+        <!-- Error banner (shared) -->
         <div id="ltErrorBanner" class="lt-error-banner" hidden></div>
+
+        <!-- Tab bar -->
+        <div class="lt-tabs" role="tablist" aria-label="Load test pipeline">
+          <button type="button" class="lt-tab" role="tab" aria-selected="true" data-tab="http" id="ltTabBtnHttp">HTTP Ingest</button>
+          <button type="button" class="lt-tab" role="tab" aria-selected="false" data-tab="swarm" id="ltTabBtnSwarm">Swarm Pipeline</button>
+        </div>
+
+        <!-- ─────────── HTTP Ingest tab ─────────── -->
+        <section id="ltTabHttp" role="tabpanel" aria-labelledby="ltTabBtnHttp">
 
         <!-- Configuration -->
         <div class="lt-config-card">
@@ -635,6 +644,126 @@
           <div class="lt-summary-grid" id="ltSummaryGrid"></div>
           <div id="ltBreakdownContainer"></div>
         </div>
+
+        </section>
+        <!-- ─────────── /HTTP Ingest tab ─────────── -->
+
+        <!-- ─────────── Swarm Pipeline tab ─────────── -->
+        <section id="ltTabSwarm" role="tabpanel" aria-labelledby="ltTabBtnSwarm" hidden>
+
+        <div class="lt-config-card">
+          <h2 class="lt-config-title">Swarm Pipeline Configuration</h2>
+          <p style="margin:-0.5rem 0 1rem;color:var(--muted);font-size:0.92rem;">Runs the in-process <strong>SwarmCoordinator</strong> against the same EDI generator + size buckets as the HTTP test, and reports a per-cell <strong>baseline vs sharded</strong> p50 timing plus a speedup factor.</p>
+
+          <div class="lt-section">
+            <span class="lt-section-label">Test Profile</span>
+            <div class="lt-radio-group" id="ltSwarmProfileGroup">
+              <label class="lt-radio-item"><input type="radio" name="lt-swarm-profile" value="quick" checked> Quick (512K only)</label>
+              <label class="lt-radio-item"><input type="radio" name="lt-swarm-profile" value="smoke"> Smoke (512K–5MB)</label>
+              <label class="lt-radio-item"><input type="radio" name="lt-swarm-profile" value="standard"> Standard (512K–100MB)</label>
+              <label class="lt-radio-item"><input type="radio" name="lt-swarm-profile" value="custom"> Custom</label>
+            </div>
+          </div>
+
+          <div class="lt-section">
+            <span class="lt-section-label">Transaction Types</span>
+            <div class="lt-check-group" id="ltSwarmTypesGroup">
+              <label class="lt-check-item"><input type="checkbox" value="837p" checked> 837P</label>
+              <label class="lt-check-item"><input type="checkbox" value="837i"> 837I</label>
+              <label class="lt-check-item"><input type="checkbox" value="837d"> 837D</label>
+              <label class="lt-check-item"><input type="checkbox" value="835"> 835</label>
+            </div>
+            <p style="margin:0.4rem 0 0;color:var(--muted);font-size:0.78rem;">The coordinator currently shards X12 837 / 835 transaction sets; eligibility (270/271) and claim status (276/278) bypass the sharded path.</p>
+          </div>
+
+          <div class="lt-section lt-sizes-custom" id="ltSwarmSizesSection">
+            <span class="lt-section-label">Size Steps</span>
+            <div class="lt-check-group" id="ltSwarmSizesGroup">
+              <label class="lt-check-item"><input type="checkbox" value="512k" checked> 512K</label>
+              <label class="lt-check-item"><input type="checkbox" value="1mb"> 1MB</label>
+              <label class="lt-check-item"><input type="checkbox" value="5mb"> 5MB</label>
+              <label class="lt-check-item"><input type="checkbox" value="10mb"> 10MB</label>
+              <label class="lt-check-item"><input type="checkbox" value="50mb"> 50MB</label>
+              <label class="lt-check-item"><input type="checkbox" value="100mb"> 100MB</label>
+            </div>
+          </div>
+
+          <div class="lt-section">
+            <span class="lt-section-label">Coordinator Settings</span>
+            <div class="lt-config-row">
+              <label class="lt-radio-item" style="gap:0.5rem;">
+                Pool mode
+                <select id="ltSwarmPool" class="lt-select">
+                  <option value="thread" selected>thread</option>
+                  <option value="process">process</option>
+                  <option value="serial">serial</option>
+                </select>
+              </label>
+              <label class="lt-radio-item" style="gap:0.5rem;">
+                Workers
+                <input type="number" id="ltSwarmWorkers" class="lt-number-input" min="1" max="32" value="4">
+              </label>
+              <label class="lt-radio-item" style="gap:0.5rem;">
+                Repeats
+                <input type="number" id="ltSwarmRepeats" class="lt-number-input" min="1" max="50" value="3">
+              </label>
+              <label class="lt-radio-item" style="gap:0.5rem;">
+                Claims/batch
+                <input type="number" id="ltSwarmClaimsPerBatch" class="lt-number-input" min="1" max="500" value="25">
+              </label>
+              <label class="lt-radio-item" style="gap:0.5rem;">
+                Concurrency
+                <input type="number" id="ltSwarmConcurrency" class="lt-number-input" min="1" max="8" value="1">
+              </label>
+            </div>
+          </div>
+
+          <div class="lt-controls">
+            <button type="button" class="lt-btn-start" id="ltSwarmStartBtn">Start Swarm Run</button>
+            <button type="button" class="lt-btn-stop" id="ltSwarmStopBtn" disabled>Stop</button>
+            <button type="button" class="lt-btn-export" id="ltSwarmExportBtn" disabled>Export Results</button>
+          </div>
+        </div>
+
+        <div class="lt-progress-card">
+          <div class="lt-progress-header">
+            <span class="lt-progress-title">Swarm Run Progress</span>
+            <span class="lt-status-pill lt-status-pill--idle" id="ltSwarmStatusPill">Idle</span>
+          </div>
+          <div class="lt-progress-bar-track">
+            <div class="lt-progress-bar-fill" id="ltSwarmProgressFill"></div>
+          </div>
+          <div class="lt-progress-pct" id="ltSwarmProgressPct">0%</div>
+
+          <div class="lt-results-wrap">
+            <table class="lt-results-table">
+              <thead>
+                <tr>
+                  <th>Cell</th>
+                  <th>Type</th>
+                  <th>Size</th>
+                  <th>Status</th>
+                  <th>Baseline p50</th>
+                  <th>Swarm p50</th>
+                  <th>Speedup</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody id="ltSwarmResultsBody">
+                <tr><td colspan="8" style="color:var(--muted);text-align:center;padding:1.5rem;">No swarm runs yet. Configure and start above.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="lt-summary-card" id="ltSwarmSummaryCard" hidden>
+          <h3 class="lt-summary-title">Swarm Run Summary</h3>
+          <div class="lt-summary-grid" id="ltSwarmSummaryGrid"></div>
+          <div id="ltSwarmBreakdownContainer"></div>
+        </div>
+
+        </section>
+        <!-- ─────────── /Swarm Pipeline tab ─────────── -->
 
       </main>
     </div>
