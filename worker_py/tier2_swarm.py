@@ -18,19 +18,20 @@ All prompts, responses, and the supervisor verdict are logged for audit.
 """
 from __future__ import annotations
 
-import json
 import logging
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any
 
-import urllib.request
-import urllib.error
-
-from file_profiler import FileProfile, _parse_segments
 from complexity_scorer import ComplexityScore
+from file_profiler import FileProfile, _parse_segments
 from routing_engine import RoutingDecision
+from swarms import (
+    LlmClient,
+    OllamaClient,
+    SwarmAgent,
+    SwarmResult,
+    SwarmRunner,
+)
 from tier_executor import TierResult
 
 logger = logging.getLogger("tier2_swarm")
@@ -47,7 +48,13 @@ _MAX_CONTEXT_CHARS = 2000
 
 @dataclass
 class SwarmTask:
-    """One unit of work in the analysis swarm."""
+    """One unit of work in the analysis swarm.
+
+    Retained as a public symbol for callers that import it; the
+    coordinator now executes these as :class:`swarms.SwarmAgent`
+    instances under :class:`swarms.SwarmRunner` so the four specialist
+    Ollama calls actually run in parallel instead of being serialized.
+    """
     name: str
     prompt: str
     response: str | None = None
@@ -63,92 +70,105 @@ def execute_swarm(
     *,
     ollama_url: str = "http://192.168.1.206:11434",
     ollama_model: str = "qwen2.5-coder:7b",
+    llm_client: LlmClient | None = None,
+    swarm_runner: SwarmRunner | None = None,
 ) -> TierResult:
-    """Run parallel AI analysis swarm and supervised merge."""
-    # Build a truncated excerpt for prompts
+    """Run the parallel tier-2 specialist swarm and a supervised merge.
+
+    This was previously implemented as a ``ThreadPoolExecutor(max_workers=1)``
+    around four direct Ollama HTTP calls — i.e. fully serial despite the
+    pool. It is now routed through :class:`swarms.SwarmRunner`, which:
+
+    - actually fans the four specialist calls out across worker threads,
+    - captures an audit trail (prompt + response + timing per call),
+    - retries transient transport errors,
+    - and produces a single supervisor :class:`SupervisorVerdict` over
+      the agent responses.
+
+    The function signature is preserved so :mod:`tier_executor` and the
+    worker continue to work without changes; ``llm_client`` and
+    ``swarm_runner`` are new injection seams for tests and for
+    coordinator-driven supervisor calls.
+    """
     excerpt = _build_excerpt(text, profile)
     context_block = _build_context_block(profile, score, decision)
 
-    # Define swarm tasks
-    tasks = [
-        SwarmTask(
-            name="structural_analysis",
-            prompt=_structural_prompt(excerpt, context_block),
-        ),
-        SwarmTask(
-            name="anomaly_diagnosis",
-            prompt=_anomaly_prompt(excerpt, context_block, profile),
-        ),
-        SwarmTask(
-            name="compliance_check",
-            prompt=_compliance_prompt(excerpt, context_block, profile),
-        ),
-        SwarmTask(
-            name="correction_proposal",
-            prompt=_correction_prompt(excerpt, context_block, profile),
-        ),
+    agent_options = {"temperature": 0.1, "num_predict": _MAX_PREDICT}
+    supervisor_options = {"temperature": 0.05, "num_predict": _SUPERVISOR_MAX_PREDICT}
+
+    agent_specs = [
+        ("structural_analysis", _structural_prompt(excerpt, context_block)),
+        ("anomaly_diagnosis", _anomaly_prompt(excerpt, context_block, profile)),
+        ("compliance_check", _compliance_prompt(excerpt, context_block, profile)),
+        ("correction_proposal", _correction_prompt(excerpt, context_block, profile)),
+    ]
+    agents = [
+        SwarmAgent(name=name, prompt=prompt, options=dict(agent_options))
+        for name, prompt in agent_specs
     ]
 
-    # Run tasks in parallel on Xander GPUs
-    logger.info(
-        "Launching swarm of %d tasks for file %s on %s/%s",
-        len(tasks), profile.file_id, ollama_url, ollama_model,
+    client = llm_client or OllamaClient(
+        url=ollama_url, model=ollama_model, timeout=_CALL_TIMEOUT
     )
-
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        futures = {
-            pool.submit(_run_ollama, task, ollama_url, ollama_model): task
-            for task in tasks
-        }
-        for future in as_completed(futures, timeout=_CALL_TIMEOUT * len(tasks)):
-            task = futures[future]
-            try:
-                future.result()
-            except Exception as exc:
-                task.error = str(exc)
-                logger.warning("Swarm task %s failed: %s", task.name, exc)
-
-    completed = [t for t in tasks if t.response and not t.error]
-    failed = [t for t in tasks if t.error]
+    runner = swarm_runner or SwarmRunner(
+        client,
+        max_workers=len(agents),
+        per_call_timeout=_CALL_TIMEOUT,
+        max_retries=1,
+    )
 
     logger.info(
-        "Swarm results for %s: %d completed, %d failed (%.1fms total)",
-        profile.file_id,
-        len(completed),
-        len(failed),
-        sum(t.duration_ms for t in tasks),
+        "Launching tier-2 swarm of %d agents for file %s on %s/%s",
+        len(agents), profile.file_id, ollama_url, ollama_model,
     )
 
-    # Run supervisor synthesis
-    supervisor_result = _run_supervisor(
-        tasks, profile, score, decision,
-        ollama_url=ollama_url, ollama_model=ollama_model,
+    supervisor_context = (
+        f"{context_block}\n\n"
+        "You are the tier-2 healthcare EDI quality supervisor. Synthesize "
+        "the four specialist analyses into a single verdict:\n"
+        "- APPROVE: safe for automated processing\n"
+        "- FLAG: process it but mark for human post-review\n"
+        "- REJECT: do NOT auto-process, park for manual handling"
     )
 
-    # Build tier result
-    ai_analyses = []
-    for task in tasks:
-        ai_analyses.append({
-            "task": task.name,
-            "response": task.response,
-            "duration_ms": round(task.duration_ms, 2),
-            "error": task.error,
-        })
+    swarm_result: SwarmResult = runner.run(
+        workload="tier2_swarm",
+        agents=agents,
+        supervisor_context=supervisor_context,
+        supervisor_options=supervisor_options,
+    )
 
-    flags = []
-    recommendations = []
+    return _tier_result_from(swarm_result, agent_count=len(agents))
 
-    verdict = supervisor_result.get("verdict", "FLAG")
-    confidence = supervisor_result.get("confidence", 0.0)
-    summary = supervisor_result.get("summary", "")
-    issues = supervisor_result.get("issues", [])
 
+def _tier_result_from(swarm_result: SwarmResult, *, agent_count: int) -> TierResult:
+    """Translate a :class:`swarms.SwarmResult` into the worker's TierResult."""
+    ai_analyses: list[dict[str, Any]] = []
+    failed_names: list[str] = []
+    for agent in swarm_result.agents:
+        ai_analyses.append(
+            {
+                "task": agent.name,
+                "response": agent.response,
+                "duration_ms": round(agent.duration_ms, 2),
+                "error": agent.error,
+                "attempts": agent.attempts,
+            }
+        )
+        if not agent.succeeded:
+            failed_names.append(agent.name)
+
+    verdict_obj = swarm_result.supervisor
+    verdict = getattr(verdict_obj, "verdict", "FLAG") if verdict_obj else "FLAG"
+    confidence = float(getattr(verdict_obj, "confidence", 0.0)) if verdict_obj else 0.0
+    summary = getattr(verdict_obj, "summary", "") if verdict_obj else ""
+    issues = list(getattr(verdict_obj, "issues", [])) if verdict_obj else []
+
+    flags: list[str] = []
     if verdict == "REJECT":
-        flags.append("SWARM_REJECTED")
-        flags.append("AUTO_PROCESSING_BLOCKED")
+        flags.extend(["SWARM_REJECTED", "AUTO_PROCESSING_BLOCKED"])
     elif verdict == "FLAG":
-        flags.append("SWARM_FLAGGED")
-        flags.append("POST_PROCESSING_REVIEW")
+        flags.extend(["SWARM_FLAGGED", "POST_PROCESSING_REVIEW"])
     else:
         flags.append("SWARM_APPROVED")
 
@@ -158,12 +178,12 @@ def execute_swarm(
     for issue in issues:
         flags.append(f"SWARM_ISSUE:{issue}")
 
+    recommendations: list[str] = []
     if summary:
         recommendations.append(summary)
-
-    if failed:
+    if failed_names:
         recommendations.append(
-            f"{len(failed)} swarm task(s) failed: {[t.name for t in failed]}"
+            f"{len(failed_names)} swarm agent(s) failed: {failed_names}"
         )
 
     status_map = {"APPROVE": "completed", "FLAG": "needs_review", "REJECT": "parked"}
@@ -175,156 +195,9 @@ def execute_swarm(
         ai_analyses=ai_analyses,
         flags=flags,
         recommendations=recommendations,
-        swarm_task_count=len(tasks),
+        swarm_task_count=agent_count,
         supervisor_verdict=verdict,
     )
-
-
-def _run_ollama(task: SwarmTask, url: str, model: str) -> None:
-    """Execute a single Ollama generation call."""
-    start = time.perf_counter()
-    payload = json.dumps({
-        "model": model,
-        "prompt": task.prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.1,
-            "num_predict": _MAX_PREDICT,
-        },
-    }).encode("utf-8")
-
-    req = urllib.request.Request(
-        f"{url}/api/generate",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=_CALL_TIMEOUT) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-            task.response = body.get("response", "")
-    except urllib.error.URLError as exc:
-        task.error = f"Ollama unreachable: {exc}"
-        raise
-    except Exception as exc:
-        task.error = str(exc)
-        raise
-    finally:
-        task.duration_ms = (time.perf_counter() - start) * 1000
-
-
-def _run_supervisor(
-    tasks: list[SwarmTask],
-    profile: FileProfile,
-    score: ComplexityScore,
-    decision: RoutingDecision,
-    *,
-    ollama_url: str,
-    ollama_model: str,
-) -> dict[str, Any]:
-    """Synthesize swarm results into a single supervised verdict."""
-    task_summaries = []
-    for task in tasks:
-        if task.response:
-            # Truncate long responses for the supervisor prompt
-            resp = task.response[:600]
-            task_summaries.append(f"### {task.name}\n{resp}")
-        elif task.error:
-            task_summaries.append(f"### {task.name}\nFAILED: {task.error}")
-
-    prompt = f"""You are a healthcare EDI quality supervisor. You have received analysis from {len(tasks)} specialist agents examining a complex EDI file.
-
-File summary:
-- Standard: {profile.document_standard}, Version: {profile.document_version}
-- Transactions: {profile.transaction_count}, Segments: {profile.segment_count}, Size: {profile.byte_size} bytes
-- Complexity score: {score.total_score:.1f}/100 (Tier {decision.tier})
-- Routing gates triggered: {decision.gate_triggers or 'none'}
-- Reason codes: {score.reason_codes or 'none'}
-
-Agent analyses:
-{chr(10).join(task_summaries)}
-
-Based on the agent analyses, provide your verdict as a JSON object with these fields:
-- "verdict": one of "APPROVE", "FLAG", or "REJECT"
-  - APPROVE = safe for automated processing
-  - FLAG = process it but mark for human post-review
-  - REJECT = do NOT auto-process, park for manual handling
-- "confidence": 0.0 to 1.0 how confident you are
-- "summary": 1-2 sentence explanation
-- "issues": list of specific issue strings found
-
-Respond with ONLY the JSON object, no other text."""
-
-    supervisor_task = SwarmTask(name="supervisor", prompt=prompt)
-    try:
-        # Supervisor uses slightly higher token limit
-        payload = json.dumps({
-            "model": ollama_model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0.05,
-                "num_predict": _SUPERVISOR_MAX_PREDICT,
-            },
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            f"{ollama_url}/api/generate",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=_CALL_TIMEOUT) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-            raw = body.get("response", "")
-
-        # Parse the JSON from the response
-        return _parse_supervisor_json(raw)
-
-    except Exception as exc:
-        logger.warning("Supervisor call failed: %s — defaulting to FLAG", exc)
-        return {
-            "verdict": "FLAG",
-            "confidence": 0.0,
-            "summary": f"Supervisor synthesis failed: {exc}",
-            "issues": ["supervisor_unavailable"],
-        }
-
-
-def _parse_supervisor_json(raw: str) -> dict[str, Any]:
-    """Extract JSON from supervisor response, handling markdown fences."""
-    text = raw.strip()
-    # Strip markdown code fences if present
-    if text.startswith("```"):
-        lines = text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        text = "\n".join(lines).strip()
-
-    try:
-        result = json.loads(text)
-        # Validate required fields
-        if "verdict" not in result:
-            result["verdict"] = "FLAG"
-        if result["verdict"] not in ("APPROVE", "FLAG", "REJECT"):
-            result["verdict"] = "FLAG"
-        result.setdefault("confidence", 0.5)
-        result.setdefault("summary", "")
-        result.setdefault("issues", [])
-        return result
-    except json.JSONDecodeError:
-        # Try to find JSON in the response
-        import re
-        match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
-        return {
-            "verdict": "FLAG",
-            "confidence": 0.3,
-            "summary": f"Could not parse supervisor response",
-            "issues": ["supervisor_parse_failure"],
-        }
 
 
 def _build_excerpt(text: str, profile: FileProfile) -> str:

@@ -20,7 +20,23 @@ This package ships:
 """
 from __future__ import annotations
 
+from .aggregator import (
+    CompositeFhirBundle,
+    CompositeScrubView,
+    CompositeValidationView,
+    merge_fhir_bundles,
+    merge_scrub_reports,
+    merge_validation_reports,
+    min_confidence,
+    worst_of_verdict,
+)
+from .coordinator import (
+    ShardOutcome,
+    ShardedPipelineResult,
+    SwarmCoordinator,
+)
 from .denial_swarm import DenialResolutionSwarm
+from .engine_pool import EnginePool, PoolStats
 from .fhir_mapping_swarm import FhirMappingSwarm
 from .framework import AgentResult, SwarmAgent, SwarmResult
 from .llm import LlmClient, MockLlmClient, OllamaClient
@@ -30,15 +46,28 @@ from .supervisor import SupervisorVerdict, parse_supervisor_response
 
 __all__ = [
     "AgentResult",
+    "CompositeFhirBundle",
+    "CompositeScrubView",
+    "CompositeValidationView",
     "DenialResolutionSwarm",
+    "EnginePool",
     "FhirMappingSwarm",
     "LlmClient",
     "MockLlmClient",
     "OllamaClient",
+    "PoolStats",
     "ScrubbingSwarm",
+    "ShardOutcome",
+    "ShardedPipelineResult",
     "SupervisorVerdict",
     "SwarmAgent",
+    "SwarmCoordinator",
     "SwarmResult",
     "SwarmRunner",
+    "merge_fhir_bundles",
+    "merge_scrub_reports",
+    "merge_validation_reports",
+    "min_confidence",
     "parse_supervisor_response",
+    "worst_of_verdict",
 ]
