@@ -216,10 +216,9 @@ jobs:
           (cd rbac_proxy && "$(go env GOPATH)/bin/govulncheck" ./...)
 
       - name: Trivy filesystem scan
-        # Pinned to a real Trivy action release (0.28.0 was a typo for a
-        # version that never shipped). 0.33.1 is referenced in the official
-        # README example flows.
-        uses: aquasecurity/trivy-action@0.33.1
+        # Pinned to a real Trivy action release. The tag scheme is `vX.Y.Z`
+        # (verified via `gh api repos/aquasecurity/trivy-action/releases`).
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: '.'
