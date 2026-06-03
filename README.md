@@ -42,31 +42,6 @@ Default ports:
 3. Ingest a file from the UI at http://localhost:8080/ingest.html or call the API with the configured shared secret:
 
 ```bash
-cp .env.example .env
-```
-
-- `TRIAGE_SHARED_SECRET` must match across `api`, `frontend_go`, and `rbac` services.
-- `TRIAGE_SESSION_SECRET` signs local RBAC sessions.
-- `RMQ_*` and `RABBITMQ_URL` should match the RabbitMQ credentials in compose.
-- The documented `3wm078uu` sample passwords are for local development only. Do not deploy them to shared environments.
-
-2. Start the stack:
-
-```bash
-docker compose up --build
-```
-
-Default ports:
-
-- Frontend UI: http://localhost:8080
-- API docs: http://localhost:8000/docs
-- RBAC login service: http://localhost:4180
-- PostgreSQL: `localhost:15432` (db `edi`, user `edi`, password `edi` in the compose sample)
-- RabbitMQ management UI: http://localhost:35672 (`ediapp` / `3wm078uu` in the compose sample)
-
-3. Ingest a file from the UI at http://localhost:8080/ingest.html or call the API with the configured shared secret:
-
-```bash
 curl -X POST "http://localhost:8000/ingest" \
   -H "X-TRIAGE-SECRET: $TRIAGE_SHARED_SECRET" \
   -F "file=@samples/x12_837_small.txt" \
