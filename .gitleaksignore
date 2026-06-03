@@ -1,0 +1,23 @@
+# Gitleaks fingerprint allow-list.
+#
+# Each fingerprint silences a specific finding at a specific commit:file:line.
+# Future findings on the same file but different lines will still trigger.
+# Only add entries here when you have audited the finding and can document
+# why it is safe to ignore.
+
+# `db/certs/server.key` is a self-signed development certificate shipped so
+# that `docker compose up` can stand up Postgres with TLS enabled out of the
+# box. It is never used in production; deployments are expected to replace
+# the cert via `POSTGRES_SSL_KEY_FILE` in `.env`.
+1e6442ca7d82f8abe86964d04698966dd74e4601:db/certs/server.key:private-key:1
+
+# `docker-compose.yml:109` sets `OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}`.
+# The `qwen2.5:3b` token is the public Ollama model identifier, not a secret;
+# gitleaks' generic-api-key heuristic matches the `name:version` shape.
+efaafa1104c44b34311e15da5c97e1110b7d4faa:docker-compose.yml:generic-api-key:109
+
+# `deploy/httpd/certs/server.key` is a self-signed development certificate
+# used by the bundled Apache HTTPS sample and the Go frontend during local
+# `bash scripts/run-local-stack.sh` runs. Replace with a real cert in any
+# shared deployment by setting `CERT_FILE`/`KEY_FILE` in the environment.
+3e916ec095151349d62b8c4e5eccd3b960d09d19:deploy/httpd/certs/server.key:private-key:1
