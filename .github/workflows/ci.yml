@@ -145,6 +145,9 @@ jobs:
       # repository's Security tab.
       contents: read
       security-events: write
+      # codeql-action/upload-sarif needs to fetch workflow-run metadata to
+      # attach the SARIF report to the originating run.
+      actions: read
     steps:
       - name: Checkout (full history for secret scanning)
         uses: actions/checkout@v4
