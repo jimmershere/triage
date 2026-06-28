@@ -117,6 +117,15 @@ except ImportError:  # tests / direct script invocation without package context
     import claimtrace_service  # type: ignore
 register_claimtrace_routes(app, lambda: get_db())
 
+# Normalized trading-partner management (Workstream 6).
+try:
+    from .partners_routes import register as register_partners_routes
+    from . import partners_service
+except ImportError:  # tests / direct script invocation without package context
+    from partners_routes import register as register_partners_routes  # type: ignore
+    import partners_service  # type: ignore
+register_partners_routes(app, lambda: get_db())
+
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
 
@@ -142,12 +151,50 @@ def run_startup_migrations() -> None:
             ensure_app_users(conn)
             ensure_x12_addon_tables(conn)
             ensure_partner_configs_table(conn)
+            partners_service.ensure_partner_tables(conn)
             if claimtrace_service.claimtrace_enabled():
                 claimtrace_service.ensure_claimtrace_tables(conn)
             ensure_ldap_bootstrap(conn)
     except Exception:
         logger.exception("Failed to run startup migrations")
         raise
+    _bootstrap_codeset_registry()
+
+
+def _bootstrap_codeset_registry() -> None:
+    """Load the effective-dated code-set registry (Workstream 2).
+
+    Seeds the in-process registry from bundled versions, persists them to the
+    codeset_* tables when a DB is reachable, then activates a DB-backed registry
+    so SNIP type 5 + CMS scrubbing resolve codes by service date. Best-effort:
+    failures here never block API startup (validation falls back to format
+    checks when no registry is active).
+    """
+    try:
+        from validation.codesets.db import (
+            ensure_codeset_tables,
+            load_active_registry,
+            persist_version,
+        )
+        from validation.codesets.loader_service import load_seed_versions
+        from validation.codesets.registry import set_active_registry
+
+        seeded = load_seed_versions()
+        set_active_registry(seeded)
+        try:
+            with get_db() as conn:
+                ensure_codeset_tables(conn)
+                for codeset in seeded.codesets():
+                    for version in seeded.versions(codeset):
+                        persist_version(conn, version)
+                set_active_registry(load_active_registry(conn))
+        except Exception:
+            logger.warning(
+                "Code-set DB persistence unavailable; using bundled seed registry",
+                exc_info=True,
+            )
+    except Exception:
+        logger.exception("Failed to bootstrap code-set registry")
 
 
 def get_pool() -> pool.SimpleConnectionPool:
