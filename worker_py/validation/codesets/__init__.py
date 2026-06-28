@@ -16,6 +16,15 @@ from .loader import (
     is_valid_revenue_code,
     is_valid_taxonomy,
 )
+from .registry import (
+    CodesetRegistry,
+    CodesetValue,
+    CodesetVersion,
+    ResolveResult,
+    get_active_registry,
+    make_version,
+    set_active_registry,
+)
 
 __all__ = [
     "CodeSet",
@@ -25,4 +34,12 @@ __all__ = [
     "is_valid_npi",
     "is_valid_revenue_code",
     "is_valid_taxonomy",
+    # Effective-dated registry (Workstream 2)
+    "CodesetRegistry",
+    "CodesetValue",
+    "CodesetVersion",
+    "ResolveResult",
+    "get_active_registry",
+    "set_active_registry",
+    "make_version",
 ]

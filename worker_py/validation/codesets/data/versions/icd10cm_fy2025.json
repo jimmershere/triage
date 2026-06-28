@@ -1,0 +1,15 @@
+{
+  "codeset": "icd10cm",
+  "version_label": "FY2025",
+  "source_effective_date": "2024-10-01",
+  "publication_date": "2024-06-01",
+  "implementation_date": "2024-10-01",
+  "complete": false,
+  "values": [
+    {"code": "E119", "description": "Type 2 diabetes mellitus without complications", "valid_from": "2015-10-01", "status": "active"},
+    {"code": "I10", "description": "Essential (primary) hypertension", "valid_from": "2015-10-01", "status": "active"},
+    {"code": "J189", "description": "Pneumonia, unspecified organism", "valid_from": "2015-10-01", "status": "active"},
+    {"code": "K029", "description": "Dental caries, unspecified", "valid_from": "2015-10-01", "status": "active"},
+    {"code": "Z0000", "description": "General adult medical examination without abnormal findings", "valid_from": "2015-10-01", "status": "active"}
+  ]
+}

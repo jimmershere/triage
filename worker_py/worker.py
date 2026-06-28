@@ -1031,16 +1031,60 @@ def process_payload(payload: dict):
 
     return ftype, size, import_id
 
+def bootstrap_codeset_registry():
+    """Activate the effective-dated code-set registry (Workstream 2).
+
+    Loads the bundled seed versions into the process-wide registry so SNIP type 5
+    and CMS scrubbing resolve external codes by the claim's service date. When a
+    DB is reachable the persisted versions take precedence. Best-effort: a
+    failure leaves validation to fall back to structural/format checks.
+    """
+    try:
+        from validation.codesets.loader_service import load_seed_versions
+        from validation.codesets.registry import set_active_registry
+
+        registry = load_seed_versions()
+        try:
+            from validation.codesets.db import (
+                ensure_codeset_tables,
+                load_active_registry,
+                persist_version,
+            )
+
+            with closing(get_db()) as conn:
+                ensure_codeset_tables(conn)
+                for codeset in registry.codesets():
+                    for version in registry.versions(codeset):
+                        persist_version(conn, version)
+                registry = load_active_registry(conn)
+        except Exception:
+            logger.warning("Code-set DB persistence unavailable; using seed registry", exc_info=True)
+        set_active_registry(registry)
+        logger.info("Code-set registry active: %s", registry.codesets())
+    except Exception:
+        logger.exception("Failed to bootstrap code-set registry")
+
+
+def handle_ack_generate_message(payload: dict) -> dict:
+    """Build the configured acknowledgements for an ``ack.generate`` message."""
+    from validation.acks import handle_ack_generate
+
+    return handle_ack_generate(payload)
+
+
 def main():
     run_startup_migrations()
+    bootstrap_codeset_registry()
 
     conn, ch = get_rmq_channel()
     rmq_queue = os.environ.get("RMQ_QUEUE", "edi_files")
     acks_queue = os.environ.get("RMQ_ACKS_QUEUE", "acks")
+    ack_generate_queue = os.environ.get("RMQ_ACK_GENERATE_QUEUE", "ack.generate")
 
-    # Ensure both queues exist & are durable
+    # Ensure queues exist & are durable
     ch.queue_declare(queue=rmq_queue, durable=True)
     ch.queue_declare(queue=acks_queue, durable=True)
+    ch.queue_declare(queue=ack_generate_queue, durable=True)
 
     logger.info("Worker connected. Consuming from %s, publishing acks to %s", rmq_queue, acks_queue)
 
@@ -1072,8 +1116,29 @@ def main():
             logger.exception("Failed to process message; rejecting")
             ch_.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
+    def ack_cb(ch_, method, properties, body):
+        try:
+            payload = json.loads(body.decode("utf-8"))
+            result = handle_ack_generate_message(payload)
+            ch_.basic_publish(
+                exchange="",
+                routing_key=acks_queue,
+                body=json.dumps(result).encode("utf-8"),
+                properties=pika.BasicProperties(delivery_mode=2),
+            )
+            logger.info(
+                "Generated %s ack(s) [%s] for ack.generate request",
+                list(result.get("acknowledgments", {}).keys()),
+                result.get("ack_profile"),
+            )
+            ch_.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception:
+            logger.exception("Failed to handle ack.generate message; rejecting")
+            ch_.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+
     ch.basic_qos(prefetch_count=10)
     ch.basic_consume(queue=rmq_queue, on_message_callback=cb, auto_ack=False)
+    ch.basic_consume(queue=ack_generate_queue, on_message_callback=ack_cb, auto_ack=False)
 
     try:
         ch.start_consuming()
