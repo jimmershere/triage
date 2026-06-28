@@ -117,6 +117,21 @@ except ImportError:  # tests / direct script invocation without package context
     import claimtrace_service  # type: ignore
 register_claimtrace_routes(app, lambda: get_db())
 
+# Workstream 5 — 835 restore: immutable storage, re-delivery, reconstruction,
+# reversal. Workstream 4 — operational helpdesk: case management over rejections.
+try:
+    from .era_routes import register as register_era_routes
+    from . import era_service
+    from .helpdesk_routes import register as register_helpdesk_routes
+    from . import helpdesk_service
+except ImportError:  # tests / direct script invocation without package context
+    from era_routes import register as register_era_routes  # type: ignore
+    import era_service  # type: ignore
+    from helpdesk_routes import register as register_helpdesk_routes  # type: ignore
+    import helpdesk_service  # type: ignore
+register_era_routes(app, lambda: get_db(), lambda message: publish_era_job(message))
+register_helpdesk_routes(app, lambda: get_db())
+
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
 
@@ -144,6 +159,10 @@ def run_startup_migrations() -> None:
             ensure_partner_configs_table(conn)
             if claimtrace_service.claimtrace_enabled():
                 claimtrace_service.ensure_claimtrace_tables(conn)
+                if era_service.era_enabled():
+                    era_service.ensure_era_tables(conn)
+                if helpdesk_service.helpdesk_enabled():
+                    helpdesk_service.ensure_helpdesk_tables(conn)
             ensure_ldap_bootstrap(conn)
     except Exception:
         logger.exception("Failed to run startup migrations")
@@ -916,6 +935,33 @@ def get_channel():
     ch = connection.channel()
     ch.queue_declare(queue=RMQ_QUEUE, durable=True)
     return connection, ch
+
+
+ERA_JOBS_QUEUE = os.getenv("RMQ_ERA_QUEUE", "era_jobs")
+
+
+def publish_era_job(message: dict) -> None:
+    """Publish an ``era.redeliver`` / ``era.reconstruct`` job to RabbitMQ.
+
+    Used by the ``/era/jobs`` endpoint so re-delivery and reconstruction can be
+    processed asynchronously by the ERA worker consumer.
+    """
+    params = pika.URLParameters(RABBITMQ_URL)
+    connection = pika.BlockingConnection(params)
+    try:
+        ch = connection.channel()
+        ch.queue_declare(queue=ERA_JOBS_QUEUE, durable=True)
+        ch.basic_publish(
+            exchange="",
+            routing_key=ERA_JOBS_QUEUE,
+            body=json.dumps(message).encode("utf-8"),
+            properties=pika.BasicProperties(delivery_mode=2),
+        )
+    finally:
+        try:
+            connection.close()
+        except Exception:
+            pass
 
 
 def sanitize_filename_component(value: str, fallback: str = "file") -> str:
