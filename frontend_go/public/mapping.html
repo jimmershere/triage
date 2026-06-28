@@ -201,6 +201,57 @@
             </section>
           </section>
         </div>
+
+        <!-- Advisory mapping suggestions (Workstream 1) -->
+        <section class="studio-panel advisor-queue-panel" id="mappingAdvisor" data-requires-role="submit">
+          <div class="panel-header">
+            <h2 class="panel-title">Mapping Advisor</h2>
+            <span class="studio-subtitle">
+              Advisory only — suggestions are ranked by confidence and must be
+              human-approved. Approved rules are versioned; nothing is auto-applied.
+            </span>
+          </div>
+
+          <div id="advisorToast" class="toast" role="status" aria-live="assertive" hidden></div>
+
+          <div class="advisor-grid">
+            <!-- Generate suggestions from a paired example -->
+            <div class="advisor-card">
+              <h3 class="panel-section-title">Generate suggestions</h3>
+              <p class="muted">Paste a de-identified X12 transaction, its flat file, and (optionally) the 999.</p>
+              <label class="field-label" for="advisorX12">X12 transaction</label>
+              <textarea id="advisorX12" class="studio-input advisor-input" placeholder="ISA*00*..."></textarea>
+              <label class="field-label" for="advisorFlat">Flat file (one record is enough)</label>
+              <textarea id="advisorFlat" class="studio-input advisor-input" placeholder="acct,charge,proc&#10;ACCT001,500,99213"></textarea>
+              <div class="advisor-row">
+                <label class="field-label">Delimiter
+                  <input type="text" id="advisorDelimiter" class="studio-input" value="," maxlength="3"/>
+                </label>
+                <label class="field-label advisor-check">
+                  <input type="checkbox" id="advisorHeader" checked/> First row is a header
+                </label>
+              </div>
+              <label class="field-label" for="advisorPartner">Partner id (optional)</label>
+              <input type="text" id="advisorPartner" class="studio-input" placeholder="ACME"/>
+              <label class="field-label" for="advisor999">999 acknowledgement (optional)</label>
+              <textarea id="advisor999" class="studio-input advisor-input" placeholder="ISA*00*...ST*999*..."></textarea>
+              <div class="advisor-actions">
+                <button type="button" class="pill-button" id="advisorGenerate" data-requires-role="submit">Generate suggestions</button>
+              </div>
+              <div id="advisorSummary" class="advisor-summary muted">No suggestions generated yet.</div>
+            </div>
+
+            <!-- Human-approval queue -->
+            <div class="advisor-card">
+              <h3 class="panel-section-title">Approval queue
+                <button type="button" class="pill-button pill-button--sm ghost" id="advisorRefresh">Refresh</button>
+              </h3>
+              <ul id="advisorQueue" class="advisor-queue" aria-live="polite"></ul>
+              <h3 class="panel-section-title">Active rules</h3>
+              <ul id="advisorRules" class="advisor-rules" aria-live="polite"></ul>
+            </div>
+          </div>
+        </section>
       </main>
 
       <!-- ClawFirm Footer -->
@@ -230,6 +281,7 @@
   <script src="/static/js/mapper.js"></script>
   <script src="/static/js/mapping-directory.js"></script>
   <script src="/static/js/studio-mapping.js"></script>
+  <script src="/static/js/mapping-advisor.js"></script>
   <script src="/static/js/turbo_validate.js"></script>
   <script src="/static/js/site-enhancements.js"></script>
 </body>
