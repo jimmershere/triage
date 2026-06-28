@@ -21,9 +21,16 @@ from typing import Any
 from fhir import remittance_to_fhir, submission_to_fhir
 from scrubbing import scrub_claims
 from validation import validate_document
-from validation.acks import generate_277ca, generate_999, generate_ta1
+from validation.acks import (
+    ACK_PROFILE_999_ONLY,
+    generate_277ca,
+    generate_999,
+    generate_acks_for_profile,
+    generate_ta1,
+)
 from validation.engine import validate_parsed
 from validation.parser import parse
+from validation.policy import apply_policy
 
 
 @dataclass
@@ -36,6 +43,7 @@ class PipelineResult:
     scrubbing: dict[str, Any] | None = None
     fhir: dict[str, Any] | None = None
     acknowledgments: dict[str, str] | None = None
+    snip_policy: dict[str, Any] | None = None
 
     @property
     def valid(self) -> bool:
@@ -62,16 +70,32 @@ def run_pipeline(
     to_fhir: bool = False,
     generate_acks: bool = False,
     eligibility_roster: dict | None = None,
+    policy: Any = None,
+    ack_profile: str = ACK_PROFILE_999_ONLY,
 ) -> PipelineResult:
-    """Run validation, optional scrubbing, optional FHIR mapping and acks."""
+    """Run validation, optional scrubbing, optional FHIR mapping and acks.
+
+    ``policy`` is an optional per-partner SNIP policy (a
+    :class:`validation.policy.SnipPolicy` or a built-in policy name) applied to
+    the validation report before acks are generated, so the 999/277CA reflect
+    the partner's configured leniency. ``ack_profile`` selects which acks are
+    emitted (``999_only`` by default; ``999_plus_277CA`` to opt in to 277CA).
+    """
     doc = parse(text)
     report = validate_parsed(doc)
 
     result = PipelineResult(
         transaction_set=report.transaction_set,
         implementation_version=report.implementation_version,
-        validation=report.to_dict(),
+        validation={},
     )
+
+    if policy is not None:
+        result.snip_policy = apply_policy(report, policy).to_dict()
+
+    # Serialize the report after the policy has adjusted severities so the
+    # surfaced accept/reject decision matches the generated acknowledgements.
+    result.validation = report.to_dict()
 
     if scrub and report.claims:
         scrub_report = scrub_claims(report.claims, roster=eligibility_roster)
@@ -83,17 +107,10 @@ def run_pipeline(
         elif report.transaction_set == "835":
             result.fhir = remittance_to_fhir(text)
 
-    if generate_acks and report.transaction_set == "837":
-        result.acknowledgments = {
-            "TA1": generate_ta1(doc, report),
-            "999": generate_999(doc, report),
-            "277CA": generate_277ca(doc, report),
-        }
-    elif generate_acks:
-        result.acknowledgments = {
-            "TA1": generate_ta1(doc, report),
-            "999": generate_999(doc, report),
-        }
+    if generate_acks:
+        result.acknowledgments = generate_acks_for_profile(
+            doc, report, ack_profile=ack_profile
+        )
 
     return result
 

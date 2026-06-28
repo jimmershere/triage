@@ -25,12 +25,34 @@ class CleanPipelineTests(unittest.TestCase):
         self.assertIn("Claim", types)
 
     def test_pipeline_emits_acknowledgments_for_837(self) -> None:
+        # Migration default ack profile is 999_only — the 277CA stays dark.
         result = run_pipeline(VALID_837P, generate_acks=True)
+        self.assertIsNotNone(result.acknowledgments)
+        self.assertSetEqual(set(result.acknowledgments.keys()), {"TA1", "999"})
+        self.assertIn("AK1", result.acknowledgments["999"])
+
+    def test_pipeline_emits_277ca_when_partner_opts_in(self) -> None:
+        result = run_pipeline(
+            VALID_837P, generate_acks=True, ack_profile="999_plus_277CA"
+        )
         self.assertIsNotNone(result.acknowledgments)
         self.assertSetEqual(
             set(result.acknowledgments.keys()), {"TA1", "999", "277CA"}
         )
-        self.assertIn("AK1", result.acknowledgments["999"])
+
+    def test_edig_parity_policy_downgrades_balancing_to_warning(self) -> None:
+        # A line-balancing (SNIP 6) failure rejects by default but only warns
+        # under the EDIG-parity policy, so the claim is accepted at migration.
+        strict = run_pipeline(with_unbalanced_claim(), generate_acks=True)
+        self.assertFalse(strict.valid)
+        lenient = run_pipeline(
+            with_unbalanced_claim(),
+            generate_acks=True,
+            policy="edig-parity-v1",
+        )
+        self.assertTrue(lenient.valid)
+        self.assertIsNotNone(lenient.snip_policy)
+        self.assertGreaterEqual(lenient.snip_policy["adjusted_count"], 1)
 
 
 class BrokenPipelineTests(unittest.TestCase):

@@ -61,6 +61,11 @@ def _emit_transaction(
             issue.loop_id or "",
             _segment_error_code(issue),
         )
+        # CTX "business unit identifier" carries CLM01 for an 837 so downstream
+        # automation can join a segment error back to the failing claim (and,
+        # via the flat-file position map, back to the originating flat file).
+        if issue.claim_id and txn.set_code == "837":
+            builder.add("CTX", f"CLM01{comp}{issue.claim_id}")
         if issue.element_position is not None:
             position = str(issue.element_position)
             if issue.component_position is not None:

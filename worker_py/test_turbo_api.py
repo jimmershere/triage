@@ -17,16 +17,19 @@ if _ROOT not in sys.path:
 from api.turbo_routes import (  # noqa: E402
     FhirClaimRequest,
     PipelineRequest,
+    RejectionReportRequest,
+    ValidateRequest,
     X12Body,
     capability,
     fhir_claim_submit,
     fhir_from_x12,
     pipeline,
+    rejection_report,
     validate,
 )
 from fastapi import HTTPException  # noqa: E402
 
-from validation._fixtures import VALID_837P, VALID_835  # noqa: E402
+from validation._fixtures import VALID_837P, VALID_835, with_unbalanced_claim  # noqa: E402
 
 
 class CapabilityTests(unittest.TestCase):
@@ -41,14 +44,23 @@ class CapabilityTests(unittest.TestCase):
 
 class ValidateRouteTests(unittest.TestCase):
     def test_clean_837_validates(self) -> None:
-        body = validate(X12Body(x12=VALID_837P))
+        body = validate(ValidateRequest(x12=VALID_837P))
         self.assertTrue(body["valid"])
         self.assertEqual(body["transaction_set"], "837")
 
     def test_empty_body_returns_400(self) -> None:
         with self.assertRaises(HTTPException) as exc:
-            validate(X12Body(x12="   "))
+            validate(ValidateRequest(x12="   "))
         self.assertEqual(exc.exception.status_code, 400)
+
+    def test_edig_parity_policy_accepts_lenient_claim(self) -> None:
+        unbalanced = VALID_837P.replace("CLM*CLAIM001*150", "CLM*CLAIM001*999")
+        strict = validate(ValidateRequest(x12=unbalanced))
+        self.assertFalse(strict["valid"])
+        lenient = validate(
+            ValidateRequest(x12=unbalanced, snip_policy="edig-parity-v1")
+        )
+        self.assertTrue(lenient["valid"])
 
 
 class PipelineRouteTests(unittest.TestCase):
@@ -62,7 +74,54 @@ class PipelineRouteTests(unittest.TestCase):
             PipelineRequest(x12=VALID_837P, to_fhir=True, generate_acks=True)
         )
         self.assertIsNotNone(body["fhir"])
-        self.assertSetEqual(set(body["acknowledgments"]), {"TA1", "999", "277CA"})
+        # Default ack profile is 999_only; 277CA stays dark.
+        self.assertSetEqual(set(body["acknowledgments"]), {"TA1", "999"})
+
+    def test_pipeline_emits_277ca_on_opt_in(self) -> None:
+        body = pipeline(
+            PipelineRequest(
+                x12=VALID_837P, generate_acks=True, ack_profile="999_plus_277CA"
+            )
+        )
+        self.assertSetEqual(
+            set(body["acknowledgments"]), {"TA1", "999", "277CA"}
+        )
+
+
+class RejectionReportRouteTests(unittest.TestCase):
+    def test_json_report_is_position_keyed(self) -> None:
+        body = rejection_report(
+            RejectionReportRequest(x12=with_unbalanced_claim(), source="batch.txt")
+        )
+        self.assertEqual(body["failed"], 1)
+        self.assertIn("1", body["claims"])
+        self.assertEqual(body["claims"]["1"]["claim_id"], "CLAIM001")
+        self.assertIn("claimtrace_event", body)
+        self.assertEqual(
+            body["claimtrace_event"]["operation_type"], "rejection.report.generated"
+        )
+
+    def test_csv_report_returns_text(self) -> None:
+        resp = rejection_report(
+            RejectionReportRequest(x12=with_unbalanced_claim()), fmt="csv"
+        )
+        self.assertEqual(resp.media_type, "text/csv")
+        self.assertIn(b"CLAIM001", resp.body)
+
+    def test_clean_claim_passes_in_report(self) -> None:
+        body = rejection_report(RejectionReportRequest(x12=VALID_837P))
+        self.assertEqual(body["failed"], 0)
+        self.assertEqual(body["passed"], 1)
+
+    def test_explicit_positions_are_honoured(self) -> None:
+        body = rejection_report(
+            RejectionReportRequest(
+                x12=with_unbalanced_claim(),
+                positions=[{"claim_id": "CLAIM001", "position": 42, "patient_control_number": "PCN9"}],
+            )
+        )
+        self.assertIn("42", body["claims"])
+        self.assertEqual(body["claims"]["42"]["patient_control_number"], "PCN9")
 
 
 class FhirRouteTests(unittest.TestCase):
