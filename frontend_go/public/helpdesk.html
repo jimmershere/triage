@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="icon" type="image/png" href="/img/favicon.png"/>
-  <title>Triage — Claimtrace Dashboard</title>
+  <title>Triage — Operational Helpdesk</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
   <script src="/config.js"></script>
 </head>
@@ -18,12 +18,12 @@
           <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
           <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
           <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
-          <a class="nav-pill" data-tone="ops" href="/helpdesk.html">Helpdesk</a>
+          <a class="nav-pill" data-tone="ops" href="/helpdesk.html" aria-current="page">Helpdesk</a>
         </div>
         <div class="nav-group portal-only">
           <span class="nav-group-label">Claims Portal</span>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
-          <a class="nav-pill portal-link claimtrace-nav-link" data-tone="mapping" href="/claimtrace.html" aria-current="page">Claimtrace <svg class="claimtrace-new-burst" viewBox="0 0 72 52" role="img" aria-label="New"><polygon points="36,1 43,13 58,6 55,21 71,26 55,31 58,46 43,39 36,51 29,39 14,46 17,31 1,26 17,21 14,6 29,13"/><text x="36" y="31">NEW</text></svg></a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/claimtrace.html">Claimtrace</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
           <a class="nav-pill portal-link" data-tone="portal" href="/era.html">835 Restore</a>
@@ -53,7 +53,7 @@
         </div>
       </nav>
       <div class="sidebar-footer">
-        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/claimtrace.html" data-login-trigger data-login-next="/claimtrace.html">Login</a>
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/helpdesk.html" data-login-trigger data-login-next="/helpdesk.html">Login</a>
         <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
       </div>
     </aside>
@@ -61,32 +61,30 @@
       <main class="container claimtrace-dashboard">
         <section class="card claimtrace-hero claimtrace-dashboard-hero">
           <div>
-            <span class="badge">Claimtrace</span>
-            <h1>End-to-end claim trace dashboard</h1>
-            <p>Search every ingested file by trading partner, submitter, claim ID, hash ID, or action state. Review trace events, analyze risk, and mark claims for repair, deletion, review, or release.</p>
+            <span class="badge">Helpdesk</span>
+            <h1>Rejected-claim case management</h1>
+            <p>A queue of failed claims with the rejection reason, segment/element location, and partner. Open a case from a 999/277CA/rejection event, notify the submitter with a packaged human-readable report, and track to a corrected resubmission. Cases reference claim data — they never edit it.</p>
           </div>
-          <div class="claimtrace-summary claimtrace-summary--dashboard" id="claimtraceSummary">
-            <span>Loading tracking summary…</span>
+          <div class="claimtrace-summary claimtrace-summary--dashboard" id="hdSummary">
+            <span>Loading helpdesk summary…</span>
           </div>
         </section>
 
         <section class="card claimtrace-search-card">
           <header class="card-header">
             <div>
-              <h2>Search tracked claims</h2>
-            <p class="muted">Use one claim key or combine multiple keys for precise trace lookup.</p>
+              <h2>Case queue &amp; search</h2>
+              <p class="muted">Status flow: open → submitter-notified → awaiting-resubmission → resolved.</p>
             </div>
-            <button id="ctRefresh" type="button" class="ghost">Refresh</button>
+            <button id="hdRefresh" type="button" class="ghost">Refresh</button>
           </header>
-          <form id="ctSearchForm" class="claimtrace-search-form">
-            <label><span>Trading partner ID</span><input id="ctTradingPartner" type="text" placeholder="TP123456"></label>
-            <label><span>Submitter ID</span><input id="ctSubmitter" type="text" placeholder="ISA/GS submitter"></label>
-            <label><span>Claim ID</span><input id="ctClaimId" type="text" placeholder="deterministic claim ID"></label>
-            <label><span>Claim hash ID</span><input id="ctClaimHash" type="text" placeholder="SHA-256 payload hash"></label>
-            <label><span>Action state</span><select id="ctActionState"><option value="">Any</option><option value="none">Tracked</option><option value="repair">Marked for repair</option><option value="delete">Marked for deletion</option><option value="reviewed">Reviewed</option></select></label>
+          <form id="hdSearchForm" class="claimtrace-search-form">
+            <label><span>Status</span><select id="hdStatus"><option value="">Queue (open)</option><option value="open">Open</option><option value="submitter-notified">Submitter notified</option><option value="awaiting-resubmission">Awaiting resubmission</option><option value="resolved">Resolved</option></select></label>
+            <label><span>Partner</span><input id="hdPartner" type="text" placeholder="trading partner"></label>
+            <label><span>Claim ID</span><input id="hdClaim" type="text" placeholder="claimtrace claim ID"></label>
             <div class="claimtrace-search-actions">
-              <button type="submit">Search claims</button>
-              <button type="button" class="ghost" id="ctClearSearch">Clear</button>
+              <button type="submit">Search</button>
+              <button type="button" class="ghost" id="hdClear">Clear</button>
             </div>
           </form>
         </section>
@@ -95,50 +93,46 @@
           <article class="card claimtrace-results-card">
             <div class="section-heading">
               <div>
-                <span class="eyebrow">Tracked inventory</span>
-                <h2>Claims</h2>
+                <span class="eyebrow">Operator work queue</span>
+                <h2>Cases</h2>
               </div>
-              <span class="badge badge-count" id="ctResultCount">0</span>
+              <span class="badge badge-count" id="hdResultCount">0</span>
             </div>
             <div class="table-scroll-x">
               <table class="admin-table claimtrace-table">
                 <thead>
-                  <tr><th>Claim</th><th>Hash</th><th>Partner</th><th>Submitter</th><th>Status</th><th>Action</th><th>Created</th></tr>
+                  <tr><th>Case</th><th>Claim</th><th>Partner</th><th>Reason</th><th>Location</th><th>Status</th></tr>
                 </thead>
-                <tbody id="ctResultsBody"><tr><td colspan="7" class="muted">Loading tracked claims…</td></tr></tbody>
+                <tbody id="hdResultsBody"><tr><td colspan="6" class="muted">Loading cases…</td></tr></tbody>
               </table>
             </div>
           </article>
 
-          <article class="card claimtrace-detail-card" id="ctDetailCard">
+          <article class="card claimtrace-detail-card" id="hdDetailCard">
             <div class="section-heading">
               <div>
-                <span class="eyebrow">Trace detail</span>
-                <h2 id="ctDetailTitle">Select a claim</h2>
+                <span class="eyebrow">Case detail</span>
+                <h2 id="hdDetailTitle">Select a case</h2>
               </div>
-              <span class="claimtrace-status-pill" id="ctDetailStatus">No claim selected</span>
+              <span class="claimtrace-status-pill" id="hdDetailStatus">None selected</span>
             </div>
-            <div id="ctDetailEmpty" class="muted">Choose a row to view identity, event lineage, recommendations, and actions.</div>
-            <div id="ctDetailContent" hidden>
-              <div class="claimtrace-identity-grid" id="ctIdentityGrid"></div>
-              <section class="claimtrace-analysis-box">
-                <h3>Analysis &amp; recommended next steps</h3>
-                <ul id="ctRecommendations"></ul>
-              </section>
+            <div id="hdDetailEmpty" class="muted">Choose a row to view the rejection, lineage, and actions.</div>
+            <div id="hdDetailContent" hidden>
+              <div class="claimtrace-identity-grid" id="hdIdentityGrid"></div>
               <section>
-                <h3>Trace events</h3>
-                <ol class="claimtrace-timeline" id="ctTimeline"></ol>
+                <h3>Case timeline</h3>
+                <ol class="claimtrace-timeline" id="hdTimeline"></ol>
               </section>
               <section class="claimtrace-actions-panel">
-                <h3>Claim actions</h3>
-                <textarea id="ctActionNote" class="claimtrace-note" placeholder="Add reviewer note or repair/deletion rationale"></textarea>
+                <h3>Actions</h3>
                 <div class="claimtrace-action-buttons">
-                  <button type="button" id="ctMarkRepair">Mark for repair</button>
-                  <button type="button" id="ctMarkDelete" class="danger">Mark for deletion</button>
-                  <button type="button" id="ctMarkReviewed" class="ghost">Mark reviewed</button>
-                  <button type="button" id="ctClearMark" class="ghost">Clear mark</button>
+                  <button type="button" id="hdNotify">Notify submitter</button>
+                  <button type="button" id="hdAwaiting" class="ghost">Mark awaiting resubmission</button>
+                  <button type="button" id="hdResolve" class="ghost">Resolve</button>
                 </div>
-                <p class="form-status" id="ctActionStatus" hidden></p>
+                <p class="form-status" id="hdActionStatus" hidden></p>
+                <h3>Packaged rejection report</h3>
+                <pre id="hdReport" class="claimtrace-note" style="white-space:pre-wrap;max-height:320px;overflow:auto"></pre>
               </section>
             </div>
           </article>
@@ -150,7 +144,7 @@
   <script src="/static/js/auth_config.js"></script>
   <script src="/static/js/authz.js"></script>
   <script src="/static/js/login-modal.js"></script>
-  <script src="/static/js/claimtrace.js"></script>
+  <script src="/static/js/helpdesk.js"></script>
   <script src="/static/js/site-enhancements.js"></script>
 </body>
 </html>
