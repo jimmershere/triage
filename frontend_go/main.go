@@ -722,6 +722,11 @@ func main() {
 		mux.Handle("/jobs/", handler)
 		mux.Handle("/claimtrace", handler)
 		mux.Handle("/claimtrace/", handler)
+		// Workstream 1: advisory mapping-suggestion queue. Reads require portal,
+		// writes (suggest/approve/reject) require the submit role — enforced by
+		// the same RequireSubmitterForWrite + portal guard as the other routes.
+		mux.Handle("/mapping/advisor", handler)
+		mux.Handle("/mapping/advisor/", handler)
 		protectedProxy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Header.Del("Cookie")
 			if sharedSecret != "" {

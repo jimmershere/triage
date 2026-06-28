@@ -16,6 +16,8 @@ COPY tier_executor.py .
 COPY tier1_assist.py .
 COPY tier2_swarm.py .
 COPY turbo_pipeline.py .
+COPY audit_log.py .
+COPY mapping_advisor ./mapping_advisor
 COPY worker.py .
 ENV PYTHONUNBUFFERED=1
 CMD ["python", "worker.py"]

@@ -26,9 +26,21 @@ from dotenv import load_dotenv
 
 from . import ldap_utils
 
+from claimtrace.audit import (
+    CORRELATION_HEADER,
+    bind_correlation_id,
+    configure_structured_logging,
+    get_correlation_id,
+    log_event,
+    new_correlation_id,
+    reset_correlation_id,
+)
+
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
+# Workstream 3: standardize PHI-safe structured JSON logging with a correlation
+# id propagated across api -> worker -> claimtrace.
+configure_structured_logging("triage-api", level=LOG_LEVEL)
 logger = logging.getLogger("api")
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
@@ -117,6 +129,13 @@ except ImportError:  # tests / direct script invocation without package context
     import claimtrace_service  # type: ignore
 register_claimtrace_routes(app, lambda: get_db())
 
+# Workstream 1: advisory mapping-suggestion service (human-approval queue).
+try:
+    from .mapping_routes import register as register_mapping_routes, ensure_mapping_tables
+except ImportError:  # tests / direct script invocation without package context
+    from mapping_routes import register as register_mapping_routes, ensure_mapping_tables  # type: ignore
+register_mapping_routes(app, lambda: get_db())
+
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
 
@@ -127,6 +146,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request, call_next):
+    """Bind a correlation id for the request and echo it on the response.
+
+    The id is taken from the inbound ``X-Correlation-ID`` header when present
+    (so an upstream caller / the worker can continue an existing lineage) and
+    otherwise generated. Only the request *path* is logged — never the query
+    string — to keep PHI out of the audit stream.
+    """
+    correlation_id = request.headers.get(CORRELATION_HEADER) or new_correlation_id()
+    token = bind_correlation_id(correlation_id)
+    try:
+        log_event(
+            logger,
+            "http_request",
+            method=request.method,
+            path=request.url.path,
+        )
+        response = await call_next(request)
+        response.headers[CORRELATION_HEADER] = correlation_id
+        log_event(
+            logger,
+            "http_response",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+        )
+        return response
+    except Exception:
+        logger.exception("Unhandled error while processing request")
+        raise
+    finally:
+        reset_correlation_id(token)
 
 db_pool: Optional[pool.SimpleConnectionPool] = None
 
@@ -142,6 +196,7 @@ def run_startup_migrations() -> None:
             ensure_app_users(conn)
             ensure_x12_addon_tables(conn)
             ensure_partner_configs_table(conn)
+            ensure_mapping_tables(conn)
             if claimtrace_service.claimtrace_enabled():
                 claimtrace_service.ensure_claimtrace_tables(conn)
             ensure_ldap_bootstrap(conn)
@@ -1376,12 +1431,19 @@ async def ingest(
         filename = file.filename or "upload.dat"
         size = len(content)
 
-        logger.info(
-            "Received upload filename=%s size=%s uploaded_by=%s partner=%s",
-            filename,
-            size,
-            uploaded_by,
-            trading_partner_id,
+        # The Claimtrace lineage trace id equals the job id, so bind the request
+        # correlation id to the job id: every downstream event (worker, RMQ ack,
+        # claimtrace journal) shares this id and can be reconstructed end-to-end.
+        correlation_id = str(job_uuid)
+        bind_correlation_id(correlation_id)
+
+        log_event(
+            logger,
+            "ingest_received",
+            job_id=str(job_uuid),
+            byte_size=size,
+            uploaded_by=uploaded_by,
+            trading_partner_id=trading_partner_id,
         )
 
         with get_db() as conn:
@@ -1430,6 +1492,9 @@ async def ingest(
             "size": size,
             "uploaded_by": uploaded_by,
             "trading_partner_id": trading_partner_id,
+            # Propagate the correlation id across the RabbitMQ hop so the worker
+            # continues the same lineage rather than starting a fresh one.
+            "correlation_id": correlation_id,
             "data_b64": base64.b64encode(content).decode("ascii"),
         }
         payload_bytes = json.dumps(payload).encode("utf-8")
@@ -1441,7 +1506,11 @@ async def ingest(
                 exchange="",
                 routing_key=RMQ_QUEUE,
                 body=payload_bytes,
-                properties=pika.BasicProperties(delivery_mode=2),
+                properties=pika.BasicProperties(
+                    delivery_mode=2,
+                    correlation_id=correlation_id,
+                    headers={CORRELATION_HEADER: correlation_id},
+                ),
             )
         finally:
             connection.close()
