@@ -24,6 +24,7 @@ try:  # When running as part of the package
     from worker_py.routing_engine import route_file, TIER_LABELS
     from worker_py.tier_executor import execute_tier, TierResult
     from worker_py.turbo_pipeline import run_pipeline as turbo_run_pipeline
+    from worker_py import audit_log
 except ModuleNotFoundError:  # When executed from the worker directory directly
     from tools_x12_cms_harness import parse_x12, run_harness
     from translators import AckRecord, select_translator, TranslationOutcome
@@ -32,11 +33,15 @@ except ModuleNotFoundError:  # When executed from the worker directory directly
     from routing_engine import route_file, TIER_LABELS
     from tier_executor import execute_tier, TierResult
     from turbo_pipeline import run_pipeline as turbo_run_pipeline
+    import audit_log
 
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
+# Workstream 3: PHI-safe structured JSON logging with a correlation id that is
+# continued from the API across the RabbitMQ hop (see audit_log).
+audit_log.configure_structured_logging("triage-worker", level=LOG_LEVEL)
 logger = logging.getLogger("worker")
+CORRELATION_HEADER = audit_log.CORRELATION_HEADER
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 DATABASE_URL = os.getenv(
@@ -1045,17 +1050,40 @@ def main():
     logger.info("Worker connected. Consuming from %s, publishing acks to %s", rmq_queue, acks_queue)
 
     def cb(ch_, method, properties, body):
+        # Continue the correlation/lineage id started by the API. Prefer the
+        # explicit payload field, fall back to the AMQP property/header, then to
+        # the job id, so the chain is never silently broken across the hop.
+        payload = {}
+        token = None
         try:
             payload = json.loads(body.decode("utf-8"))
-            ftype, size, import_id = process_payload(payload)
-            logger.info(
-                "Processed %s bytes as %s for file %s (import id %s)",
-                size,
-                ftype,
-                payload.get("filename"),
-                import_id,
+            header_cid = None
+            if properties is not None:
+                header_cid = getattr(properties, "correlation_id", None)
+                if not header_cid and getattr(properties, "headers", None):
+                    header_cid = properties.headers.get(CORRELATION_HEADER)
+            correlation_id = (
+                payload.get("correlation_id") or header_cid or payload.get("job_id")
             )
-            # publish a simple ack message
+            token = audit_log.bind_correlation_id(correlation_id)
+
+            audit_log.log_event(
+                logger,
+                "worker_message_received",
+                job_id=payload.get("job_id"),
+                trading_partner_id=payload.get("trading_partner_id"),
+            )
+            ftype, size, import_id = process_payload(payload)
+            audit_log.log_event(
+                logger,
+                "worker_message_processed",
+                job_id=payload.get("job_id"),
+                import_id=import_id,
+                file_type=ftype,
+                byte_size=size,
+            )
+            # publish a simple ack message, propagating the correlation id on
+            # both the body and the AMQP properties for the next hop.
             ch_.basic_publish(
                 exchange="",
                 routing_key=acks_queue,
@@ -1064,13 +1092,21 @@ def main():
                     "filename": payload.get("filename"),
                     "file_type": ftype,
                     "import_id": import_id,
+                    "correlation_id": audit_log.get_correlation_id(),
                 }).encode("utf-8"),
-                properties=pika.BasicProperties(delivery_mode=2),
+                properties=pika.BasicProperties(
+                    delivery_mode=2,
+                    correlation_id=audit_log.get_correlation_id(),
+                    headers={CORRELATION_HEADER: audit_log.get_correlation_id()},
+                ),
             )
             ch_.basic_ack(delivery_tag=method.delivery_tag)
         except Exception:
             logger.exception("Failed to process message; rejecting")
             ch_.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        finally:
+            if token is not None:
+                audit_log.reset_correlation_id(token)
 
     ch.basic_qos(prefetch_count=10)
     ch.basic_consume(queue=rmq_queue, on_message_callback=cb, auto_ack=False)
