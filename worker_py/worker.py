@@ -55,6 +55,48 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
 # harness + routing flow above is unaffected either way.
 TURBO_PIPELINE_ENABLED = os.getenv("TURBO_PIPELINE_ENABLED", "1") not in ("0", "false", "no")
 
+# --- Sharded swarm path for large multipart EDI payloads -------------------
+# When a payload is at least TURBO_SWARM_MIN_BYTES, route the turbo
+# validation/scrubbing through swarms.SwarmCoordinator so independent ST
+# transactions (and claim batches) fan out across an engine pool instead of a
+# single pass. Falls back to the single-pass pipeline for smaller files or on
+# any error so ingest is never blocked.
+#
+# Defaults OFF: the swarm path is opt-in. The live deployment leaves it disabled
+# (docker-compose.override.yml sets TURBO_SWARM_ENABLED=0 — "Swarm path left
+# off") in favour of horizontal worker scaling, so the default-off here keeps
+# behaviour identical while preserving the capability for explicit opt-in.
+TURBO_SWARM_ENABLED = os.getenv("TURBO_SWARM_ENABLED", "0") not in ("0", "false", "no")
+TURBO_SWARM_MIN_BYTES = int(os.getenv("TURBO_SWARM_MIN_BYTES", str(10 * 1024 * 1024)))
+TURBO_SWARM_POOL = os.getenv("TURBO_SWARM_POOL", "process")
+TURBO_SWARM_WORKERS = int(os.getenv("TURBO_SWARM_WORKERS", "8"))
+
+
+def _run_turbo(text):
+    """Run turbo validation/scrub; swarm large multipart payloads."""
+    try:
+        size = len(text.encode("utf-8", "ignore"))
+    except Exception:
+        size = len(text)
+    if TURBO_SWARM_ENABLED and size >= TURBO_SWARM_MIN_BYTES:
+        try:
+            from swarms import EnginePool, SwarmCoordinator
+            coord = SwarmCoordinator(
+                thread_pool=EnginePool(mode=TURBO_SWARM_POOL, max_workers=TURBO_SWARM_WORKERS),
+                process_pool=EnginePool(mode=TURBO_SWARM_POOL, max_workers=TURBO_SWARM_WORKERS),
+            )
+            res = coord.run(text, scrub=True, to_fhir=False, generate_acks=False)
+            logger.info(
+                "Turbo SWARM path: %d bytes shards=%s workers=%s pool=%s",
+                size, getattr(res, "shard_count", "?"),
+                getattr(res, "parallel_workers", "?"), TURBO_SWARM_POOL,
+            )
+            return res
+        except Exception:
+            logger.exception("Swarm path failed; falling back to single-pass turbo")
+    return turbo_run_pipeline(text, scrub=True)
+
+
 def get_rmq_channel():
     """
     Connect to RabbitMQ using env vars and return (connection, channel).
@@ -664,7 +706,7 @@ def process_payload(payload: dict):
             if TURBO_PIPELINE_ENABLED and ftype.startswith('X12'):
                 try:
                     turbo_start = time.perf_counter()
-                    turbo = turbo_run_pipeline(text, scrub=True)
+                    turbo = _run_turbo(text)
                     persist_audit_event(
                         cur, import_id, 'turbo_validation',
                         {
