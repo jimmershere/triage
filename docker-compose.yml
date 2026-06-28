@@ -62,8 +62,8 @@ services:
 
   api:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api/Dockerfile
     container_name: ${TRIAGE_API_CONTAINER:-triage_api_1}
     env_file:
       - ./.env
