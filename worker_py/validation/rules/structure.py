@@ -15,12 +15,11 @@ situational presence):
   constant for a given (segment, element, component) wherever it appears.
 * **SNIP Type 1 — min/max length**: a present value outside the guide's length
   bounds is an error.
-* **SNIP Type 5 — enumerated value binding**: when the guide enumerates the
-  permitted values for an ``ID`` position, a value outside that set is reported.
-  Because the bundled reference unions a code's appearances across loops, this
-  is emitted as a *warning* by default (a value valid in one loop but not
-  another would otherwise be a false reject); per-partner SNIP policy can
-  escalate Type 5 to enforce.
+Enumerated value-binding (SNIP Type 5) is intentionally NOT done here: the
+bundled reference is keyed by (segment, element, component) without loop
+context, so unioning a code's per-loop appearances would weaken Type 5 into a
+false negative. Code-set membership is owned by the completeness-aware
+``snip5_codeset`` pass and the loop-aware ``guide_837`` walker instead.
 
 If the reference bundle for a transaction is absent, this pass is a no-op and the
 engine falls back to the hand-coded guide rules.
@@ -154,24 +153,6 @@ def _check_value(
             )
         )
 
-    # SNIP 5 — enumerated value binding (warn: union may be loop-incomplete).
-    if spec.enumerated and spec.data_type.upper() == "ID":
-        if value.strip().upper() not in spec.values:
-            report.add(
-                ValidationIssue(
-                    snip_type=SnipType.CODE_SET,
-                    severity=Severity.WARNING,
-                    code=f"STRUCT.{ref}.CODESET",
-                    message=(
-                        f"{ref} ({spec.description}) value '{value}' is not in the "
-                        f"implementation guide's permitted set for this position."
-                    ),
-                    expected="/".join(sorted(spec.values)[:12]),
-                    actual=value,
-                    spec_ref=f"{txn.implementation_version} {ref}",
-                    **common,
-                )
-            )
 
 
 def validate_structure(txn: Transaction, report: ValidationReport) -> None:

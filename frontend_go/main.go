@@ -457,6 +457,17 @@ type userProfile struct {
 	AllowAdmin  bool   `json:"allow_admin"`
 }
 
+// injectTrustedRole overwrites X-TRIAGE-ROLE with the RBAC-derived role and
+// strips any client-supplied value, so the backend's server-side role checks
+// cannot be spoofed by a caller adding the header. This is the trusted source
+// of the role for api/security_deps.require_role.
+func injectTrustedRole(r *http.Request) {
+	r.Header.Del("X-TRIAGE-ROLE")
+	if p := profileFromRequest(r); p != nil && p.Role != "" {
+		r.Header.Set("X-TRIAGE-ROLE", p.Role)
+	}
+}
+
 func profileFromRequest(r *http.Request) *userProfile {
 	id := identityFromRequest(r)
 	switch {
@@ -731,6 +742,7 @@ func main() {
 			r.Header.Del("Cookie")
 			if sharedSecret != "" {
 				r.Header.Set("X-TRIAGE-SECRET", sharedSecret)
+				injectTrustedRole(r)
 			}
 			proxy.ServeHTTP(w, r)
 		})
@@ -754,6 +766,7 @@ func main() {
 			}
 			if sharedSecret != "" {
 				r.Header.Set("X-TRIAGE-SECRET", sharedSecret)
+				injectTrustedRole(r)
 			}
 			wsProxy.ServeHTTP(w, r)
 		})
@@ -827,6 +840,7 @@ func apiProxyHandler(proxy *httputil.ReverseProxy) http.Handler {
 		r.Header.Del("Cookie")
 		if sharedSecret != "" {
 			r.Header.Set("X-TRIAGE-SECRET", sharedSecret)
+			injectTrustedRole(r)
 		}
 		proxy.ServeHTTP(w, r)
 	})

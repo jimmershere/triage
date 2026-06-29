@@ -275,15 +275,16 @@ def clear_cache() -> None:
 # code sources (POS source 237, CARC/RARC, ICD-10) come from the dated registry.
 _CODESET_ELEMENTS: dict[str, tuple[str, int, int | None]] = {
     "gender": ("DMG", 3, None),
-    "claim_frequency": ("CLM", 5, 3),
     "entity_identifier": ("NM1", 1, None),
     "entity_type": ("NM1", 2, None),
     "id_qualifier": ("NM1", 8, None),
     "relationship": ("SBR", 2, None),
     "filing_indicator": ("SBR", 9, None),
     "facility_code_qualifier": ("CLM", 5, 2),
-    "provider_code": ("CLM", 5, 1),
 }
+# Note: CLM05-01 (Place of Service) and CLM05-03 (Claim Frequency) are NOT
+# inline-enumerated in the 837P guide CSV (empty Value cells) — they reference
+# external code sources, so they are owned by the dated registry, not here.
 
 
 def extract_internal_codesets(

@@ -47,10 +47,10 @@ def _normalize_role(role: str | None) -> str | None:
 
 
 def _roles_enforced() -> bool:
-    return (
-        os.getenv("TRIAGE_ENFORCE_ROLES", "").strip().lower() in {"1", "true", "yes", "on"}
-        or os.getenv("TRIAGE_ENV", "").strip().lower() in {"prod", "production"}
-    )
+    # Enforcement is gated on an EXPLICIT flag (not implied by production) so a
+    # deploy never starts 403-ing every role-gated endpoint before the reverse
+    # proxy is confirmed to inject (and strip) X-TRIAGE-ROLE.
+    return os.getenv("TRIAGE_ENFORCE_ROLES", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def require_role(minimum: str):
@@ -79,11 +79,26 @@ _BUCKETS: dict[str, deque] = defaultdict(deque)
 _RL_LOCK = threading.Lock()
 
 
+def _trusted_proxies() -> set[str]:
+    raw = os.getenv("TRIAGE_TRUSTED_PROXIES", "").strip()
+    return {p.strip() for p in raw.split(",") if p.strip()}
+
+
 def _client_ip(request: Request) -> str:
+    """Resolve the rate-limit key IP.
+
+    X-Forwarded-For is attacker-controlled, so it is honored ONLY when the direct
+    socket peer is a configured trusted proxy (``TRIAGE_TRUSTED_PROXIES``);
+    otherwise the socket peer is used. This prevents a client from minting a
+    fresh bucket per request by rotating XFF to defeat the limit. Operators
+    behind the frontend_go proxy must set TRIAGE_TRUSTED_PROXIES to the proxy
+    address so per-user throttling still works.
+    """
+    peer = request.client.host if request.client else "unknown"
     fwd = request.headers.get("x-forwarded-for")
-    if fwd:
+    if fwd and peer in _trusted_proxies():
         return fwd.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    return peer
 
 
 def rate_limit(name: str, *, limit: int, window_seconds: int = 60):

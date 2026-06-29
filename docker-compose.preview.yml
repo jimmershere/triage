@@ -59,7 +59,7 @@ services:
       rmqprev: {condition: service_healthy}
     restart: unless-stopped
   frontendprev:
-    image: triage-frontend_go:latest
+    image: triage-preview-frontend:latest
     environment:
       TRIAGE_API_BASE: http://apiprev:8000
       TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET}

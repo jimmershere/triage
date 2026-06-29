@@ -67,13 +67,6 @@ def test_overlong_value_is_maxlen_error():
     assert "STRUCT.DMG03.MAXLEN" in codes or "STRUCT.DMG03.TYPE" in codes
 
 
-def test_bad_enumerated_value_is_type5_warning():
-    bad = _CLEAN_837P.replace("DMG*D8*19800101*F~", "DMG*D8*19800101*Q~")
-    r = validate_document(bad)
-    hits = [i for i in _struct(r) if i.code == "STRUCT.DMG03.CODESET"]
-    assert hits, "expected a code-set warning on DMG03"
-    assert hits[0].snip_type == SnipType.CODE_SET
-    assert hits[0].severity == Severity.WARNING
 
 
 def test_composite_component_is_validated():

@@ -78,3 +78,29 @@ def test_prod_requires_key(monkeypatch):
         phi_crypto.seal_bytes(b"x")
     with pytest.raises(RuntimeError):
         phi_crypto.seal_text("x")
+
+
+def test_require_secrets_also_requires_phi_key(monkeypatch):
+    monkeypatch.delenv("TRIAGE_PHI_KEK", raising=False)
+    monkeypatch.delenv("TRIAGE_REQUIRE_PHI_ENCRYPTION", raising=False)
+    monkeypatch.setenv("TRIAGE_REQUIRE_SECRETS", "true")
+    with pytest.raises(RuntimeError):
+        phi_crypto.assert_phi_ready()
+    with pytest.raises(RuntimeError):
+        phi_crypto.seal_bytes(b"x")
+
+
+def test_assert_phi_ready_ok_with_key(key_env):
+    phi_crypto.assert_phi_ready()  # key present -> no raise
+
+
+def test_dev_passthrough_collision_guard(monkeypatch):
+    monkeypatch.delenv("TRIAGE_PHI_KEK", raising=False)
+    monkeypatch.delenv("TRIAGE_REQUIRE_SECRETS", raising=False)
+    monkeypatch.delenv("TRIAGE_ENV", raising=False)
+    monkeypatch.delenv("TRIAGE_REQUIRE_PHI_ENCRYPTION", raising=False)
+    # A cleartext value mimicking a sealed token must not be silently corrupted.
+    with pytest.raises(ValueError):
+        phi_crypto.seal_bytes(b"PHI1 looks sealed")
+    with pytest.raises(ValueError):
+        phi_crypto.seal_text("PHI1:looks sealed")

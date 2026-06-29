@@ -50,8 +50,9 @@ from claimtrace.audit import (
 
 try:
     from security import phi_crypto
-except ImportError:  # api image bundles worker_py as a package
+except ModuleNotFoundError:  # api image bundles worker_py as a package
     from worker_py.security import phi_crypto
+phi_crypto.assert_phi_ready()  # fail fast if PHI encryption required but no key
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 # Workstream 3: standardize PHI-safe structured JSON logging with a correlation

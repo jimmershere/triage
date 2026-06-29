@@ -16,8 +16,9 @@ Design goals:
 * **Rotatable**: a ``key id`` is stored in the token; ``TRIAGE_PHI_KEK`` is the
   active key and ``TRIAGE_PHI_KEK_OLD`` (comma-separated ``kid:b64key`` pairs)
   holds retired keys for decryption only.
-* **Fail-closed in prod**: when secrets are required (``TRIAGE_REQUIRE_SECRETS``
-  or ``TRIAGE_ENV=production``) sealing PHI without a key raises rather than
+* **Fail-closed when hardened**: when ``TRIAGE_REQUIRE_SECRETS`` /
+  ``TRIAGE_ENV=production`` / ``TRIAGE_REQUIRE_PHI_ENCRYPTION`` is set, sealing
+  PHI without a key raises (and the app refuses to boot) rather than
   silently writing cleartext. In dev it warns once and passes through.
 
 Token layout (bytes): ``b"PHI1" | kid_len(1) | kid | nonce(12) | ct+tag``.
@@ -44,13 +45,29 @@ _WARNED = False
 
 
 def _require_encryption() -> bool:
-    # Decoupled from the shared-secret requirement: PHI-at-rest encryption is its
-    # own control, enabled explicitly or implied by a production environment.
+    # Fail-closed whenever the deployment is hardened: production, an explicit
+    # PHI flag, OR the general secrets-required flag (compose defaults this true,
+    # and an operator who hardens secrets reasonably expects PHI sealed too).
     return (
-        os.getenv("TRIAGE_ENV", "").strip().lower() in {"prod", "production"}
+        os.getenv("TRIAGE_REQUIRE_SECRETS", "").strip().lower() in {"1", "true", "yes", "on"}
+        or os.getenv("TRIAGE_ENV", "").strip().lower() in {"prod", "production"}
         or os.getenv("TRIAGE_REQUIRE_PHI_ENCRYPTION", "").strip().lower()
         in {"1", "true", "yes", "on"}
     )
+
+
+def assert_phi_ready() -> None:
+    """Fail fast at startup if PHI encryption is required but no key is set.
+
+    Surfaces the misconfiguration at boot instead of as a 500 on the first
+    ingest (or, worse, a silent cleartext write).
+    """
+    if _require_encryption() and _active() is None:
+        raise RuntimeError(
+            "PHI-at-rest encryption is required (TRIAGE_REQUIRE_SECRETS / "
+            "TRIAGE_ENV=production / TRIAGE_REQUIRE_PHI_ENCRYPTION) but "
+            "TRIAGE_PHI_KEK is unset; refusing to start with PHI unprotected."
+        )
 
 
 def _load_key(b64: str) -> bytes:
@@ -113,12 +130,18 @@ def seal_bytes(plaintext: bytes | None) -> bytes | None:
                 "required (TRIAGE_REQUIRE_SECRETS / TRIAGE_ENV=production)."
             )
         _warn_cleartext()
+        if plaintext.startswith(_MAGIC):
+            raise ValueError(
+                "cleartext payload collides with the sealed-token magic; "
+                "configure TRIAGE_PHI_KEK so it is encrypted instead"
+            )
         return plaintext
     kid, key = active
-    nonce = os.urandom(_NONCE_LEN)
-    ct = AESGCM(key).encrypt(nonce, plaintext, None)
     kid_b = kid.encode("utf-8")
-    return _MAGIC + bytes([len(kid_b)]) + kid_b + nonce + ct
+    header = _MAGIC + bytes([len(kid_b)]) + kid_b
+    nonce = os.urandom(_NONCE_LEN)
+    ct = AESGCM(key).encrypt(nonce, plaintext, header)  # header bound as AAD
+    return header + nonce + ct
 
 
 def open_bytes(token: bytes | None) -> bytes | None:
@@ -136,8 +159,9 @@ def open_bytes(token: bytes | None) -> bytes | None:
     key = _keyring().get(kid)
     if key is None:
         raise KeyError(f"no PHI key available for key id {kid!r}")
+    header = token[: len(_MAGIC) + 1 + kid_len]
     try:
-        return AESGCM(key).decrypt(nonce, ct, None)
+        return AESGCM(key).decrypt(nonce, ct, header)  # verifies header AAD
     except InvalidTag as exc:  # tampering / wrong key
         raise ValueError("PHI ciphertext failed authentication (tampered?)") from exc
 
@@ -152,6 +176,11 @@ def seal_text(plaintext: str | None) -> str | None:
                 "TRIAGE_PHI_KEK must be set to store PHI when encryption is required."
             )
         _warn_cleartext()
+        if plaintext.startswith(_TEXT_PREFIX):
+            raise ValueError(
+                "cleartext payload collides with the sealed-token prefix; "
+                "configure TRIAGE_PHI_KEK so it is encrypted instead"
+            )
         return plaintext
     token = seal_bytes(plaintext.encode("utf-8"))
     return _TEXT_PREFIX + base64.b64encode(token).decode("ascii")

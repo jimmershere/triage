@@ -18,6 +18,7 @@ try:
     from security import phi_crypto
 except ModuleNotFoundError:  # api image bundles worker_py as a package
     from worker_py.security import phi_crypto
+phi_crypto.assert_phi_ready()  # fail fast if PHI encryption required but no key
 from psycopg2.extras import Json, execute_batch
 
 try:  # When running as part of the package

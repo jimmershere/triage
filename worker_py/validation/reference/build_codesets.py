@@ -30,7 +30,6 @@ _DESCRIPTIONS = {
     "relationship": "Individual relationship code (SBR02 / X12 DE 1069).",
     "filing_indicator": "Claim filing indicator code (SBR09 / X12 DE 1032).",
     "facility_code_qualifier": "Facility code qualifier (CLM05-02 / X12 DE 1332).",
-    "provider_code": "Provider code (CLM05-01 / X12 DE 1331).",
 }
 
 
