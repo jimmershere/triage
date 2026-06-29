@@ -51,8 +51,19 @@ DATABASE_URL = os.getenv(
 ALLOWED_ORIGINS_RAW = os.getenv("TRIAGE_CORS_ORIGINS", "*")
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
 SHARED_SECRET = os.getenv("TRIAGE_SHARED_SECRET", "").strip()
+# Secrets hygiene: refuse to run open in production rather than silently allowing
+# unauthenticated access to protected routes.
+REQUIRE_SECRETS = (
+    os.getenv("TRIAGE_REQUIRE_SECRETS", "").strip().lower() in {"1", "true", "yes", "on"}
+    or os.getenv("TRIAGE_ENV", "").strip().lower() in {"prod", "production"}
+)
 if not SHARED_SECRET:
-    logger.warning("TRIAGE_SHARED_SECRET is not set; shared-secret protected API routes are open")
+    if REQUIRE_SECRETS:
+        raise RuntimeError(
+            "TRIAGE_SHARED_SECRET must be set when TRIAGE_REQUIRE_SECRETS is true "
+            "or TRIAGE_ENV=production; refusing to start with protected routes open."
+        )
+    logger.warning("TRIAGE_SHARED_SECRET is not set; protected API routes are OPEN (dev only)")
 PASSWORD_ITERATIONS = int(os.getenv("TRIAGE_PASSWORD_ITERATIONS", "180000"))
 PASSWORD_SCHEME = "pbkdf2_sha256"
 MIN_PASSWORD_LENGTH = int(os.getenv("TRIAGE_MIN_PASSWORD_LENGTH", "8"))
@@ -421,6 +432,8 @@ def row_to_user(row) -> Optional[dict]:
 
 def require_secret(header_value: Optional[str] = Header(None, alias="X-TRIAGE-SECRET")):
     if not SHARED_SECRET:
+        if REQUIRE_SECRETS:
+            raise HTTPException(status_code=503, detail="server misconfigured: shared secret unset")
         return
     if header_value is None or not secrets.compare_digest(header_value, SHARED_SECRET):
         raise HTTPException(status_code=401, detail="unauthorized")

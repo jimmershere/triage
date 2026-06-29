@@ -17,7 +17,7 @@ services:
     container_name: ${TRIAGE_POSTGRES_CONTAINER:-triage_postgres_1}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-edi}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD - no insecure default}
       POSTGRES_DB: ${POSTGRES_DB:-edi}
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
     ports:
@@ -49,7 +49,7 @@ services:
       - "${RABBITMQ_MGMT_HOST_PORT:-35672}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-ediapp}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-3wm078uu}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?set RABBITMQ_DEFAULT_PASS}
       RABBITMQ_DEFAULT_VHOST: ${RMQ_VHOST:-/}
     healthcheck:
       test: ["CMD-SHELL", "rabbitmq-diagnostics ping"]
@@ -68,11 +68,12 @@ services:
     env_file:
       - ./.env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://edi:edi@postgres:5432/edi?sslmode=disable}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://ediapp:3wm078uu@rabbitmq:5672/}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL:?set RABBITMQ_URL}
       RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
       ARCHIVE_DIR: ${ARCHIVE_DIR:-/archive}
-      TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-change-me}
+      TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:?set TRIAGE_SHARED_SECRET}
+      TRIAGE_REQUIRE_SECRETS: ${TRIAGE_REQUIRE_SECRETS:-true}
       TRIAGE_CORS_ORIGINS: "${TRIAGE_CORS_ORIGINS:-*}"
     ports:
       - "${API_PORT:-8000}:8000"
@@ -95,12 +96,12 @@ services:
     env_file:
       - ./.env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://edi:edi@postgres:5432/edi?sslmode=disable}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://ediapp:3wm078uu@rabbitmq:5672/}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL:?set RABBITMQ_URL}
       RMQ_HOST: ${RMQ_HOST:-rabbitmq}
       RMQ_PORT: "${RMQ_PORT:-5672}"
       RMQ_USER: ${RMQ_USER:-ediapp}
-      RMQ_PASS: ${RMQ_PASS:-3wm078uu}
+      RMQ_PASS: ${RMQ_PASS:?set RMQ_PASS}
       RMQ_VHOST: ${RMQ_VHOST:-/}
       RMQ_QUEUE: ${RMQ_QUEUE:-edi_files}
       RMQ_ACKS_QUEUE: ${RMQ_ACKS_QUEUE:-acks}
@@ -123,8 +124,8 @@ services:
     container_name: ${TRIAGE_FRONTEND_CONTAINER:-triage_frontend_go_1}
     environment:
       TRIAGE_API_BASE: ${TRIAGE_API_BASE:-http://api:8000}
-      TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET:-change-me-in-prod}
-      TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-change-me}
+      TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET:?set TRIAGE_SESSION_SECRET}
+      TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:?set TRIAGE_SHARED_SECRET}
       TRIAGE_OAUTH2_PROXY_URL: ${TRIAGE_OAUTH2_PROXY_URL:-http://rbac:4180}
       TRIAGE_OAUTH2_PROXY_INTERNAL_URL: ${TRIAGE_OAUTH2_PROXY_INTERNAL_URL:-http://rbac:4180}
       TRIAGE_OAUTH2_START: ${TRIAGE_OAUTH2_START:-/oauth2/start}
@@ -146,8 +147,8 @@ services:
       - ./.env
     environment:
       RBAC_API_BASE: ${RBAC_API_BASE:-http://api:8000}
-      RBAC_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:-change-me}
-      TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET:-change-me-in-prod}
+      RBAC_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:?set TRIAGE_SHARED_SECRET}
+      TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET:?set TRIAGE_SESSION_SECRET}
       RBAC_COOKIE_SECURE: ${RBAC_COOKIE_SECURE:-false}
     ports:
       - "${RBAC_PORT:-4180}:4180"
@@ -162,8 +163,8 @@ services:
     environment:
       LDAP_ORGANISATION: "${LDAP_ORGANISATION:-Triage}"
       LDAP_DOMAIN: ${LDAP_DOMAIN:-example.com}
-      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-3wm078uu}
-      LDAP_CONFIG_PASSWORD: ${LDAP_CONFIG_PASSWORD:-3wm078uu}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:?set LDAP_ADMIN_PASSWORD}
+      LDAP_CONFIG_PASSWORD: ${LDAP_CONFIG_PASSWORD:?set LDAP_CONFIG_PASSWORD}
       LDAP_TLS: "${LDAP_TLS:-true}"
       LDAP_TLS_CRT_FILENAME: "${LDAP_TLS_CRT_FILENAME:-ldap.crt}"
       LDAP_TLS_KEY_FILENAME: "${LDAP_TLS_KEY_FILENAME:-ldap.key}"
