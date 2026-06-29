@@ -1,0 +1,22 @@
+{
+  "codeset": "carc",
+  "version_label": "2025-11-01",
+  "source_effective_date": "2025-11-01",
+  "publication_date": "2025-11-01",
+  "implementation_date": "2026-01-05",
+  "complete": false,
+  "values": [
+    {"code": "1", "description": "Deductible Amount", "status": "active"},
+    {"code": "2", "description": "Coinsurance Amount", "status": "active"},
+    {"code": "3", "description": "Co-payment Amount", "status": "active"},
+    {"code": "16", "description": "Claim/service lacks information or has submission/billing error(s).", "status": "active"},
+    {"code": "18", "description": "Exact duplicate claim/service.", "status": "active"},
+    {"code": "22", "description": "This care may be covered by another payer per coordination of benefits.", "status": "active"},
+    {"code": "45", "description": "Charge exceeds fee schedule/maximum allowable or contracted/legislated fee arrangement.", "status": "active"},
+    {"code": "96", "description": "Non-covered charge(s).", "status": "active"},
+    {"code": "97", "description": "The benefit for this service is included in the payment/allowance for another service that has already been adjudicated.", "status": "active"},
+    {"code": "181", "description": "Procedure code was invalid on the date of service.", "status": "active"},
+    {"code": "204", "description": "This service/equipment/drug is not covered under the patient's current benefit plan.", "status": "active"},
+    {"code": "111", "description": "Not covered unless the provider accepts assignment (deactivated).", "valid_from": "2015-01-01", "valid_to": "2025-10-31", "status": "deactivated"}
+  ]
+}

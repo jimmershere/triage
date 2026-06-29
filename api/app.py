@@ -25,10 +25,39 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from . import ldap_utils
+try:
+    from .security_deps import require_role, rate_limit
+except ImportError:  # pragma: no cover - api image flat layout
+    from security_deps import require_role, rate_limit  # type: ignore
 
+# Server-side authorization + rate limiting. Role enforcement is opt-in via
+# TRIAGE_ENFORCE_ROLES / TRIAGE_ENV=production (the frontend_go proxy injects
+# X-TRIAGE-ROLE); rate limits are per-process and env-overridable.
+_RL_LOGIN = rate_limit("login", limit=10, window_seconds=60)
+_RL_INGEST = rate_limit("ingest", limit=60, window_seconds=60)
+_ROLE_ADMIN = require_role("administrator")
+_ROLE_SUBMIT = require_role("submit")
+
+from claimtrace.audit import (
+    CORRELATION_HEADER,
+    bind_correlation_id,
+    configure_structured_logging,
+    get_correlation_id,
+    log_event,
+    new_correlation_id,
+    reset_correlation_id,
+)
+
+try:
+    from security import phi_crypto
+except ModuleNotFoundError:  # api image bundles worker_py as a package
+    from worker_py.security import phi_crypto
+phi_crypto.assert_phi_ready()  # fail fast if PHI encryption required but no key
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
+# Workstream 3: standardize PHI-safe structured JSON logging with a correlation
+# id propagated across api -> worker -> claimtrace.
+configure_structured_logging("triage-api", level=LOG_LEVEL)
 logger = logging.getLogger("api")
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
@@ -39,8 +68,19 @@ DATABASE_URL = os.getenv(
 ALLOWED_ORIGINS_RAW = os.getenv("TRIAGE_CORS_ORIGINS", "*")
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
 SHARED_SECRET = os.getenv("TRIAGE_SHARED_SECRET", "").strip()
+# Secrets hygiene: refuse to run open in production rather than silently allowing
+# unauthenticated access to protected routes.
+REQUIRE_SECRETS = (
+    os.getenv("TRIAGE_REQUIRE_SECRETS", "").strip().lower() in {"1", "true", "yes", "on"}
+    or os.getenv("TRIAGE_ENV", "").strip().lower() in {"prod", "production"}
+)
 if not SHARED_SECRET:
-    logger.warning("TRIAGE_SHARED_SECRET is not set; shared-secret protected API routes are open")
+    if REQUIRE_SECRETS:
+        raise RuntimeError(
+            "TRIAGE_SHARED_SECRET must be set when TRIAGE_REQUIRE_SECRETS is true "
+            "or TRIAGE_ENV=production; refusing to start with protected routes open."
+        )
+    logger.warning("TRIAGE_SHARED_SECRET is not set; protected API routes are OPEN (dev only)")
 PASSWORD_ITERATIONS = int(os.getenv("TRIAGE_PASSWORD_ITERATIONS", "180000"))
 PASSWORD_SCHEME = "pbkdf2_sha256"
 MIN_PASSWORD_LENGTH = int(os.getenv("TRIAGE_MIN_PASSWORD_LENGTH", "8"))
@@ -117,6 +157,37 @@ except ImportError:  # tests / direct script invocation without package context
     import claimtrace_service  # type: ignore
 register_claimtrace_routes(app, lambda: get_db())
 
+# Normalized trading-partner management (Workstream 6).
+try:
+    from .partners_routes import register as register_partners_routes
+    from . import partners_service
+except ImportError:  # tests / direct script invocation without package context
+    from partners_routes import register as register_partners_routes  # type: ignore
+    import partners_service  # type: ignore
+register_partners_routes(app, lambda: get_db())
+
+# Workstream 5 — 835 restore: immutable storage, re-delivery, reconstruction,
+# reversal. Workstream 4 — operational helpdesk: case management over rejections.
+try:
+    from .era_routes import register as register_era_routes
+    from . import era_service
+    from .helpdesk_routes import register as register_helpdesk_routes
+    from . import helpdesk_service
+except ImportError:  # tests / direct script invocation without package context
+    from era_routes import register as register_era_routes  # type: ignore
+    import era_service  # type: ignore
+    from helpdesk_routes import register as register_helpdesk_routes  # type: ignore
+    import helpdesk_service  # type: ignore
+register_era_routes(app, lambda: get_db(), lambda message: publish_era_job(message))
+register_helpdesk_routes(app, lambda: get_db())
+
+# Workstream 1: advisory mapping-suggestion service (human-approval queue).
+try:
+    from .mapping_routes import register as register_mapping_routes, ensure_mapping_tables
+except ImportError:  # tests / direct script invocation without package context
+    from mapping_routes import register as register_mapping_routes, ensure_mapping_tables  # type: ignore
+register_mapping_routes(app, lambda: get_db())
+
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
 
@@ -127,6 +198,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request, call_next):
+    """Bind a correlation id for the request and echo it on the response.
+
+    The id is taken from the inbound ``X-Correlation-ID`` header when present
+    (so an upstream caller / the worker can continue an existing lineage) and
+    otherwise generated. Only the request *path* is logged — never the query
+    string — to keep PHI out of the audit stream.
+    """
+    correlation_id = request.headers.get(CORRELATION_HEADER) or new_correlation_id()
+    token = bind_correlation_id(correlation_id)
+    try:
+        log_event(
+            logger,
+            "http_request",
+            method=request.method,
+            path=request.url.path,
+        )
+        response = await call_next(request)
+        response.headers[CORRELATION_HEADER] = correlation_id
+        log_event(
+            logger,
+            "http_response",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+        )
+        return response
+    except Exception:
+        logger.exception("Unhandled error while processing request")
+        raise
+    finally:
+        reset_correlation_id(token)
 
 db_pool: Optional[pool.SimpleConnectionPool] = None
 
@@ -142,12 +248,55 @@ def run_startup_migrations() -> None:
             ensure_app_users(conn)
             ensure_x12_addon_tables(conn)
             ensure_partner_configs_table(conn)
+            partners_service.ensure_partner_tables(conn)
+            ensure_mapping_tables(conn)
             if claimtrace_service.claimtrace_enabled():
                 claimtrace_service.ensure_claimtrace_tables(conn)
+                if era_service.era_enabled():
+                    era_service.ensure_era_tables(conn)
+                if helpdesk_service.helpdesk_enabled():
+                    helpdesk_service.ensure_helpdesk_tables(conn)
             ensure_ldap_bootstrap(conn)
     except Exception:
         logger.exception("Failed to run startup migrations")
         raise
+    _bootstrap_codeset_registry()
+
+
+def _bootstrap_codeset_registry() -> None:
+    """Load the effective-dated code-set registry (Workstream 2).
+
+    Seeds the in-process registry from bundled versions, persists them to the
+    codeset_* tables when a DB is reachable, then activates a DB-backed registry
+    so SNIP type 5 + CMS scrubbing resolve codes by service date. Best-effort:
+    failures here never block API startup (validation falls back to format
+    checks when no registry is active).
+    """
+    try:
+        from validation.codesets.db import (
+            ensure_codeset_tables,
+            load_active_registry,
+            persist_version,
+        )
+        from validation.codesets.loader_service import load_seed_versions
+        from validation.codesets.registry import set_active_registry
+
+        seeded = load_seed_versions()
+        set_active_registry(seeded)
+        try:
+            with get_db() as conn:
+                ensure_codeset_tables(conn)
+                for codeset in seeded.codesets():
+                    for version in seeded.versions(codeset):
+                        persist_version(conn, version)
+                set_active_registry(load_active_registry(conn))
+        except Exception:
+            logger.warning(
+                "Code-set DB persistence unavailable; using bundled seed registry",
+                exc_info=True,
+            )
+    except Exception:
+        logger.exception("Failed to bootstrap code-set registry")
 
 
 def get_pool() -> pool.SimpleConnectionPool:
@@ -300,6 +449,8 @@ def row_to_user(row) -> Optional[dict]:
 
 def require_secret(header_value: Optional[str] = Header(None, alias="X-TRIAGE-SECRET")):
     if not SHARED_SECRET:
+        if REQUIRE_SECRETS:
+            raise HTTPException(status_code=503, detail="server misconfigured: shared secret unset")
         return
     if header_value is None or not secrets.compare_digest(header_value, SHARED_SECRET):
         raise HTTPException(status_code=401, detail="unauthorized")
@@ -918,6 +1069,33 @@ def get_channel():
     return connection, ch
 
 
+ERA_JOBS_QUEUE = os.getenv("RMQ_ERA_QUEUE", "era_jobs")
+
+
+def publish_era_job(message: dict) -> None:
+    """Publish an ``era.redeliver`` / ``era.reconstruct`` job to RabbitMQ.
+
+    Used by the ``/era/jobs`` endpoint so re-delivery and reconstruction can be
+    processed asynchronously by the ERA worker consumer.
+    """
+    params = pika.URLParameters(RABBITMQ_URL)
+    connection = pika.BlockingConnection(params)
+    try:
+        ch = connection.channel()
+        ch.queue_declare(queue=ERA_JOBS_QUEUE, durable=True)
+        ch.basic_publish(
+            exchange="",
+            routing_key=ERA_JOBS_QUEUE,
+            body=json.dumps(message).encode("utf-8"),
+            properties=pika.BasicProperties(delivery_mode=2),
+        )
+    finally:
+        try:
+            connection.close()
+        except Exception:
+            pass
+
+
 def sanitize_filename_component(value: str, fallback: str = "file") -> str:
     cleaned = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in (value or ""))
     cleaned = cleaned.strip("._")
@@ -1102,7 +1280,7 @@ async def broadcast_job_update(
 
 
 @app.post("/auth/login")
-def api_login(payload: LoginRequest, _: None = Depends(require_secret)):
+def api_login(payload: LoginRequest, _: None = Depends(require_secret), _rl: None = Depends(_RL_LOGIN)):
     username = (payload.username or "").strip()
     if not username:
         raise HTTPException(status_code=400, detail="username required")
@@ -1251,7 +1429,7 @@ def create_user_impl(payload: UserCreate) -> dict:
 
 
 @app.post("/admin/users")
-def api_create_user(payload: UserCreate, _: None = Depends(require_secret)):
+def api_create_user(payload: UserCreate, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return create_user_impl(payload)
 
 
@@ -1310,7 +1488,7 @@ def update_user_impl(username: str, payload: UserUpdate) -> dict:
 
 
 @app.put("/admin/users/{username}")
-def api_update_user(username: str, payload: UserUpdate, _: None = Depends(require_secret)):
+def api_update_user(username: str, payload: UserUpdate, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return update_user_impl(username, payload)
 
 
@@ -1331,7 +1509,7 @@ def delete_user_impl(username: str) -> dict:
 
 
 @app.delete("/admin/users/{username}")
-def api_delete_user(username: str, _: None = Depends(require_secret)):
+def api_delete_user(username: str, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return delete_user_impl(username)
 
 
@@ -1341,17 +1519,17 @@ def api_list_users_admin(_: None = Depends(require_secret)):
 
 
 @app.post("/admin/api/users")
-def api_create_user_admin(payload: UserCreate, _: None = Depends(require_secret)):
+def api_create_user_admin(payload: UserCreate, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return create_user_impl(payload)
 
 
 @app.put("/admin/api/users/{username}")
-def api_update_user_admin(username: str, payload: UserUpdate, _: None = Depends(require_secret)):
+def api_update_user_admin(username: str, payload: UserUpdate, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return update_user_impl(username, payload)
 
 
 @app.delete("/admin/api/users/{username}")
-def api_delete_user_admin(username: str, _: None = Depends(require_secret)):
+def api_delete_user_admin(username: str, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return delete_user_impl(username)
 
 
@@ -1361,6 +1539,8 @@ async def ingest(
     uploaded_by: Optional[str] = Form(default=None),
     trading_partner_id: Optional[str] = Form(default=None),
     _: None = Depends(require_secret),
+    _rl: None = Depends(_RL_INGEST),
+    _role: None = Depends(_ROLE_SUBMIT),
 ):
     import_id: Optional[int] = None
     start_time = time.perf_counter()
@@ -1376,12 +1556,19 @@ async def ingest(
         filename = file.filename or "upload.dat"
         size = len(content)
 
-        logger.info(
-            "Received upload filename=%s size=%s uploaded_by=%s partner=%s",
-            filename,
-            size,
-            uploaded_by,
-            trading_partner_id,
+        # The Claimtrace lineage trace id equals the job id, so bind the request
+        # correlation id to the job id: every downstream event (worker, RMQ ack,
+        # claimtrace journal) shares this id and can be reconstructed end-to-end.
+        correlation_id = str(job_uuid)
+        bind_correlation_id(correlation_id)
+
+        log_event(
+            logger,
+            "ingest_received",
+            job_id=str(job_uuid),
+            byte_size=size,
+            uploaded_by=uploaded_by,
+            trading_partner_id=trading_partner_id,
         )
 
         with get_db() as conn:
@@ -1399,7 +1586,7 @@ async def ingest(
                         size,
                         uploaded_by,
                         trading_partner_id,
-                        psycopg2.Binary(content),
+                        psycopg2.Binary(phi_crypto.seal_bytes(content)),
                         "queued",
                     ),
                 )
@@ -1430,6 +1617,9 @@ async def ingest(
             "size": size,
             "uploaded_by": uploaded_by,
             "trading_partner_id": trading_partner_id,
+            # Propagate the correlation id across the RabbitMQ hop so the worker
+            # continues the same lineage rather than starting a fresh one.
+            "correlation_id": correlation_id,
             "data_b64": base64.b64encode(content).decode("ascii"),
         }
         payload_bytes = json.dumps(payload).encode("utf-8")
@@ -1441,7 +1631,11 @@ async def ingest(
                 exchange="",
                 routing_key=RMQ_QUEUE,
                 body=payload_bytes,
-                properties=pika.BasicProperties(delivery_mode=2),
+                properties=pika.BasicProperties(
+                    delivery_mode=2,
+                    correlation_id=correlation_id,
+                    headers={CORRELATION_HEADER: correlation_id},
+                ),
             )
         finally:
             connection.close()
@@ -1621,7 +1815,7 @@ async def job_detail(job_id: str, _: None = Depends(require_secret)):
         ClaimArtifact(
             claim_id=row.get("claim_id"),
             amount=str(row.get("amount")) if row.get("amount") is not None else None,
-            raw_claim=row.get("raw_claim"),
+            raw_claim=phi_crypto.open_text(row.get("raw_claim")),
             claim_status_code=row.get("claim_status_code"),
             cms_projection_json=row.get("cms_projection_json"),
         )
@@ -1642,7 +1836,8 @@ async def job_detail(job_id: str, _: None = Depends(require_secret)):
         if isinstance(item, dict)
     ]
     raw_payload_text = None
-    raw_bytes = base.get("original_content")
+    _ob = base.get("original_content")
+    raw_bytes = phi_crypto.open_bytes(bytes(_ob)) if _ob is not None else None
     if raw_bytes is not None:
         try:
             raw_payload_text = bytes(raw_bytes).decode("utf-8", errors="replace")[:25000]
@@ -1800,7 +1995,7 @@ async def download_original(job_id: str, _: None = Depends(require_secret)):
         raise HTTPException(status_code=404, detail="Original file not stored")
 
     filename, data = row[0], row[1]
-    buffer = BytesIO(bytes(data))
+    buffer = BytesIO(phi_crypto.open_bytes(bytes(data)))
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return StreamingResponse(buffer, media_type="application/octet-stream", headers=headers)
 
@@ -2242,7 +2437,7 @@ async def get_partner(partner_id: str, _: None = Depends(require_secret)):
 
 
 @app.post("/partners", status_code=201)
-async def create_partner(payload: PartnerConfig, _: None = Depends(require_secret)):
+async def create_partner(payload: PartnerConfig, _: None = Depends(require_secret), _role: None = Depends(_ROLE_SUBMIT)):
     with get_db() as conn:
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -2273,7 +2468,7 @@ async def create_partner(payload: PartnerConfig, _: None = Depends(require_secre
 
 @app.put("/partners/{partner_id}")
 async def update_partner(
-    partner_id: str, payload: PartnerConfig, _: None = Depends(require_secret)
+    partner_id: str, payload: PartnerConfig, _: None = Depends(require_secret), _role: None = Depends(_ROLE_SUBMIT)
 ):
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -2308,7 +2503,7 @@ async def update_partner(
 
 
 @app.delete("/partners/{partner_id}")
-async def delete_partner(partner_id: str, _: None = Depends(require_secret)):
+async def delete_partner(partner_id: str, _: None = Depends(require_secret), _role: None = Depends(_ROLE_SUBMIT)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(

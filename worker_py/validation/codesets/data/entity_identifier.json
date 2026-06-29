@@ -1,7 +1,7 @@
 {
   "name": "entity_identifier",
-  "description": "X12 Entity Identifier Codes (element 98, NM101) relevant to healthcare claim, remittance, eligibility and status transactions.",
-  "source": "X12 element 98 — curated healthcare subset",
+  "description": "Entity identifier code (NM101 / X12 DE 98).",
+  "source": "WPC/DISA 005010X222 (837P) implementation-guide enumeration (union with prior curation); imported via validation.reference",
   "complete": false,
   "codes": {
     "1P": "Provider",
@@ -26,6 +26,8 @@
     "P5": "Plan Sponsor",
     "PE": "Payee",
     "PR": "Payer",
+    "PW": "Pickup Address",
+    "QB": "Purchase Service Provider",
     "QC": "Patient",
     "QD": "Responsible Party",
     "TT": "Transfer To",

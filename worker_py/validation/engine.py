@@ -25,6 +25,7 @@ from .rules import (
     guide_claim_status,
     guide_eligibility,
     snip5_codeset,
+    structure,
 )
 
 # Transaction set -> implementation-guide validator. Each validator takes a
@@ -65,11 +66,18 @@ def validate_document(
     *,
     source: str = "<memory>",
     expected_transaction: str | None = None,
+    policy: "object | None" = None,
 ) -> ValidationReport:
-    """Validate raw X12 text and return a :class:`ValidationReport`."""
+    """Validate raw X12 text and return a :class:`ValidationReport`.
+
+    When ``policy`` is supplied (a :class:`validation.policy.SnipPolicy` or the
+    name of a built-in policy) the per-partner SNIP severity toggles are applied
+    to the finished report — downgrading or silencing findings per the partner's
+    configured leniency. The default (``None``) leaves every finding strict.
+    """
     doc = parse(text, source=source)
     return validate_parsed(
-        doc, source=source, expected_transaction=expected_transaction
+        doc, source=source, expected_transaction=expected_transaction, policy=policy
     )
 
 
@@ -78,6 +86,7 @@ def validate_parsed(
     *,
     source: str = "<memory>",
     expected_transaction: str | None = None,
+    policy: "object | None" = None,
 ) -> ValidationReport:
     """Validate an already-parsed :class:`X12Document`.
 
@@ -128,6 +137,8 @@ def validate_parsed(
         claims = guide(txn, report)
         report.claims.extend(claims)
         ran_guide = True
+        # Workstream 2 keystone: table-driven TR3 structural validation.
+        structure.validate_structure(txn, report)
 
     report.claim_count = len(report.claims)
 
@@ -138,6 +149,12 @@ def validate_parsed(
     report.snip_levels_run = (
         _CLAIM_SNIP_LEVELS if ran_guide else _ENVELOPE_SNIP_LEVELS
     )
+
+    if policy is not None:
+        from .policy import apply_policy
+
+        apply_policy(report, policy)
+
     return report
 
 

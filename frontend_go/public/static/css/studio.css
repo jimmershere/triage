@@ -610,3 +610,41 @@ details[open] > .palette-toggle::before {
     grid-template-columns: 1fr;
   }
 }
+
+/* Mapping Advisor (Workstream 1) — advisory human-approval queue */
+.advisor-queue-panel { margin-top: 1.5rem; }
+.advisor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+}
+.advisor-card {
+  background: var(--panel-bg, rgba(255,255,255,0.02));
+  border: 1px solid var(--panel-border, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+}
+.advisor-input { width: 100%; min-height: 84px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; resize: vertical; }
+.advisor-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.advisor-check { display: inline-flex; align-items: center; gap: 0.4rem; }
+.advisor-actions { margin: 0.75rem 0; }
+.advisor-summary { font-size: 0.9rem; }
+.advisor-queue, .advisor-rules { list-style: none; margin: 0.5rem 0 1rem; padding: 0; display: grid; gap: 0.6rem; }
+.advisor-item {
+  border: 1px solid var(--panel-border, rgba(255,255,255,0.08));
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+}
+.advisor-item-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
+.advisor-badge { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.1rem 0.5rem; border-radius: 999px; }
+.advisor-badge--mapping { background: rgba(80,160,255,0.18); color: #7db8ff; }
+.advisor-badge--validation { background: rgba(255,170,70,0.18); color: #ffba6b; }
+.advisor-confidence { font-weight: 700; }
+.advisor-item-summary { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; }
+.advisor-item-meta { font-size: 0.75rem; }
+.advisor-item-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.advisor-rule { display: flex; gap: 0.6rem; align-items: baseline; font-size: 0.8rem; }
+.advisor-rule-version { font-weight: 700; color: #7db8ff; }
+.advisor-rule-key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.advisor-empty { font-size: 0.85rem; }
+@media (max-width: 900px) { .advisor-grid { grid-template-columns: 1fr; } }

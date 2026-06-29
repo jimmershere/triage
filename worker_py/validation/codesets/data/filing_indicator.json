@@ -1,7 +1,7 @@
 {
   "name": "filing_indicator",
-  "description": "Claim filing indicator codes (X12 element 1032, SBR09).",
-  "source": "X12 element 1032",
+  "description": "Claim filing indicator code (SBR09 / X12 DE 1032).",
+  "source": "WPC/DISA 005010X222 (837P) implementation-guide enumeration (union with prior curation); imported via validation.reference",
   "complete": true,
   "codes": {
     "09": "Self-pay",

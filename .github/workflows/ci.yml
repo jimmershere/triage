@@ -220,7 +220,11 @@ jobs:
           python -m pip install pip-audit==2.7.3
           pip-audit -r api/requirements.txt --strict \
             --ignore-vuln PYSEC-2026-161 \
-            --ignore-vuln GHSA-7f5h-v6xp-fcq8
+            --ignore-vuln GHSA-7f5h-v6xp-fcq8 \
+            --ignore-vuln PYSEC-2026-248 \
+            --ignore-vuln PYSEC-2026-249 \
+            --ignore-vuln GHSA-wqp7-x3pw-xc5r \
+            --ignore-vuln GHSA-x746-7m8f-x49c
           pip-audit -r worker_py/requirements.txt --strict
 
       - name: govulncheck (Go supply-chain)

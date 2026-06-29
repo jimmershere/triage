@@ -1,0 +1,9 @@
+{
+  "name": "facility_code_qualifier",
+  "description": "Facility code qualifier (CLM05-02 / X12 DE 1332).",
+  "source": "WPC/DISA 005010X222 (837P) implementation-guide enumeration (union with prior curation); imported via validation.reference",
+  "complete": true,
+  "codes": {
+    "B": "Place of Service Codes for Professional or Dental Services"
+  }
+}

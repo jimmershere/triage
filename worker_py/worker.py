@@ -14,6 +14,11 @@ from pathlib import Path
 import pika
 import psycopg2
 from dotenv import load_dotenv
+try:
+    from security import phi_crypto
+except ModuleNotFoundError:  # api image bundles worker_py as a package
+    from worker_py.security import phi_crypto
+phi_crypto.assert_phi_ready()  # fail fast if PHI encryption required but no key
 from psycopg2.extras import Json, execute_batch
 
 try:  # When running as part of the package
@@ -24,6 +29,7 @@ try:  # When running as part of the package
     from worker_py.routing_engine import route_file, TIER_LABELS
     from worker_py.tier_executor import execute_tier, TierResult
     from worker_py.turbo_pipeline import run_pipeline as turbo_run_pipeline
+    from worker_py import audit_log
 except ModuleNotFoundError:  # When executed from the worker directory directly
     from tools_x12_cms_harness import parse_x12, run_harness
     from translators import AckRecord, select_translator, TranslationOutcome
@@ -32,11 +38,15 @@ except ModuleNotFoundError:  # When executed from the worker directory directly
     from routing_engine import route_file, TIER_LABELS
     from tier_executor import execute_tier, TierResult
     from turbo_pipeline import run_pipeline as turbo_run_pipeline
+    import audit_log
 
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
+# Workstream 3: PHI-safe structured JSON logging with a correlation id that is
+# continued from the API across the RabbitMQ hop (see audit_log).
+audit_log.configure_structured_logging("triage-worker", level=LOG_LEVEL)
 logger = logging.getLogger("worker")
+CORRELATION_HEADER = audit_log.CORRELATION_HEADER
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 DATABASE_URL = os.getenv(
@@ -49,6 +59,48 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
 # Disabled defensively if a deployment hits an unexpected issue — the legacy
 # harness + routing flow above is unaffected either way.
 TURBO_PIPELINE_ENABLED = os.getenv("TURBO_PIPELINE_ENABLED", "1") not in ("0", "false", "no")
+
+# --- Sharded swarm path for large multipart EDI payloads -------------------
+# When a payload is at least TURBO_SWARM_MIN_BYTES, route the turbo
+# validation/scrubbing through swarms.SwarmCoordinator so independent ST
+# transactions (and claim batches) fan out across an engine pool instead of a
+# single pass. Falls back to the single-pass pipeline for smaller files or on
+# any error so ingest is never blocked.
+#
+# Defaults OFF: the swarm path is opt-in. The live deployment leaves it disabled
+# (docker-compose.override.yml sets TURBO_SWARM_ENABLED=0 — "Swarm path left
+# off") in favour of horizontal worker scaling, so the default-off here keeps
+# behaviour identical while preserving the capability for explicit opt-in.
+TURBO_SWARM_ENABLED = os.getenv("TURBO_SWARM_ENABLED", "0") not in ("0", "false", "no")
+TURBO_SWARM_MIN_BYTES = int(os.getenv("TURBO_SWARM_MIN_BYTES", str(10 * 1024 * 1024)))
+TURBO_SWARM_POOL = os.getenv("TURBO_SWARM_POOL", "process")
+TURBO_SWARM_WORKERS = int(os.getenv("TURBO_SWARM_WORKERS", "8"))
+
+
+def _run_turbo(text):
+    """Run turbo validation/scrub; swarm large multipart payloads."""
+    try:
+        size = len(text.encode("utf-8", "ignore"))
+    except Exception:
+        size = len(text)
+    if TURBO_SWARM_ENABLED and size >= TURBO_SWARM_MIN_BYTES:
+        try:
+            from swarms import EnginePool, SwarmCoordinator
+            coord = SwarmCoordinator(
+                thread_pool=EnginePool(mode=TURBO_SWARM_POOL, max_workers=TURBO_SWARM_WORKERS),
+                process_pool=EnginePool(mode=TURBO_SWARM_POOL, max_workers=TURBO_SWARM_WORKERS),
+            )
+            res = coord.run(text, scrub=True, to_fhir=False, generate_acks=False)
+            logger.info(
+                "Turbo SWARM path: %d bytes shards=%s workers=%s pool=%s",
+                size, getattr(res, "shard_count", "?"),
+                getattr(res, "parallel_workers", "?"), TURBO_SWARM_POOL,
+            )
+            return res
+        except Exception:
+            logger.exception("Swarm path failed; falling back to single-pass turbo")
+    return turbo_run_pipeline(text, scrub=True)
+
 
 def get_rmq_channel():
     """
@@ -508,7 +560,7 @@ def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: in
             filename,
             ftype,
             size,
-            psycopg2.Binary(raw),
+            psycopg2.Binary(phi_crypto.seal_bytes(raw)),
             uploaded_by,
             trading_partner_id,
         ),
@@ -659,7 +711,7 @@ def process_payload(payload: dict):
             if TURBO_PIPELINE_ENABLED and ftype.startswith('X12'):
                 try:
                     turbo_start = time.perf_counter()
-                    turbo = turbo_run_pipeline(text, scrub=True)
+                    turbo = _run_turbo(text)
                     persist_audit_event(
                         cur, import_id, 'turbo_validation',
                         {
@@ -879,7 +931,7 @@ def process_payload(payload: dict):
                             import_id,
                             claim_id,
                             amount,
-                            claim.get("raw"),
+                            phi_crypto.seal_text(claim.get("raw")),
                             Json(projection_json) if projection_json is not None else None,
                             validation_status if harness_report is not None else None,
                         )
@@ -1031,31 +1083,98 @@ def process_payload(payload: dict):
 
     return ftype, size, import_id
 
+def bootstrap_codeset_registry():
+    """Activate the effective-dated code-set registry (Workstream 2).
+
+    Loads the bundled seed versions into the process-wide registry so SNIP type 5
+    and CMS scrubbing resolve external codes by the claim's service date. When a
+    DB is reachable the persisted versions take precedence. Best-effort: a
+    failure leaves validation to fall back to structural/format checks.
+    """
+    try:
+        from validation.codesets.loader_service import load_seed_versions
+        from validation.codesets.registry import set_active_registry
+
+        registry = load_seed_versions()
+        try:
+            from validation.codesets.db import (
+                ensure_codeset_tables,
+                load_active_registry,
+                persist_version,
+            )
+
+            with closing(get_db()) as conn:
+                ensure_codeset_tables(conn)
+                for codeset in registry.codesets():
+                    for version in registry.versions(codeset):
+                        persist_version(conn, version)
+                registry = load_active_registry(conn)
+        except Exception:
+            logger.warning("Code-set DB persistence unavailable; using seed registry", exc_info=True)
+        set_active_registry(registry)
+        logger.info("Code-set registry active: %s", registry.codesets())
+    except Exception:
+        logger.exception("Failed to bootstrap code-set registry")
+
+
+def handle_ack_generate_message(payload: dict) -> dict:
+    """Build the configured acknowledgements for an ``ack.generate`` message."""
+    from validation.acks import handle_ack_generate
+
+    return handle_ack_generate(payload)
+
+
 def main():
     run_startup_migrations()
+    bootstrap_codeset_registry()
 
     conn, ch = get_rmq_channel()
     rmq_queue = os.environ.get("RMQ_QUEUE", "edi_files")
     acks_queue = os.environ.get("RMQ_ACKS_QUEUE", "acks")
+    ack_generate_queue = os.environ.get("RMQ_ACK_GENERATE_QUEUE", "ack.generate")
 
-    # Ensure both queues exist & are durable
+    # Ensure queues exist & are durable
     ch.queue_declare(queue=rmq_queue, durable=True)
     ch.queue_declare(queue=acks_queue, durable=True)
+    ch.queue_declare(queue=ack_generate_queue, durable=True)
 
     logger.info("Worker connected. Consuming from %s, publishing acks to %s", rmq_queue, acks_queue)
 
     def cb(ch_, method, properties, body):
+        # Continue the correlation/lineage id started by the API. Prefer the
+        # explicit payload field, fall back to the AMQP property/header, then to
+        # the job id, so the chain is never silently broken across the hop.
+        payload = {}
+        token = None
         try:
             payload = json.loads(body.decode("utf-8"))
-            ftype, size, import_id = process_payload(payload)
-            logger.info(
-                "Processed %s bytes as %s for file %s (import id %s)",
-                size,
-                ftype,
-                payload.get("filename"),
-                import_id,
+            header_cid = None
+            if properties is not None:
+                header_cid = getattr(properties, "correlation_id", None)
+                if not header_cid and getattr(properties, "headers", None):
+                    header_cid = properties.headers.get(CORRELATION_HEADER)
+            correlation_id = (
+                payload.get("correlation_id") or header_cid or payload.get("job_id")
             )
-            # publish a simple ack message
+            token = audit_log.bind_correlation_id(correlation_id)
+
+            audit_log.log_event(
+                logger,
+                "worker_message_received",
+                job_id=payload.get("job_id"),
+                trading_partner_id=payload.get("trading_partner_id"),
+            )
+            ftype, size, import_id = process_payload(payload)
+            audit_log.log_event(
+                logger,
+                "worker_message_processed",
+                job_id=payload.get("job_id"),
+                import_id=import_id,
+                file_type=ftype,
+                byte_size=size,
+            )
+            # publish a simple ack message, propagating the correlation id on
+            # both the body and the AMQP properties for the next hop.
             ch_.basic_publish(
                 exchange="",
                 routing_key=acks_queue,
@@ -1064,16 +1183,45 @@ def main():
                     "filename": payload.get("filename"),
                     "file_type": ftype,
                     "import_id": import_id,
+                    "correlation_id": audit_log.get_correlation_id(),
                 }).encode("utf-8"),
-                properties=pika.BasicProperties(delivery_mode=2),
+                properties=pika.BasicProperties(
+                    delivery_mode=2,
+                    correlation_id=audit_log.get_correlation_id(),
+                    headers={CORRELATION_HEADER: audit_log.get_correlation_id()},
+                ),
             )
             ch_.basic_ack(delivery_tag=method.delivery_tag)
         except Exception:
             logger.exception("Failed to process message; rejecting")
             ch_.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        finally:
+            if token is not None:
+                audit_log.reset_correlation_id(token)
+
+    def ack_cb(ch_, method, properties, body):
+        try:
+            payload = json.loads(body.decode("utf-8"))
+            result = handle_ack_generate_message(payload)
+            ch_.basic_publish(
+                exchange="",
+                routing_key=acks_queue,
+                body=json.dumps(result).encode("utf-8"),
+                properties=pika.BasicProperties(delivery_mode=2),
+            )
+            logger.info(
+                "Generated %s ack(s) [%s] for ack.generate request",
+                list(result.get("acknowledgments", {}).keys()),
+                result.get("ack_profile"),
+            )
+            ch_.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception:
+            logger.exception("Failed to handle ack.generate message; rejecting")
+            ch_.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     ch.basic_qos(prefetch_count=10)
     ch.basic_consume(queue=rmq_queue, on_message_callback=cb, auto_ack=False)
+    ch.basic_consume(queue=ack_generate_queue, on_message_callback=ack_cb, auto_ack=False)
 
     try:
         ch.start_consuming()

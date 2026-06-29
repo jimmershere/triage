@@ -1,0 +1,10 @@
+{
+  "name": "entity_type",
+  "description": "Entity type qualifier (NM102 / X12 DE 1065).",
+  "source": "WPC/DISA 005010X222 (837P) implementation-guide enumeration (union with prior curation); imported via validation.reference",
+  "complete": true,
+  "codes": {
+    "1": "Person",
+    "2": "Non-Person Entity"
+  }
+}

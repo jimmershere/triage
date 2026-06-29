@@ -11,7 +11,10 @@ table never produces a false rejection.
 """
 from __future__ import annotations
 
+from datetime import date
+
 from ..codesets import (
+    get_active_registry,
     get_codeset,
     is_valid_hcpcs_cpt,
     is_valid_icd10_cm,
@@ -26,6 +29,34 @@ from ..model import (
 )
 
 _SPEC = "HIPAA 837 — external code set (SNIP type 5)"
+
+# Code-set name (in the effective-dated registry) for ICD-10-CM diagnoses.
+_ICD10_CODESET = "icd10cm"
+
+
+def _claim_service_date(claim: ClaimProjection) -> date | None:
+    """Resolve the claim's service / discharge date for effective-dated lookups.
+
+    Uses the earliest line service date, falling back to the statement-covers
+    period. ICD-10 validation is service-date driven (date of discharge for
+    inpatient), so this drives *which* code-set version applies.
+    """
+    candidates: list[str] = []
+    for line in claim.service_lines:
+        if line.service_date:
+            candidates.append(line.service_date)
+    if claim.statement_to_date:
+        candidates.append(claim.statement_to_date)
+    if claim.statement_from_date:
+        candidates.append(claim.statement_from_date)
+    for raw in candidates:
+        text = (raw or "").strip()
+        if len(text) == 8 and text.isdigit():
+            try:
+                return date(int(text[:4]), int(text[4:6]), int(text[6:8]))
+            except ValueError:
+                continue
+    return None
 
 
 def _membership_issue(
@@ -116,7 +147,11 @@ def _validate_claim_codesets(claim: ClaimProjection, report: ValidationReport) -
             label="Patient gender code",
         )
 
-    # ICD-10-CM diagnosis codes — format validation.
+    # ICD-10-CM diagnosis codes — structural format validation always runs;
+    # effective-dated membership is layered on top when a code-set registry is
+    # loaded (Workstream 2), keyed to the claim's service/discharge date.
+    registry = get_active_registry()
+    as_of = _claim_service_date(claim)
     for dx in claim.diagnosis_codes:
         if not is_valid_icd10_cm(dx):
             report.add(
@@ -134,6 +169,29 @@ def _validate_claim_codesets(claim: ClaimProjection, report: ValidationReport) -
                     spec_ref=_SPEC,
                 )
             )
+            continue
+        if registry is not None and registry.has(_ICD10_CODESET):
+            result = registry.resolve(dx, _ICD10_CODESET, as_of)
+            if result.known_codeset and not result.valid:
+                # Advisory: membership/effective-date issues are warnings so a
+                # curated registry subset never produces a false rejection. We
+                # detect and report — never rewrite the code on the claim.
+                report.add(
+                    ValidationIssue(
+                        snip_type=SnipType.CODE_SET,
+                        severity=Severity.WARNING,
+                        code="CODE.HI.ICD10_EFFECTIVE",
+                        message=(
+                            f"Diagnosis code '{dx}' {result.reason} "
+                            f"(code-set version {result.version_label}, "
+                            f"service date {as_of.isoformat() if as_of else 'unknown'})."
+                        ),
+                        segment_id="HI",
+                        claim_id=claim.claim_id,
+                        actual=dx,
+                        spec_ref=_SPEC,
+                    )
+                )
 
     # NPI check-digit validation.
     for npi, label, seg in (

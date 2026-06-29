@@ -167,6 +167,8 @@ def _recommendations_for(row: dict[str, Any], events: list[dict[str, Any]]) -> l
 
 def _event_dict(row: dict[str, Any]) -> dict[str, Any]:
     result = dict(row)
+    if result.get("raw_excerpt") is not None:
+        result["raw_excerpt"] = phi_crypto.open_text(result["raw_excerpt"])
     for key in ("event_id", "tracking_id"):
         if result.get(key) is not None:
             result[key] = str(result[key])
@@ -175,6 +177,10 @@ def _event_dict(row: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+try:
+    from security import phi_crypto
+except ModuleNotFoundError:  # api image bundles worker_py as a package
+    from worker_py.security import phi_crypto
 def _claim_dict(row: dict[str, Any]) -> dict[str, Any]:
     result = dict(row)
     for key in ("tracking_id", "job_id"):
@@ -278,7 +284,7 @@ def record_ingested_file(
                 job_id,
                 identity["state_hash"],
                 json.dumps(recommendations),
-                raw_excerpt,
+                phi_crypto.seal_text(raw_excerpt),
             ),
         )
         claim = _claim_dict(cur.fetchone())

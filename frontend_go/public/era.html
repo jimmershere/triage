@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/img/favicon.png"/>
+  <title>Triage — 835 Restore</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+  <script src="/config.js"></script>
+</head>
+<body data-requires-auth="portal">
+  <div class="app-shell">
+    <aside class="site-sidebar">
+      <a href="/" class="brand" aria-label="Triage home"><img src="/img/triage-logo.png" width="256" height="256" alt="Triage logo"></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <div class="nav-group">
+          <span class="nav-group-label">Command Center</span>
+          <a class="nav-pill" data-tone="ops" href="/">Dashboard</a>
+          <a class="nav-pill" data-tone="processed" href="/processed.html">Import Detail</a>
+          <a class="nav-pill" data-tone="portal" href="/ingest.html">Ingest</a>
+          <a class="nav-pill" data-tone="ops" href="/helpdesk.html">Helpdesk</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Claims Portal</span>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal.html">Portal Overview</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/claimtrace.html">Claimtrace</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837.html">837 Claims</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/835.html">835 Remittance</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/era.html" aria-current="page">835 Restore</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/270.html">270 Eligibility</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/271.html">271 Responses</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/276.html">276 Status</a>
+          <a class="nav-pill portal-link" data-tone="portal" href="/portal/837d.html">837D Dental</a>
+        </div>
+        <div class="nav-group portal-only">
+          <span class="nav-group-label">Workspace</span>
+          <a class="nav-pill portal-link" data-tone="entry" href="/claim-entry.html">Claim Entry</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/edits.html">Edits Studio</a>
+          <a class="nav-pill portal-link" data-tone="mapping" href="/mapping.html">Mapping Studio</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Operations</span>
+          <a class="nav-pill" data-tone="portal" href="/partners.html">Partners</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">Resources</span>
+          <a class="nav-pill" data-tone="info" href="/about.html">About</a>
+          <a class="nav-pill" data-tone="news" href="/edi-news.html">Reference Notes</a>
+        </div>
+        <div class="nav-group admin-only">
+          <span class="nav-group-label">Administration</span>
+          <a class="nav-pill admin-link" data-tone="admin" href="/admin.html">Admin</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <a class="nav-pill requires-guest" data-tone="portal" href="/oauth2/start?rd=/era.html" data-login-trigger data-login-next="/era.html">Login</a>
+        <a class="nav-pill requires-auth" data-tone="logout" href="/logout">Logout</a>
+      </div>
+    </aside>
+    <div class="app-main">
+      <main class="container claimtrace-dashboard">
+        <section class="card claimtrace-hero claimtrace-dashboard-hero">
+          <div>
+            <span class="badge">835 Restore</span>
+            <h1>Remittance re-delivery &amp; reconstruction</h1>
+            <p>Every produced or received 835 is stored immutably with its parsed structure and linked to Claimtrace. Re-deliver the exact stored file byte-for-byte (same TRN), reconstruct a balanced 835 from stored data when the original is lost, or model a reversal — Triage never edits remittance amounts.</p>
+          </div>
+          <div class="claimtrace-summary claimtrace-summary--dashboard" id="eraSummary">
+            <span>Loading restore summary…</span>
+          </div>
+        </section>
+
+        <section class="card claimtrace-search-card">
+          <header class="card-header">
+            <div>
+              <h2>Stored 835 artifacts</h2>
+              <p class="muted">Search by TRN, claim ID, or origin (original / reconstructed / reversal).</p>
+            </div>
+            <button id="eraRefresh" type="button" class="ghost">Refresh</button>
+          </header>
+          <form id="eraSearchForm" class="claimtrace-search-form">
+            <label><span>TRN</span><input id="eraTrn" type="text" placeholder="reassociation trace"></label>
+            <label><span>Claim ID</span><input id="eraClaimId" type="text" placeholder="claimtrace claim ID"></label>
+            <label><span>Origin</span><select id="eraOrigin"><option value="">Any</option><option value="original">Original</option><option value="reconstructed">Reconstructed</option><option value="reversal">Reversal</option></select></label>
+            <div class="claimtrace-search-actions">
+              <button type="submit">Search</button>
+              <button type="button" class="ghost" id="eraClear">Clear</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="claimtrace-dashboard-stack">
+          <article class="card claimtrace-results-card">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Immutable store</span>
+                <h2>Artifacts</h2>
+              </div>
+              <span class="badge badge-count" id="eraResultCount">0</span>
+            </div>
+            <div class="table-scroll-x">
+              <table class="admin-table claimtrace-table">
+                <thead>
+                  <tr><th>TRN</th><th>Claim</th><th>Origin</th><th>BPR</th><th>Balanced</th><th>Created</th></tr>
+                </thead>
+                <tbody id="eraResultsBody"><tr><td colspan="6" class="muted">Loading artifacts…</td></tr></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="card claimtrace-detail-card" id="eraDetailCard">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Artifact detail</span>
+                <h2 id="eraDetailTitle">Select an artifact</h2>
+              </div>
+              <span class="claimtrace-status-pill" id="eraDetailStatus">None selected</span>
+            </div>
+            <div id="eraDetailEmpty" class="muted">Choose a row to view balancing, lineage, and restore actions.</div>
+            <div id="eraDetailContent" hidden>
+              <div class="claimtrace-identity-grid" id="eraIdentityGrid"></div>
+              <section class="claimtrace-analysis-box">
+                <h3>Balancing</h3>
+                <ul id="eraBalance"></ul>
+              </section>
+              <section class="claimtrace-actions-panel">
+                <h3>Restore actions</h3>
+                <div class="claimtrace-action-buttons">
+                  <button type="button" id="eraRedeliver">Re-deliver (byte-exact)</button>
+                  <button type="button" id="eraReconstruct" class="ghost">Reconstruct</button>
+                  <button type="button" id="eraReverse" class="danger">Model reversal</button>
+                </div>
+                <p class="form-status" id="eraActionStatus" hidden></p>
+                <h3>835 output</h3>
+                <pre id="eraOutput" class="claimtrace-note" style="white-space:pre-wrap;max-height:320px;overflow:auto"></pre>
+              </section>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/auth_config.js"></script>
+  <script src="/static/js/authz.js"></script>
+  <script src="/static/js/login-modal.js"></script>
+  <script src="/static/js/era.js"></script>
+  <script src="/static/js/site-enhancements.js"></script>
+</body>
+</html>

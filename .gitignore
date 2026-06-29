@@ -51,3 +51,9 @@ samples/*_large.x12
 
 # Local archive (worker output)
 /archive
+
+# Licensed WPC/DISA X12 TR3 table data — provisioned per-deployment, not redistributable
+reference/x12/**/source/
+reference/x12/**/extracted/
+
+.env.preview

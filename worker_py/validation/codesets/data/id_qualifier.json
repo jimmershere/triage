@@ -1,0 +1,14 @@
+{
+  "name": "id_qualifier",
+  "description": "Identification code qualifier (NM108 / X12 DE 66).",
+  "source": "WPC/DISA 005010X222 (837P) implementation-guide enumeration (union with prior curation); imported via validation.reference",
+  "complete": true,
+  "codes": {
+    "46": "Electronic Transmitter Identification Number (ETIN)",
+    "II": "Standard Unique Health Identifier for each Individual in the United States",
+    "MI": "Member Identification Number",
+    "PI": "Payor Identification",
+    "XV": "Centers for Medicare and Medicaid Services PlanID",
+    "XX": "Centers for Medicare and Medicaid Services National Provider Identifier"
+  }
+}

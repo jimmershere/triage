@@ -1,7 +1,7 @@
 {
   "name": "gender",
-  "description": "Administrative gender / sex code (X12 element 1068, DMG03 and related).",
-  "source": "X12 element 1068",
+  "description": "Administrative gender code (DMG03 / X12 DE 1068).",
+  "source": "WPC/DISA 005010X222 (837P) implementation-guide enumeration (union with prior curation); imported via validation.reference",
   "complete": true,
   "codes": {
     "F": "Female",

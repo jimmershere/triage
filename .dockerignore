@@ -1,0 +1,38 @@
+# Keep the repo-root build context (used by the api image) lean. This file only
+# affects builds whose context is the repo root (currently just ./api via
+# docker-compose.yml). The api Dockerfile COPYs only api/, claimtrace/ and
+# worker_py/, so everything excluded here is purely to speed up context transfer.
+.git
+.github
+.gitignore
+.gitleaksignore
+
+# Python caches / build artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.ruff_cache/
+**/*.egg-info/
+
+# Virtualenvs
+venv/
+.venv/
+**/venv/
+**/.venv/
+
+# Node / frontend build artifacts (frontend_go builds from its own context)
+**/node_modules/
+
+# Tests, fixtures and large generated/demo data are bind-mounted at runtime or
+# not needed inside the api image.
+tests/
+bench/
+demo-data/
+docs/
+
+# Local-only deploy/secret material must never enter an image context.
+deploy/httpd/certs/
+docker-compose.override.yml
+*.log

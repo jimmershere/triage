@@ -7,9 +7,60 @@ first.
 """
 from __future__ import annotations
 
+from datetime import date
+
+from validation.codesets import get_active_registry
 from validation.model import ClaimProjection
 
 from ..model import EditCategory, ScrubFinding, ScrubReport, ScrubSeverity
+
+_ICD10_CODESET = "icd10cm"
+
+
+def _claim_service_date(claim: ClaimProjection) -> date | None:
+    candidates = [line.service_date for line in claim.service_lines if line.service_date]
+    candidates += [claim.statement_to_date, claim.statement_from_date]
+    for raw in candidates:
+        text = (raw or "").strip()
+        if len(text) == 8 and text.isdigit():
+            try:
+                return date(int(text[:4]), int(text[4:6]), int(text[6:8]))
+            except ValueError:
+                continue
+    return None
+
+
+def _check_codeset_currency(claim: ClaimProjection, report: ScrubReport) -> None:
+    """Advisory: flag diagnosis codes invalid/deactivated for the service date.
+
+    Consults the effective-dated code-set registry (Workstream 2) when one is
+    loaded. Advisory-only — Triage detects and reports, never rewrites a code.
+    """
+    registry = get_active_registry()
+    if registry is None or not registry.has(_ICD10_CODESET):
+        return
+    as_of = _claim_service_date(claim)
+    for dx in claim.diagnosis_codes:
+        result = registry.resolve(dx, _ICD10_CODESET, as_of)
+        if result.known_codeset and not result.valid:
+            report.add(
+                ScrubFinding(
+                    category=EditCategory.DIAGNOSIS_SEQUENCING,
+                    severity=ScrubSeverity.ADVISORY,
+                    code="DX.CODESET_EFFECTIVE",
+                    message=(
+                        f"Diagnosis {dx} {result.reason} per code-set version "
+                        f"{result.version_label}."
+                    ),
+                    claim_id=claim.claim_id,
+                    diagnosis_code=dx,
+                    resolution=(
+                        "Verify the diagnosis against the code set effective on "
+                        "the date of service before resubmission."
+                    ),
+                    source="Triage effective-dated code-set registry",
+                )
+            )
 
 # ICD-10-CM chapter 20 — external causes of morbidity — cannot be principal.
 _EXTERNAL_CAUSE_FIRST_LETTERS = ("V", "W", "X", "Y")
@@ -31,6 +82,7 @@ def apply(claims: list[ClaimProjection], report: ScrubReport, **_ctx) -> None:
     for claim in claims:
         if not claim.diagnosis_codes:
             continue
+        _check_codeset_currency(claim, report)
         principal = claim.diagnosis_codes[0].strip().upper()
         normalized = principal.replace(".", "")
 
