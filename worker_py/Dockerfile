@@ -7,6 +7,7 @@ COPY pyx12 ./pyx12
 COPY pyx12_maps ./pyx12_maps
 COPY validation ./validation
 COPY scrubbing ./scrubbing
+COPY security ./security
 COPY fhir ./fhir
 COPY tools_x12_cms_harness.py .
 COPY file_profiler.py .

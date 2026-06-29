@@ -14,6 +14,10 @@ from pathlib import Path
 import pika
 import psycopg2
 from dotenv import load_dotenv
+try:
+    from security import phi_crypto
+except ModuleNotFoundError:  # api image bundles worker_py as a package
+    from worker_py.security import phi_crypto
 from psycopg2.extras import Json, execute_batch
 
 try:  # When running as part of the package
@@ -555,7 +559,7 @@ def ensure_import_record(cur, payload: dict, filename: str, ftype: str, size: in
             filename,
             ftype,
             size,
-            psycopg2.Binary(raw),
+            psycopg2.Binary(phi_crypto.seal_bytes(raw)),
             uploaded_by,
             trading_partner_id,
         ),
@@ -926,7 +930,7 @@ def process_payload(payload: dict):
                             import_id,
                             claim_id,
                             amount,
-                            claim.get("raw"),
+                            phi_crypto.seal_text(claim.get("raw")),
                             Json(projection_json) if projection_json is not None else None,
                             validation_status if harness_report is not None else None,
                         )

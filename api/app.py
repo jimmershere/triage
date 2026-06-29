@@ -36,6 +36,10 @@ from claimtrace.audit import (
     reset_correlation_id,
 )
 
+try:
+    from security import phi_crypto
+except ModuleNotFoundError:  # api image bundles worker_py as a package
+    from worker_py.security import phi_crypto
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 # Workstream 3: standardize PHI-safe structured JSON logging with a correlation
@@ -1567,7 +1571,7 @@ async def ingest(
                         size,
                         uploaded_by,
                         trading_partner_id,
-                        psycopg2.Binary(content),
+                        psycopg2.Binary(phi_crypto.seal_bytes(content)),
                         "queued",
                     ),
                 )
@@ -1796,7 +1800,7 @@ async def job_detail(job_id: str, _: None = Depends(require_secret)):
         ClaimArtifact(
             claim_id=row.get("claim_id"),
             amount=str(row.get("amount")) if row.get("amount") is not None else None,
-            raw_claim=row.get("raw_claim"),
+            raw_claim=phi_crypto.open_text(row.get("raw_claim")),
             claim_status_code=row.get("claim_status_code"),
             cms_projection_json=row.get("cms_projection_json"),
         )
@@ -1817,7 +1821,8 @@ async def job_detail(job_id: str, _: None = Depends(require_secret)):
         if isinstance(item, dict)
     ]
     raw_payload_text = None
-    raw_bytes = base.get("original_content")
+    _ob = base.get("original_content")
+    raw_bytes = phi_crypto.open_bytes(bytes(_ob)) if _ob is not None else None
     if raw_bytes is not None:
         try:
             raw_payload_text = bytes(raw_bytes).decode("utf-8", errors="replace")[:25000]
@@ -1975,7 +1980,7 @@ async def download_original(job_id: str, _: None = Depends(require_secret)):
         raise HTTPException(status_code=404, detail="Original file not stored")
 
     filename, data = row[0], row[1]
-    buffer = BytesIO(bytes(data))
+    buffer = BytesIO(phi_crypto.open_bytes(bytes(data)))
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return StreamingResponse(buffer, media_type="application/octet-stream", headers=headers)
 
