@@ -25,6 +25,7 @@ from .rules import (
     guide_claim_status,
     guide_eligibility,
     snip5_codeset,
+    structure,
 )
 
 # Transaction set -> implementation-guide validator. Each validator takes a
@@ -136,6 +137,8 @@ def validate_parsed(
         claims = guide(txn, report)
         report.claims.extend(claims)
         ran_guide = True
+        # Workstream 2 keystone: table-driven TR3 structural validation.
+        structure.validate_structure(txn, report)
 
     report.claim_count = len(report.claims)
 

@@ -1,7 +1,7 @@
 {
   "name": "relationship",
-  "description": "Individual relationship codes (X12 element 1069) used in SBR02 and PAT01.",
-  "source": "X12 element 1069 — curated healthcare subset",
+  "description": "Individual relationship code (SBR02 / X12 DE 1069).",
+  "source": "WPC/DISA 005010X222 (837P) implementation-guide enumeration (union with prior curation); imported via validation.reference",
   "complete": false,
   "codes": {
     "01": "Spouse",
