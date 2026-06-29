@@ -25,8 +25,31 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-# reference/x12/<transaction>/source/<...>-CSV.csv
-_REFERENCE_ROOT = Path(__file__).resolve().parents[3] / "reference" / "x12"
+def _reference_root() -> Path:
+    """Locate the (license-provisioned) reference bundle root.
+
+    Honors ``TRIAGE_X12_REFERENCE_DIR`` (set when the bundle is mounted into a
+    container), then falls back to candidate locations for the source tree and
+    common deployment layouts. The licensed WPC data is mounted at runtime, not
+    baked into the image, so this must be resolvable independent of package
+    location.
+    """
+    import os
+    env = os.getenv("TRIAGE_X12_REFERENCE_DIR", "").strip()
+    candidates = []
+    if env:
+        candidates.append(Path(env))
+    here = Path(__file__).resolve()
+    candidates += [
+        here.parents[3] / "reference" / "x12",  # source-tree layout
+        Path("/reference/x12"),                  # conventional container mount
+        Path("/app/reference/x12"),
+        Path.cwd() / "reference" / "x12",
+    ]
+    for c in candidates:
+        if c.is_dir():
+            return c
+    return candidates[0] if candidates else Path("reference/x12")
 
 # CLM05-01 -> ("CLM", 5, 1) ; DMG03 -> ("DMG", 3, None) ; "ST" -> segment header
 _ELEMENT_RE = re.compile(r"^([A-Z][A-Z0-9]{1,2})(\d{2})(?:-(\d{2}))?$")
@@ -210,7 +233,7 @@ def load_reference_csv(csv_path: str | Path, transaction: str) -> TransactionRef
 
 
 def _default_csv_path(transaction: str) -> Path | None:
-    base = _REFERENCE_ROOT / transaction / "source"
+    base = _reference_root() / transaction / "source"
     if not base.exists():
         return None
     for candidate in sorted(base.glob("*CSV*.csv")):

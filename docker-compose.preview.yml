@@ -1,0 +1,75 @@
+name: triageprev
+networks:
+  prev: {}
+volumes:
+  pgprev: {}
+  archiveprev: {}
+services:
+  pgprev:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    networks: [prev]
+    ports: ["15433:5432"]
+    volumes: ["pgprev:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  rmqprev:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    networks: [prev]
+    ports: ["15674:5672"]
+    healthcheck:
+      test: ["CMD","rabbitmq-diagnostics","-q","ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  apiprev:
+    image: triage-preview-api:latest
+    env_file: [./.env.preview]
+    networks: [prev]
+    ports: ["8011:8000"]
+    volumes:
+      - "archiveprev:/archive"
+      - "./reference:/reference:ro"
+    environment:
+      TRIAGE_X12_REFERENCE_DIR: /reference/x12
+    depends_on:
+      pgprev: {condition: service_healthy}
+      rmqprev: {condition: service_healthy}
+    restart: unless-stopped
+  workerprev:
+    image: triage-preview-worker:latest
+    env_file: [./.env.preview]
+    networks: [prev]
+    environment:
+      TRIAGE_X12_REFERENCE_DIR: /reference/x12
+    volumes:
+      - "archiveprev:/archive"
+      - "./reference:/reference:ro"
+    depends_on:
+      pgprev: {condition: service_healthy}
+      rmqprev: {condition: service_healthy}
+    restart: unless-stopped
+  frontendprev:
+    image: triage-frontend_go:latest
+    environment:
+      TRIAGE_API_BASE: http://apiprev:8000
+      TRIAGE_SESSION_SECRET: ${TRIAGE_SESSION_SECRET}
+      TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET}
+      CERT_FILE: /app/triage/deploy/httpd/certs/server.crt
+      KEY_FILE: /app/triage/deploy/httpd/certs/server.key
+    networks: [prev]
+    volumes:
+      - ./frontend_go/public:/app/public:ro
+      - ./deploy/httpd/certs:/app/triage/deploy/httpd/certs:ro
+    ports: ["9443:8443","9080:8080"]
+    depends_on: [apiprev]
+    restart: unless-stopped

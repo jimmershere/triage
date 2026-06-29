@@ -75,10 +75,13 @@ services:
       TRIAGE_SHARED_SECRET: ${TRIAGE_SHARED_SECRET:?set TRIAGE_SHARED_SECRET}
       TRIAGE_REQUIRE_SECRETS: ${TRIAGE_REQUIRE_SECRETS:-true}
       TRIAGE_CORS_ORIGINS: "${TRIAGE_CORS_ORIGINS:-*}"
+      # License-provisioned WPC X12 TR3 reference (mounted, not baked into image).
+      TRIAGE_X12_REFERENCE_DIR: ${TRIAGE_X12_REFERENCE_DIR:-/reference/x12}
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
       - archive:/archive
+      - ${TRIAGE_REFERENCE_HOST_DIR:-./reference}:/reference:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,8 +112,10 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-http://localhost:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
       TURBO_PIPELINE_ENABLED: ${TURBO_PIPELINE_ENABLED:-1}
+      TRIAGE_X12_REFERENCE_DIR: ${TRIAGE_X12_REFERENCE_DIR:-/reference/x12}
     volumes:
       - archive:/archive
+      - ${TRIAGE_REFERENCE_HOST_DIR:-./reference}:/reference:ro
     depends_on:
       postgres:
         condition: service_healthy
