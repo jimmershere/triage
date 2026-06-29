@@ -125,7 +125,30 @@ def capability() -> dict[str, Any]:
             "CoverageEligibilityRequest", "CoverageEligibilityResponse",
             "Bundle",
         ],
-        "snipLevelsValidated": list(range(1, 8)),
+        # Honest per-SNIP-type enforcement depth (mgt: mark enforced vs framework).
+        # Per-partner severity policy (WS7) can relax/enforce each type.
+        "snipValidation": {
+            "note": (
+                "Enforcement depth varies by SNIP type and transaction; "
+                "837P Type 1 is table-driven from the WPC TR3 reference. "
+                "Per-partner SNIP severity toggles apply (e.g. edig-parity-v1)."
+            ),
+            "byType": {
+                "1": {"name": "EDI standard integrity", "status": "enforced",
+                      "detail": "envelope control + table-driven element type/length (837P TR3)"},
+                "2": {"name": "HIPAA IG requirement", "status": "partial",
+                      "detail": "guide rules; loop-aware required-usage in progress"},
+                "3": {"name": "balancing", "status": "enforced",
+                      "detail": "claim / line / transaction amount balancing"},
+                "4": {"name": "situational", "status": "partial"},
+                "5": {"name": "external code set", "status": "partial",
+                      "detail": "effective-dated registry + 837P guide enumerations; "
+                                "external lists (CARC/RARC/ICD) versioned, not exhaustive"},
+                "6": {"name": "product/line balancing", "status": "partial"},
+                "7": {"name": "trading-partner specific", "status": "framework",
+                      "detail": "per-partner SNIP severity policy"},
+            },
+        },
         "implementationGuides": [
             "ASC X12N 005010X222A1 (837P)",
             "ASC X12N 005010X223A2 (837I)",
@@ -144,7 +167,7 @@ def capability() -> dict[str, Any]:
 
 @router.post("/validate")
 def validate(body: ValidateRequest) -> dict[str, Any]:
-    """Run SNIP 1-7 validation over an X12 payload.
+    """Run SNIP validation over an X12 payload (see /capability for per-type depth).
 
     Accepts an optional ``snip_policy`` (a built-in policy name such as
     ``edig-parity-v1``) which applies the per-partner SNIP severity toggles to

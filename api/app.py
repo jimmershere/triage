@@ -25,6 +25,18 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from . import ldap_utils
+try:
+    from .security_deps import require_role, rate_limit
+except ImportError:  # pragma: no cover - api image flat layout
+    from security_deps import require_role, rate_limit  # type: ignore
+
+# Server-side authorization + rate limiting. Role enforcement is opt-in via
+# TRIAGE_ENFORCE_ROLES / TRIAGE_ENV=production (the frontend_go proxy injects
+# X-TRIAGE-ROLE); rate limits are per-process and env-overridable.
+_RL_LOGIN = rate_limit("login", limit=10, window_seconds=60)
+_RL_INGEST = rate_limit("ingest", limit=60, window_seconds=60)
+_ROLE_ADMIN = require_role("administrator")
+_ROLE_SUBMIT = require_role("submit")
 
 from claimtrace.audit import (
     CORRELATION_HEADER,
@@ -38,7 +50,7 @@ from claimtrace.audit import (
 
 try:
     from security import phi_crypto
-except ModuleNotFoundError:  # api image bundles worker_py as a package
+except ImportError:  # api image bundles worker_py as a package
     from worker_py.security import phi_crypto
 load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -1267,7 +1279,7 @@ async def broadcast_job_update(
 
 
 @app.post("/auth/login")
-def api_login(payload: LoginRequest, _: None = Depends(require_secret)):
+def api_login(payload: LoginRequest, _: None = Depends(require_secret), _rl: None = Depends(_RL_LOGIN)):
     username = (payload.username or "").strip()
     if not username:
         raise HTTPException(status_code=400, detail="username required")
@@ -1416,7 +1428,7 @@ def create_user_impl(payload: UserCreate) -> dict:
 
 
 @app.post("/admin/users")
-def api_create_user(payload: UserCreate, _: None = Depends(require_secret)):
+def api_create_user(payload: UserCreate, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return create_user_impl(payload)
 
 
@@ -1475,7 +1487,7 @@ def update_user_impl(username: str, payload: UserUpdate) -> dict:
 
 
 @app.put("/admin/users/{username}")
-def api_update_user(username: str, payload: UserUpdate, _: None = Depends(require_secret)):
+def api_update_user(username: str, payload: UserUpdate, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return update_user_impl(username, payload)
 
 
@@ -1496,7 +1508,7 @@ def delete_user_impl(username: str) -> dict:
 
 
 @app.delete("/admin/users/{username}")
-def api_delete_user(username: str, _: None = Depends(require_secret)):
+def api_delete_user(username: str, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return delete_user_impl(username)
 
 
@@ -1506,17 +1518,17 @@ def api_list_users_admin(_: None = Depends(require_secret)):
 
 
 @app.post("/admin/api/users")
-def api_create_user_admin(payload: UserCreate, _: None = Depends(require_secret)):
+def api_create_user_admin(payload: UserCreate, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return create_user_impl(payload)
 
 
 @app.put("/admin/api/users/{username}")
-def api_update_user_admin(username: str, payload: UserUpdate, _: None = Depends(require_secret)):
+def api_update_user_admin(username: str, payload: UserUpdate, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return update_user_impl(username, payload)
 
 
 @app.delete("/admin/api/users/{username}")
-def api_delete_user_admin(username: str, _: None = Depends(require_secret)):
+def api_delete_user_admin(username: str, _: None = Depends(require_secret), _role: None = Depends(_ROLE_ADMIN)):
     return delete_user_impl(username)
 
 
@@ -1526,6 +1538,8 @@ async def ingest(
     uploaded_by: Optional[str] = Form(default=None),
     trading_partner_id: Optional[str] = Form(default=None),
     _: None = Depends(require_secret),
+    _rl: None = Depends(_RL_INGEST),
+    _role: None = Depends(_ROLE_SUBMIT),
 ):
     import_id: Optional[int] = None
     start_time = time.perf_counter()
@@ -2422,7 +2436,7 @@ async def get_partner(partner_id: str, _: None = Depends(require_secret)):
 
 
 @app.post("/partners", status_code=201)
-async def create_partner(payload: PartnerConfig, _: None = Depends(require_secret)):
+async def create_partner(payload: PartnerConfig, _: None = Depends(require_secret), _role: None = Depends(_ROLE_SUBMIT)):
     with get_db() as conn:
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -2453,7 +2467,7 @@ async def create_partner(payload: PartnerConfig, _: None = Depends(require_secre
 
 @app.put("/partners/{partner_id}")
 async def update_partner(
-    partner_id: str, payload: PartnerConfig, _: None = Depends(require_secret)
+    partner_id: str, payload: PartnerConfig, _: None = Depends(require_secret), _role: None = Depends(_ROLE_SUBMIT)
 ):
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -2488,7 +2502,7 @@ async def update_partner(
 
 
 @app.delete("/partners/{partner_id}")
-async def delete_partner(partner_id: str, _: None = Depends(require_secret)):
+async def delete_partner(partner_id: str, _: None = Depends(require_secret), _role: None = Depends(_ROLE_SUBMIT)):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(

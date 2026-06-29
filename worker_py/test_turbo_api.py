@@ -39,7 +39,14 @@ class CapabilityTests(unittest.TestCase):
         joined = " ".join(cap["transactionSetsSupported"])
         for required in ("837P", "837I", "837D", "835", "270/271", "276/277", "278"):
             self.assertIn(required, joined)
-        self.assertEqual(cap["snipLevelsValidated"], [1, 2, 3, 4, 5, 6, 7])
+        # Capability statement is honest about per-type enforcement depth
+        # (no blanket "SNIP 1-7 validated" overclaim).
+        self.assertNotIn("snipLevelsValidated", cap)
+        snip = cap["snipValidation"]
+        self.assertEqual(set(snip["byType"]), {"1", "2", "3", "4", "5", "6", "7"})
+        self.assertEqual(snip["byType"]["1"]["status"], "enforced")
+        statuses = {t["status"] for t in snip["byType"].values()}
+        self.assertTrue(statuses & {"partial", "framework"})
 
 
 class ValidateRouteTests(unittest.TestCase):
