@@ -206,7 +206,19 @@ def fhir_claim_to_837(
 
     # Claim (Loop 2300).
     total = claim.get("total", {}).get("value") if isinstance(claim.get("total"), dict) else None
-    pos = claim.get("supportingInfo", [{}])[0].get("code", {}).get("coding", [{}])[0].get("code") if variant == "I" else None
+    # Institutional CLM05-1 derives from the NUBC Type-of-Bill carried in
+    # supportingInfo. Search for it explicitly: indexing [0] crashes when
+    # supportingInfo is present-but-empty and misreads if another info entry
+    # precedes the TOB one.
+    pos = None
+    if variant == "I":
+        for si in (claim.get("supportingInfo") or []):
+            for c in (si.get("code", {}).get("coding") or []):
+                if c.get("system") == "https://www.nubc.org/CodeSystem/TypeOfBill" and c.get("code"):
+                    pos = c["code"]
+                    break
+            if pos:
+                break
     pos = pos or _pos_from_item((claim.get("item") or [{}])[0]) or "11"
     frequency = "1"
     builder.add(

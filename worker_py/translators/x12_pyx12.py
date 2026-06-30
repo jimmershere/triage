@@ -8,7 +8,19 @@ import os
 import shutil
 import uuid
 from contextlib import suppress
-from datetime import datetime
+import hashlib
+from datetime import datetime, timezone
+
+
+def _stable_ctrl(width: int, *parts: object) -> str:
+    """Deterministic numeric control number of ``width`` digits.
+
+    Replaces builtin ``hash()``, which is salted per-process (PYTHONHASHSEED) and
+    so produced different ISA13/GS06/ST02 control numbers on every retry/replay.
+    """
+    digest = hashlib.sha256("|".join(str(p) for p in parts).encode("utf-8")).digest()
+    value = int.from_bytes(digest[:8], "big") % (10 ** width)
+    return f"{value:0{width}d}"
 from dataclasses import dataclass
 from functools import wraps
 from importlib.resources import as_file, files as resource_files
@@ -387,12 +399,12 @@ class _PyX12Support:
         if not isa_sender or not isa_receiver:
             return None
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         ack_sender = (isa_receiver or "TRIAGERECEIVER")[:15].ljust(15)
         ack_receiver = (isa_sender or "TRIAGESENDER")[:15].ljust(15)
-        ack_isa_ctrl = f"{abs(hash((job_uuid, isa_ctrl))) % 1_000_000_000:09d}"
-        ack_gs_ctrl = f"{abs(hash((job_uuid, gs_ctrl))) % 1_000_000 + 1:06d}".lstrip("0") or "1"
-        ack_st_ctrl = f"{abs(hash((job_uuid, st_ctrl))) % 10_000:04d}" or "0001"
+        ack_isa_ctrl = _stable_ctrl(9, job_uuid, isa_ctrl)
+        ack_gs_ctrl = _stable_ctrl(6, job_uuid, gs_ctrl).lstrip("0") or "1"
+        ack_st_ctrl = _stable_ctrl(4, job_uuid, st_ctrl) or "0001"
 
         gs_sender_out = (gs_receiver or ack_sender.strip() or "TRIAGEACK").strip() or "TRIAGEACK"
         gs_receiver_out = (gs_sender or ack_receiver.strip() or "TRIAGECLIENT").strip() or "TRIAGECLIENT"

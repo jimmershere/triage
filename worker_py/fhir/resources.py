@@ -239,6 +239,16 @@ def build_claim(
             if p.get("code")
         ]
 
+    # Provide the contained Coverage that insurance[].coverage points at; a
+    # dangling "#coverage" local reference fails FHIR reference resolution and
+    # profile validation on $submit.
+    res["contained"] = [
+        build_coverage(
+            id="coverage",
+            beneficiary_ref=patient_ref,
+            payor_ref=insurer_ref,
+        )
+    ]
     res["insurance"] = [{
         "sequence": 1,
         "focal": insurance_focal,
@@ -471,6 +481,15 @@ def build_coverage_eligibility_response(
                     ),
                 }]
             insurance["item"].append(entry)
+        # Contained Coverage so the insurance[].coverage "#coverage" reference
+        # resolves instead of dangling.
+        res["contained"] = [
+            build_coverage(
+                id="coverage",
+                beneficiary_ref=patient_ref,
+                payor_ref=insurer_ref,
+            )
+        ]
         res["insurance"] = [insurance]
     return _drop_empty(res)
 

@@ -85,7 +85,11 @@ def apply(claims: list[ClaimProjection], report: ScrubReport, **_ctx) -> None:
                             source=source,
                         )
                     )
-                else:  # modifier indicator 0 — cannot be bypassed.
+                elif indicator == "0":  # cannot be bypassed by any modifier.
+                    # NOTE: indicator "9" (no/deleted PTP edit, not applicable) and
+                    # any unknown value deliberately fall through with no finding —
+                    # only "0" is "never separately payable". Treating "9" as "0"
+                    # would manufacture false DENIALs against real CMS PTP files.
                     report.add(
                         ScrubFinding(
                             category=EditCategory.NCCI_PTP,

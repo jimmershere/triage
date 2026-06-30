@@ -171,7 +171,7 @@ class SwarmCoordinator:
         # GIL doesn't cap throughput. Tests typically pass mode="serial"
         # to keep them deterministic.
         self.process_pool = process_pool or EnginePool(
-            mode="thread", max_workers=_DEFAULT_THREAD_WORKERS
+            mode="process", max_workers=_DEFAULT_PROCESS_WORKERS
         )
         if claims_per_batch <= 0:
             raise ValueError("claims_per_batch must be positive")

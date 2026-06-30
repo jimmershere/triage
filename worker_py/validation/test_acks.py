@@ -53,6 +53,21 @@ class Ack999Tests(unittest.TestCase):
         self.assertIn(txn.first("AK9").elem(1), ("R", "P"))
         self.assertTrue(txn.find_all("IK3"), "expected IK3 segment detail")
 
+    def test_codeset_only_rejection_rejects_999(self) -> None:
+        # Regression: a claim rejected ONLY on a SNIP-5 code-set ERROR (issues that
+        # carry claim_id but no transaction_set/control) must reject the 999, not
+        # be acknowledged as accepted. Invalid patient gender 'Q' is structurally
+        # clean but fails the (complete) gender code set.
+        codeset_broken = VALID_837P.replace("DMG*D8*19800101*F", "DMG*D8*19800101*Q")
+        doc, report = _validated(codeset_broken)
+        self.assertTrue(
+            any(i.code == "CODE.DMG03.GENDER" and i.severity.rejects for i in report.issues),
+            "fixture should produce a rejecting code-set issue",
+        )
+        txn = parse(generate_999(doc, report)).transactions[0]
+        self.assertEqual(txn.first("IK5").elem(1), "R")
+        self.assertEqual(txn.first("AK9").elem(1), "R")
+
     def test_999_references_original_group(self) -> None:
         doc, report = _validated(VALID_837P)
         txn = parse(generate_999(doc, report)).transactions[0]

@@ -37,14 +37,35 @@ def _element_error_code(issue: ValidationIssue) -> str:
     return "7"
 
 
+def _txn_claim_ids(txn: Transaction) -> set[str]:
+    """CLM01 values (claim ids) carried by this transaction's CLM segments."""
+    return {s.elem(1) for s in txn.segments if s.seg_id == "CLM" and s.elem(1)}
+
+
 def _txn_issues(report: ValidationReport, txn: Transaction) -> list[ValidationIssue]:
-    return [
-        i
-        for i in report.issues
-        if i.transaction_control == txn.control_number
-        and i.transaction_set == txn.set_code
-        and i.severity.rejects
-    ]
+    # Structural guide rules stamp transaction_set/transaction_control on each
+    # issue. SNIP-5 code-set rules (worker_py/validation/rules/snip5_codeset.py)
+    # carry only claim_id, so without the claim-membership fallback below a claim
+    # rejected ONLY on code-set grounds (bad NPI checksum, malformed ICD-10,
+    # invalid POS/frequency/gender, ...) would be excluded here and the 999 would
+    # acknowledge a rejected claim as ACCEPTED (IK5*A / AK9*A).
+    claim_ids = _txn_claim_ids(txn)
+    out: list[ValidationIssue] = []
+    for i in report.issues:
+        if not i.severity.rejects:
+            continue
+        attributed = (
+            i.transaction_control == txn.control_number
+            and i.transaction_set == txn.set_code
+        )
+        by_claim = (
+            i.transaction_set is None
+            and bool(i.claim_id)
+            and i.claim_id in claim_ids
+        )
+        if attributed or by_claim:
+            out.append(i)
+    return out
 
 
 def _emit_transaction(
