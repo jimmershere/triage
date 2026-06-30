@@ -65,6 +65,15 @@
     window.dispatchEvent(new CustomEvent(TICKET_EVENT, { detail: ticket }));
   }
 
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function createElement(tag, className, attrs = {}) {
     const el = document.createElement(tag);
     if (className) el.className = className;
@@ -304,7 +313,9 @@
     function addMessage(text, role) {
       const bubble = createElement("div", `trish-chat__message trish-chat__message--${role}`);
       const timestamp = createElement("span", "trish-chat__time", { text: formatTimestamp() });
-      const content = createElement("div", "trish-chat__bubble", { html: String(text).replace(/\n/g, "<br>") });
+      // Escape first (text includes user input and the URL-derived context.page),
+      // then re-introduce only <br> for newlines — prevents HTML/JS injection.
+      const content = createElement("div", "trish-chat__bubble", { html: escapeHtml(text).replace(/\n/g, "<br>") });
       bubble.append(content, timestamp);
       messages.appendChild(bubble);
       messages.scrollTop = messages.scrollHeight;

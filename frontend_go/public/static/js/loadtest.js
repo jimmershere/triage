@@ -6,9 +6,11 @@
   const LT_BASE = API_BASE ? `${API_BASE}/ops/loadtest` : "/ops/loadtest";
   const POLL_INTERVAL_MS = 2000;
 
+  // No X-TRIAGE-SECRET here: the Go frontend injects the shared secret
+  // server-side on the /ops/* proxy. Emitting it from the browser both leaked a
+  // real credential and was redundant.
   const HEADERS = {
     "Content-Type": "application/json",
-    "X-TRIAGE-SECRET": window.TRIAGE_SHARED_SECRET || "turbohedi-shared-secret",
   };
 
   // ── Element refs ────────────────────────────────────────────────────────────
