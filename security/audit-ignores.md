@@ -41,6 +41,25 @@ and delete the entry here.
   `starlette>=0.49.1`. Bump `fastapi` and `starlette` together and
   remove this entry.
 
+### `PYSEC-2026-248`, `PYSEC-2026-249`, `GHSA-wqp7-x3pw-xc5r`, `GHSA-x746-7m8f-x49c` — UNVERIFIED, pending triage
+
+- Package: **unverified.** These four advisories are passed to
+  `--ignore-vuln` in `.github/workflows/ci.yml`'s `api/requirements.txt`
+  audit but had no corresponding entry here, violating the invariant
+  stated at the top of this file ("No advisory should appear in the
+  workflow without a corresponding entry").
+- Status: their affected package, fixed version, and whether they are
+  remediable could not be verified in the offline build environment
+  (`pip-audit` requires network access to the advisory database).
+- Reason for ignore: **not yet established.** Recorded here to make this
+  register complete and the suppression visible rather than silent.
+- Revisit when: **immediately / before the next release.** Run
+  `pip-audit -r api/requirements.txt` with network access, identify the
+  package and fix version for each ID, then either (a) bump the affected
+  dependency and remove the `--ignore-vuln` flag, or (b) replace this
+  block with a proper per-advisory justification + concrete revisit
+  trigger following the template below.
+
 ## How to add an entry
 
 1. Confirm the advisory cannot be remediated by upgrading the affected
