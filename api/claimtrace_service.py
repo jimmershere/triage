@@ -428,10 +428,21 @@ def mark_claim(conn, *, claim_id: str, action: str, note: Optional[str] = None) 
     if not detail:
         return {"updated": False}
     claim = detail["claim"]
-    existing_steps = list(claim.get("recommended_next_steps") or [])
-    if note:
-        existing_steps.insert(0, note)
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Lock the target row and re-read recommended_next_steps under the lock so
+        # concurrent mark_claim calls serialize instead of clobbering each other's
+        # appended notes (read-modify-write lost update).
+        cur.execute(
+            "SELECT recommended_next_steps FROM claimtrace_claim "
+            "WHERE tracking_id = %s FOR UPDATE",
+            (claim["tracking_id"],),
+        )
+        locked = cur.fetchone()
+        if locked is None:
+            return {"updated": False}
+        existing_steps = list(locked.get("recommended_next_steps") or [])
+        if note:
+            existing_steps.insert(0, note)
         cur.execute(
             """
             UPDATE claimtrace_claim

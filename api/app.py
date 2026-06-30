@@ -284,6 +284,16 @@ def get_db():
     conn = get_pool().getconn()
     try:
         yield conn
+    except Exception:
+        # psycopg2 does NOT auto-rollback on putconn; without this an aborted
+        # transaction is handed back to the pool and the next checkout fails with
+        # "current transaction is aborted, commands ignored until end of
+        # transaction block". Roll back before returning the connection.
+        try:
+            conn.rollback()
+        except Exception:
+            logger.exception("rollback failed while returning connection to pool")
+        raise
     finally:
         get_pool().putconn(conn)
 
@@ -1070,6 +1080,24 @@ def sanitize_filename_component(value: str, fallback: str = "file") -> str:
     cleaned = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in (value or ""))
     cleaned = cleaned.strip("._")
     return cleaned or fallback
+
+
+def content_disposition_attachment(filename: str, fallback: str = "download") -> str:
+    """Build a safe ``Content-Disposition`` header value (RFC 6266).
+
+    The stored upload filename is user-controlled, so interpolating it raw into
+    ``filename="..."`` allows header injection (embedded quotes break parsing,
+    CR/LF risk header splitting). Emit an ASCII-sanitized quoted ``filename``
+    plus an RFC 5987 ``filename*`` that carries the original name
+    percent-encoded for clients that support it.
+    """
+    from urllib.parse import quote
+
+    raw = filename or fallback
+    ascii_name = "".join(ch for ch in raw if 32 <= ord(ch) < 127 and ch not in '"\\').strip()
+    ascii_name = ascii_name or fallback
+    encoded = quote(raw, safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
 
 
 def ack_file_extension(ack_type: str) -> str:
@@ -1963,7 +1991,7 @@ async def download_original(job_id: str, _: None = Depends(require_secret)):
 
     filename, data = row[0], row[1]
     buffer = BytesIO(bytes(data))
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    headers = {"Content-Disposition": content_disposition_attachment(filename)}
     return StreamingResponse(buffer, media_type="application/octet-stream", headers=headers)
 
 
@@ -1988,7 +2016,7 @@ async def download_ack(job_id: str, ack_id: int, _: None = Depends(require_secre
     ack_type, content = row
     buffer = BytesIO((content or "").encode("utf-8"))
     filename = ack_download_filename(job_id, ack_type, ack_id)
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    headers = {"Content-Disposition": content_disposition_attachment(filename)}
     return StreamingResponse(buffer, media_type="text/plain", headers=headers)
 
 
@@ -2030,7 +2058,7 @@ async def download_ack_archive(job_id: str, _: None = Depends(require_secret)):
         raise HTTPException(status_code=404, detail="No acknowledgement content available")
 
     buffer.seek(0)
-    headers = {"Content-Disposition": f'attachment; filename="{job_id}_acks.zip"'}
+    headers = {"Content-Disposition": content_disposition_attachment(f"{job_id}_acks.zip")}
     return StreamingResponse(buffer, media_type="application/zip", headers=headers)
 
 
