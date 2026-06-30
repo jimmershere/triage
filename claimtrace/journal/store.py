@@ -56,13 +56,16 @@ class JournalStore:
 
 class InMemoryJournalStore(JournalStore):
     def __init__(self, events: Iterable[ClaimEvent] | None = None) -> None:
-        self._events = sorted(list(events or []), key=lambda event: event.ts)
+        # Tie-break equal timestamps by event_id to match the Postgres store's
+        # ORDER BY ts ASC, event_id ASC — otherwise journal replay / Merkle root
+        # over the timeline can differ between the in-memory and DB backends.
+        self._events = sorted(list(events or []), key=lambda event: (event.ts, str(event.event_id)))
 
     def append_event(self, event: ClaimEvent) -> None:
         if any(existing.event_id == event.event_id for existing in self._events):
             raise ValueError(f"duplicate event_id {event.event_id}")
         self._events.append(event)
-        self._events.sort(key=lambda item: item.ts)
+        self._events.sort(key=lambda item: (item.ts, str(item.event_id)))
 
     def events(self) -> list[ClaimEvent]:
         return list(self._events)

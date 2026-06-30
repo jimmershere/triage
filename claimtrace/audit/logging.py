@@ -122,9 +122,41 @@ def _scrub_value(value: Any) -> Any:
     return redact_text(str(value))
 
 
+# Field names that denote a direct PHI identifier. Pattern-based value redaction
+# cannot catch a plain patient name, an alphanumeric member id (e.g. MEMBER0001),
+# or an 8-digit DOB, so when the *key* says the value is one of these we hash it
+# (stable + non-reversible) regardless of its shape.
+_SENSITIVE_KEY_RE = re.compile(
+    r"ssn|social_security|date_of_birth|\bdob\b|birth_date|birthdate|"
+    r"first_name|last_name|full_name|patient_name|member|subscriber|"
+    r"beneficiary|patient|guarantor|mrn|medical_record|account_number|"
+    r"street|address|postal|zip",
+    re.IGNORECASE,
+)
+
+
+def _is_sensitive_key(key: str) -> bool:
+    return bool(_SENSITIVE_KEY_RE.search(key))
+
+
 def scrub_fields(fields: Mapping[str, Any]) -> dict[str, Any]:
-    """Recursively scrub a mapping of structured log fields for PHI safety."""
-    return {str(key): _scrub_value(val) for key, val in fields.items()}
+    """Recursively scrub a mapping of structured log fields for PHI safety.
+
+    Scalar values under a PHI-identifier key name are hashed; everything else
+    flows through pattern-based redaction (recursing into nested maps/lists).
+    """
+    out: dict[str, Any] = {}
+    for key, val in fields.items():
+        skey = str(key)
+        if (
+            _is_sensitive_key(skey)
+            and val is not None
+            and not isinstance(val, (bool, Mapping, list, tuple))
+        ):
+            out[skey] = hash_identifier(val)
+        else:
+            out[skey] = _scrub_value(val)
+    return out
 
 
 class StructuredFormatter(logging.Formatter):
