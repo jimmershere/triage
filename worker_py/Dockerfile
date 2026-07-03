@@ -8,6 +8,11 @@ COPY pyx12_maps ./pyx12_maps
 COPY validation ./validation
 COPY scrubbing ./scrubbing
 COPY fhir ./fhir
+# Tier-2 routing (tier2_swarm.py) and worker.py's optional swarm dispatch import
+# `swarms`, which imports `sharding`. Without these the built image raises
+# ModuleNotFoundError the moment a file is routed to Tier 2.
+COPY swarms ./swarms
+COPY sharding ./sharding
 COPY tools_x12_cms_harness.py .
 COPY file_profiler.py .
 COPY complexity_scorer.py .

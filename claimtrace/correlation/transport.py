@@ -59,7 +59,14 @@ def from_headers(headers: Mapping[str, str]) -> TraceContext:
             values[field] = value
     raw_correlation = lower.get("x-correlation-ids")
     if raw_correlation:
-        values["correlation_ids"] = json.loads(raw_correlation)
+        # Peer-controlled header: a malformed value must not crash inbound
+        # correlation resolution. Accept only a JSON object; ignore anything else.
+        try:
+            parsed = json.loads(raw_correlation)
+        except (ValueError, TypeError):
+            parsed = None
+        if isinstance(parsed, dict):
+            values["correlation_ids"] = parsed
     return TraceContext(**values)
 
 

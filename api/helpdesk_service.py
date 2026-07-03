@@ -413,9 +413,20 @@ def _set_status(
     detail: Optional[dict[str, Any]] = None,
     resubmission_claim_id: Optional[str] = None,
 ) -> dict[str, Any]:
-    from_status = case["status"]
-    validate_transition(from_status, target)
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Lock the case row and validate the transition against its authoritative
+        # current status, not the (possibly stale) status read by the caller.
+        # Without this, two concurrent transitions can both validate from the same
+        # from_status and apply conflicting state-machine moves.
+        cur.execute(
+            "SELECT status FROM helpdesk_case WHERE case_id = %s FOR UPDATE",
+            (case["case_id"],),
+        )
+        locked = cur.fetchone()
+        if locked is None:
+            raise CaseStatusError(f"case {case['case_id']} not found")
+        from_status = locked["status"]
+        validate_transition(from_status, target)
         cur.execute(
             """
             UPDATE helpdesk_case

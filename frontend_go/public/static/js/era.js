@@ -105,7 +105,7 @@
     const status = $("eraActionStatus");
     try {
       if (kind === "redeliver") {
-        const r = await request(`/artifacts/${encodeURIComponent(selected)}/redeliver`);
+        const r = await request(`/artifacts/${encodeURIComponent(selected)}/redeliver`, { method: "POST", body: "{}" });
         $("eraOutput").textContent = r.raw_835_text || "";
         setStatus(status, `Re-delivered byte-for-byte (TRN ${r.trn}).`, "success");
       } else if (kind === "reconstruct") {

@@ -39,7 +39,16 @@ def detect_delimiters(text: str) -> Delimiters:
     """
     if not text.startswith("ISA"):
         return Delimiters()
+    if len(text) < 4:
+        # Truncated to just "ISA" — too short to read the element separator at
+        # offset 3 without an IndexError. Fail gracefully.
+        return Delimiters()
     element = text[3]
+    # Component (ISA16) and repetition (ISA11) live at fixed offsets; derive them
+    # when present so a recovered/non-standard segment terminator doesn't also
+    # discard the real sub-element and repetition separators.
+    component = text[104] if len(text) > 104 else ":"
+    repetition = text[82] if len(text) > 82 else "^"
     if len(text) >= ISA_LEN:
         seg_term = text[105]
         if (
@@ -49,13 +58,15 @@ def detect_delimiters(text: str) -> Delimiters:
         ):
             return Delimiters(
                 element=element,
-                component=text[104],
-                repetition=text[82],
+                component=component,
+                repetition=repetition,
                 segment=seg_term,
             )
     recovered = _scan_terminator(text, element)
     if recovered is not None:
-        return Delimiters(element=element, component=":", repetition="^", segment=recovered)
+        return Delimiters(
+            element=element, component=component, repetition=repetition, segment=recovered
+        )
     return Delimiters(element=element)
 
 

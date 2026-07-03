@@ -9,7 +9,47 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"triage/frontend_go/rbac"
 )
+
+func TestSecretInjectingProxyRoutesRequireAuth(t *testing.T) {
+	originalSharedSecret := sharedSecret
+	sharedSecret = "backend-only-secret"
+	defer func() { sharedSecret = originalSharedSecret }()
+
+	backendHit := false
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendHit = true
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer backend.Close()
+
+	targetURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatalf("parse backend URL: %v", err)
+	}
+	// Exactly how main.go now wires /ops, /partners, /era, /helpdesk, /turbo.
+	handler := rbac.RequireSubmitterForWrite(apiProxyHandler(httputil.NewSingleHostReverseProxy(targetURL)))
+
+	cases := []struct{ method, path string }{
+		{http.MethodGet, "http://frontend.local/ops/summary"},
+		{http.MethodGet, "http://frontend.local/partners"},
+		{http.MethodPost, "http://frontend.local/partners"},
+		{http.MethodGet, "http://frontend.local/era"},
+	}
+	for _, c := range cases {
+		req := httptest.NewRequest(c.method, c.path, nil)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("%s %s: expected 403 for unauthenticated request, got %d", c.method, c.path, rr.Code)
+		}
+	}
+	if backendHit {
+		t.Fatal("unauthenticated request reached the backend through the secret-injecting proxy")
+	}
+}
 
 func TestConfigHandlerDoesNotExposeSharedSecret(t *testing.T) {
 	originalProxy := apiProxyEnabled

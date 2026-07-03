@@ -727,20 +727,29 @@ func main() {
 		// the same RequireSubmitterForWrite + portal guard as the other routes.
 		mux.Handle("/mapping/advisor", handler)
 		mux.Handle("/mapping/advisor/", handler)
-		protectedProxy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Ops dashboards, partner config, and the ERA/helpdesk/turbo APIs are only
+		// reachable through this secret-injecting proxy. Because the injected
+		// X-TRIAGE-SECRET satisfies the backend's require_secret for ANY caller,
+		// backend-side auth is a no-op for proxied calls — so these MUST be gated
+		// here, exactly like /ingest and /jobs above (viewer for reads, submitter
+		// for writes), or they are open to unauthenticated browsers.
+		mux.Handle("/ops/", handler)
+		mux.Handle("/ops/summary", handler)
+		mux.Handle("/ops/command-center", handler)
+		mux.Handle("/partners", handler)
+		mux.Handle("/partners/", handler)
+		// Previously unproxied: era.html / helpdesk.html / turbo_validate.html
+		// called these same-origin paths and fell through to the static handler
+		// (404), so those pages were non-functional in proxy mode.
+		mux.Handle("/era", handler)
+		mux.Handle("/era/", handler)
+		mux.Handle("/helpdesk", handler)
+		mux.Handle("/helpdesk/", handler)
+		mux.Handle("/turbo/", handler)
+		// WebSocket proxy for real-time updates — gated (viewer required) before
+		// the secret is injected and the connection is upgraded.
+		mux.Handle("/ws/", rbac.RequireSubmitterForWrite(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Header.Del("Cookie")
-			if sharedSecret != "" {
-				r.Header.Set("X-TRIAGE-SECRET", sharedSecret)
-			}
-			proxy.ServeHTTP(w, r)
-		})
-		mux.Handle("/ops/", protectedProxy)
-		mux.Handle("/ops/summary", protectedProxy)
-		mux.Handle("/ops/command-center", protectedProxy)
-		mux.Handle("/partners", protectedProxy)
-		mux.Handle("/partners/", protectedProxy)
-		// WebSocket proxy for real-time updates
-		mux.HandleFunc("/ws/", func(w http.ResponseWriter, r *http.Request) {
 			wsTarget := *apiProxyTarget
 			if wsTarget.Scheme == "http" {
 				wsTarget.Scheme = "ws"
@@ -756,7 +765,7 @@ func main() {
 				r.Header.Set("X-TRIAGE-SECRET", sharedSecret)
 			}
 			wsProxy.ServeHTTP(w, r)
-		})
+		})))
 		apiProxyEnabled = true
 	}
 
@@ -810,7 +819,18 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self';")
+		// default-src 'self' bounds the policy; 'unsafe-inline' is retained for
+		// script/style because several pages ship inline <script>/style= and
+		// removing them is a separate refactor. img allows the Unsplash hero
+		// images; connect allows the same-origin /ws realtime feed.
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; "+
+				"script-src 'self' 'unsafe-inline'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"img-src 'self' data: https:; "+
+				"font-src 'self' data:; "+
+				"connect-src 'self' ws: wss:; "+
+				"frame-ancestors 'none'; object-src 'none'; base-uri 'self';")
 		next.ServeHTTP(w, r)
 	})
 }

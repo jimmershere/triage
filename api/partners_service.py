@@ -348,7 +348,10 @@ def list_partners(conn) -> list[dict[str, Any]]:
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("SELECT external_id FROM partner ORDER BY external_id")
         ids = [r["external_id"] for r in cur.fetchall()]
-    return [get_partner(conn, ext) for ext in ids]
+    # Drop any partner deleted between listing the ids and fetching its detail —
+    # get_partner returns None in that window, which would otherwise leave a
+    # null hole in the response array.
+    return [p for p in (get_partner(conn, ext) for ext in ids) if p is not None]
 
 
 def delete_partner(conn, external_id: str) -> bool:

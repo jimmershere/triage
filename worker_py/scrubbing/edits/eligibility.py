@@ -27,8 +27,14 @@ def _covered(spans: list[dict], dos: str) -> bool:
     for span in spans:
         start = parse_x12_date(span.get("start"))
         end = parse_x12_date(span.get("end"))
-        if start and end and start <= dos_date <= end:
-            return True
+        # An open-ended span (missing/blank end date — common in active 271
+        # coverage) must still count as covered; the old `start and end` guard
+        # treated it as not-covered and produced false ELIG.NOT_ELIGIBLE denials.
+        if start is None or dos_date < start:
+            continue
+        if end is not None and dos_date > end:
+            continue
+        return True
     return False
 
 

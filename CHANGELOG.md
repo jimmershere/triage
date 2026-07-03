@@ -23,7 +23,7 @@ human index.
 
 ### Changed
 - `api/requirements.txt` and `worker_py/requirements.txt`:
-  `python-dotenv` → `1.2.2`, `python-multipart` → `0.0.27`,
+  `python-dotenv` → `1.2.2`, `python-multipart` → `0.0.31`,
   `fastapi` → `0.118.2`, explicit `starlette==0.47.2` pin.
 - `frontend_go/go.mod` and `rbac_proxy/go.mod`: toolchain pinned to
   `go1.25.11` (was `go1.23.0`).

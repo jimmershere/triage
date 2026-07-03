@@ -110,7 +110,10 @@ def store(body: StoreRequest) -> dict[str, Any]:
     return _with_db(run)
 
 
-@router.get("/artifacts/{artifact_id}/redeliver")
+# POST, not GET: redeliver appends an append-only RE_DELIVER_835 Claimtrace
+# event and commits. A GET would be replayed by browser prefetch / proxy retry
+# and pollute the audit trail with spurious re-delivery events.
+@router.post("/artifacts/{artifact_id}/redeliver")
 def redeliver(artifact_id: str, actor: Optional[str] = None) -> dict[str, Any]:
     def run(conn):
         result = era_service.redeliver(conn, artifact_id, actor=actor)

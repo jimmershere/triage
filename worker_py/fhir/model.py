@@ -7,7 +7,7 @@ JSON anyway.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Iterable
 
 # --- canonical code systems used by HIPAA <-> FHIR ----------------------
@@ -152,7 +152,7 @@ def quantity(value: str | float | None, *, unit: str | None = None) -> dict[str,
 
 
 def now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None).isoformat() + "Z"
 
 
 def gender_from_x12(value: str | None) -> str | None:
